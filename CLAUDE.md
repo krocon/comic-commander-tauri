@@ -1,0 +1,206 @@
+# CLAUDE.md – Comic Commander (Tauri)
+
+> Leitfaden für Claude (und Menschen) zur Arbeit an **Comic Commander**: einem Comic-Browser für macOS, Windows und
+> Linux, der eine Comic-Sammlung (CBZ, CBR, CB7, CBT, PDF) als **Raster aus Cover-Thumbnails** zeigt und die Bücher in
+> einem eingebauten Leser öffnet.
+> Autor: Marc Kronberg · Repo: https://github.com/krocon/comic-commander-tauri · MIT
+>
+> Neuauflage des Comic-Servers **comiccommander** (Angular 22 + NestJS, lokal `~/WebstormProjects/comiccommander`)
+> als **Desktop-App**: Tauri 2 + Angular 22 (zoneless, Signals) + Rust. Architektur wie
+> **files-and-folders-tauri** (`~/WebstormProjects/files-and-folders-tauri`, gleicher Autor, MIT). Das Cover-Raster ist
+> eine **GuiExpert Table** im Cover-Grid-Modus (`@guiexpert/table`, Mono-Repo `guiexperttable/mono`, gleicher Autor).
+
+---
+
+## 1. Stand
+
+- **Prompt 001 (Grundgerüst, Walking Skeleton) ist fertig:** Ordnerfeld → Command `scan_library` (rekursiver Scan in
+  Rust) → einfache Liste der Bücher. Fassaden, Fakes, Fehler-Mapping, `pnpm check`, Debug-Build, App-Icon.
+- Als Nächstes: Prompt **002** (Bibliotheken + Scan-Cache), dann 003 (Cover) → 004 (Cover-Grid) → 005 (Leser).
+  Reihenfolge und Status: `prompts/README.md`.
+- **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
+  (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
+  begründet.
+- Weiterentwicklung über **Feature-Prompts** in `prompts/` (gemeinsame Regeln: `prompts/000-arbeitsweise.md`);
+  erledigte Prompts samt Design-Dokument liegen in `prompts/done/`. Kürzel wie „003 E4“ im Code verweisen auf
+  Entscheidungen in den Design-Dokumenten.
+
+## 2. Befehle (Root, pnpm 10 via `packageManager`, Node ≥ 22.22.3, Rust stable ≥ 1.93)
+
+| Zweck | Befehl |
+|---|---|
+| Install | `pnpm install` |
+| App starten (Dev) | `pnpm tauri dev` (Angular-Dev-Server auf **Port 1430** + Fenster) |
+| Nur Frontend im Browser | `pnpm start` (kein Backend → Hinweis „desktop backend is not available“) |
+| Frontend-Tests | `pnpm test` (Vitest + jsdom über `ng test`), `pnpm test:watch` |
+| Lint / Format | `pnpm lint`, `pnpm format`, `pnpm format:check` |
+| Frontend-Build | `pnpm build` |
+| Rust | `pnpm rust:fmt`, `pnpm rust:lint` (clippy `-D warnings`), `pnpm rust:test` |
+| Alles prüfen | `pnpm check` |
+| Debug-App ohne Bundle | `pnpm tauri build --debug --no-bundle` → `src-tauri/target/debug/comic-commander-tauri` |
+| Icons neu erzeugen | `pnpm tauri icon src-tauri/icons/source/app-icon.svg -o src-tauri/icons` (danach `android/`, `ios/` löschen) |
+| Release-Build | `pnpm tauri build` (Signierung/Notarisierung: Prompt 012) |
+
+Nicht ausführbare Checks im Abschlussbericht mit Grund nennen. `pnpm tauri dev` braucht ein Fenster – in einer
+Container-Sitzung ohne Display: Debug-Build und die Binary unter `Xvfb` starten (Screenshot mit
+`import -window root`, Tasten mit `xdotool`), s. §9.
+
+## 3. Layout
+
+```
+src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
+  main.ts, index.html
+  styles.css                  Design-Tokens light/dark (einzige Stelle für Farben/Größen), .btn/.input
+  app/app.ts, app.config.ts   Root-Komponente; Bindung Fassade → Tauri-Implementierung
+  app/core/backend/call.ts    einzige Stelle mit invoke() (+ isTauri-Prüfung, Fehler → FsError)
+  app/core/errors/            FsError, toFsError, describeFsError (Codes = Rust error.rs)
+  app/core/library/           DTOs (library.models.ts = Rust model.rs), LibraryApi + TauriLibraryApi
+  app/core/about/             AppInfo, AboutApi
+  app/features/library/       LibraryStore (je Ansicht), LibraryView (Skelett-Liste → Cover-Grid in 004), Texte
+  testing/                    Fakes (FakeLibraryApi), Fixtures – nie im Produktivcode importieren
+public/                       favicon.png
+src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib `cc_lib`
+  src/lib.rs                  Modulübersicht, Builder, Command-Registrierung
+  src/commands.rs             dünne Command-Schicht (validieren, spawn_blocking), Test command_rules
+  src/library.rs              Scan (rein, std): Endungen, natürliche Sortierung, Limits, Tests mit tempfile
+  src/paths.rs                Eingabepfade prüfen (~, absolut, NUL, Länge), rel_display
+  src/model.rs, error.rs      DTOs (serde camelCase), FsError { code, message, path }
+  src/about.rs                AppInfo (Version aus tauri.conf.json → package.json)
+  capabilities/default.json   nur core:default
+  icons/source/app-icon.svg   Quelle des App-Icons
+docs/                         architecture.md (Entscheidungen, DTOs, Commands, Abhängigkeiten),
+                              legacy-analysis.md (Vorlage comiccommander)
+prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbeitsweise.md), done/
+```
+
+## 4. Architekturregeln (verbindlich)
+
+- **Frontend ruft das Backend nur über typisierte Fassaden** (`LibraryApi`, `AboutApi` und künftige `*Api` in
+  `app/core/`); `invoke()` steht nur in `core/backend/call.ts`. Komponenten und Stores rufen nie `invoke()`. Tests
+  ersetzen die Fassade (`FakeLibraryApi`).
+- **DTO-Vertrag**: Rust `model.rs` ↔ TS `*.models.ts` von Hand synchron; jede Änderung auf beiden Seiten + Test.
+  Fehler immer als `FsError { code: snake_case, message, path }`; neue Codes in `error.rs`, `fs-error.ts` und
+  `describeFsError()`. Im UI nie Rusts `message` zeigen.
+- **Pfade sind opake Strings** aus dem Backend. Kein Split/Join mit `/` oder `\` im Frontend; Eltern, Segmente,
+  Zielpfade rechnet Rust (`std::path`). `relPath` ist nur Anzeige/Filter/Sortierung. Kein `canonicalize` für
+  Navigation.
+- **Zustand**: Signals; Stores je Ansicht `@Injectable()` ohne `providedIn: 'root'` im Komponenten-Provider;
+  Globales (Einstellungen, Jobs, Bibliotheken) in Root-Services. `OnPush` überall, kein zone.js.
+- **Veraltete Antworten verwerfen** (Request-Sequenz wie in `LibraryStore.load`) – bei Scan, Cover, Seiten.
+- **Commands nie synchron**: `async fn` + `spawn_blocking` für blockierende I/O; der Test
+  `commands::command_rules` prüft das. Logik in reinen Modulen ohne Tauri, Command-Schicht dünn.
+- **Lange Operationen sind Jobs** (ab Prompt 007): Fortschritt über `tauri::ipc::Channel`, Abbruch-Token, nie auf dem
+  Async-Runtime-Thread blockieren.
+- **Bilder** (Cover, Seiten) kommen über ein eigenes **asynchrones URI-Schema** mit Tokens (ab 003), nie als
+  Base64 über `invoke`, nie über einen HTTP-Server. Parallelität begrenzen (Semaphor, sonst 503).
+- **Fremde Dateien sind feindlich**: Archive und Bilder aus der Sammlung werden mit Grenzen gelesen (Einträge,
+  Größen, Kompressionsrate, Pixel), fail-closed, Decoder in `catch_unwind`. Kein Entpacken ins Dateisystem außer in
+  den App-Cache, Namen werden geprüft (Zip-Slip). Vorlage: files-and-folders `archive/`, `duplicates/images.rs`.
+- **Nichts in die Comic-Ordner schreiben**, außer der Nutzer schaltet es ausdrücklich ein (legacy §10.2): Caches und
+  Thumbnails liegen im App-Cache (`app_cache_dir`), Einstellungen im App-Config-Ordner (`app_config_dir`).
+- **Sicherheit**: keine Tauri-Plugins mit breitem Dateisystem- oder Shell-Zugriff; kein Shell-Aufruf, keine externen
+  Programme (`unar`/`7z` der Vorlage werden durch Rust-Crates ersetzt). CSP strikt (`style-src 'unsafe-inline'`
+  wegen Angulars Laufzeit-Styles). Keine Dateiinhalte oder vollständigen Nutzerpfade unnötig loggen.
+- **Destruktives** (Löschen von Duplikaten, Cache leeren) wird im Rust-Backend validiert und getestet; Standard beim
+  Löschen ist der Papierkorb.
+- **Plattformcode** hinter `cfg`-Funktionen bzw. einem Modul `platform/` mit gleicher Signatur je OS.
+- **Neue Abhängigkeiten** (npm oder crates) nur mit kurzer Begründung in `docs/architecture.md` („Abhängigkeiten“).
+  Keine UI-Frameworks (Material o. ä.); Styling mit CSS (natives Nesting) + Tokens aus `src/styles.css` – kein SCSS.
+- **Texte** nur aus Katalogen (`*-texts.ts`, Englisch = Quelle; Deutsch + Umschalten zur Laufzeit in Prompt 009).
+- **Barrierefreiheit**: sichtbarer Fokus, alles per Tastatur, Dialoge mit `role="dialog"`/`aria-modal` und
+  Fokusfalle, Live-Region für Statusmeldungen, Kontraste in light und dark.
+
+## 5. GuiExpert Table als Cover-Grid (ab Prompt 004)
+
+- Pakete: `@guiexpert/table` 1.1.102 + `@guiexpert/angular-table` 22.1.102 (**gleiche Major wie Angular**). Wir
+  nutzen die signal-native **`TableSignalComponent`** (`guiexpert-table-signal`): Signal-Inputs `tableModel`,
+  `tableOptions`, `loading`, API per **`[(tableApi)]="api"`** mit `api = signal<TableApi | undefined>(undefined)`,
+  verdrahtet in einem `effect()` – **kein `tableReady`**. Die klassische `TableComponent` nicht verwenden.
+- Cover-Grid: `CoverGridFactory.createCoverGridModel(items, cellRenderer, coverWidth, coverHeight, width,
+  firstRowPaddingTop)` → `CoverGridTableModel<T>`; Breite ändern: `setParentWidth(w)` + `recalcHeightAndPadding()` +
+  `tableApi.repaintHard()`; Cover-Größe: `bodyModel.coverWidth/coverHeight` + `recalcHeightAndPadding()`; Filter:
+  `externalFilterFunction` + `tableApi.externalFilterChanged()`. Vorlage: legacy §6 (`cc-overview.component.ts`).
+- Renderer ohne Angular (`CellRendererIf`) sind schneller als Angular-Komponenten; Dateinamen nie unescaped in
+  `innerHTML` (Nutzerdaten!). Host braucht eine feste Höhe (Flex-Kind mit `min-height: 0`).
+- **Referenz für jede API-Aussage**: das Mono-Repo (lokal `~/WebstormProjects/video/2026/guiexpert-table/mono`, sonst
+  https://github.com/guiexperttable/mono: `CLAUDE.md`, `packages/angular-table/instructions.md`,
+  `packages/table/src/lib/table/…`) bzw. die `.d.ts` in `node_modules/@guiexpert/table`. Namen nicht raten.
+- Erfahrungen mit der Table aus files-and-folders (Workarounds G1–G14): dort
+  `prompts/done/001-guiexpert-dateiliste.design.md`.
+- **Lücken in der Table** nicht hier umgehen, wenn es sauber nur im Core geht: im Mono-Repo nach dessen Regeln lösen
+  oder in `mono/TODO.md` vorschlagen und hier mit `// TODO(guiexpert): …` markieren.
+
+## 6. Tests & Verifikation
+
+- **Rust**: Unit-Tests neben dem Code (`#[cfg(test)]`), Dateisystem mit `tempfile`; Unicode, Leerzeichen, Emoji,
+  Symlinks, fehlende Rechte (als root greifen Rechte nicht – bedingt testen), nicht-UTF-8 (Linux). Für Archive und
+  Bilder: kleine Testdateien unter `src-tauri/testdata/` (+ Generator), auch kaputte und feindliche (Bomben, Zip-Slip).
+- **Angular**: Vitest (`*.spec.ts` neben dem Code), Store-Tests mit Fakes, Komponenten-Tests für Zustände (Laden,
+  leer, Fehler, Tastatur). Die GuiExpert Table rendert in jsdom nur eingeschränkt: Logik in Stores/Adaptern testen,
+  Grid-Verhalten im echten Fenster prüfen.
+- **Ende-zu-Ende**: echte App starten und die Akzeptanzkriterien des Prompts durchklicken; Screenshots beschreiben.
+  Testsammlung mit Umlauten, Emoji, verschachtelten Ordnern, kaputten Archiven, CBR, das eigentlich ZIP ist, PDF.
+- Jeder Bugfix bekommt zuerst einen roten Test.
+
+## 7. Git & Zusammenarbeit
+
+- Pro Prompt ein Branch `feat/<slug>` von `main`. Commits nach jeder grünen Phase (Conventional Commits: `feat:`,
+  `fix:`, `docs:`, `test:`, `chore:`), immer mit grünem `pnpm check` bzw. begründeter Ausnahme.
+- **Pushen ist erlaubt** (Marc, 22.10.2026). Kein Force-Push, kein `git reset --hard`, keine Releases ohne
+  ausdrückliche Anweisung. Fremde Änderungen nie verwerfen.
+- README, `docs/architecture.md`, `prompts/README.md` (Status) bei relevanten Änderungen mitpflegen.
+
+## 8. Lizenzen & Referenzen
+
+- Eigene Lizenz: **MIT** (`LICENSE`, `license` in `package.json`, `Cargo.toml`, `bundle.license` in
+  `tauri.conf.json`).
+- **files-and-folders-tauri** (MIT, gleicher Autor): Code **darf übernommen werden** – mit Herkunftsvermerk im
+  Modulkopf (`//! Übernommen aus files-and-folders-tauri <datei> (Design NNN)`) und den zugehörigen Tests.
+  Besonders passend:
+  - `src-tauri/src/archive/` (ZIP/TAR/7z/RAR-Index mit Grenzen, `sanitize`/Zip-Slip, RAR über `unrar-ng-sys` als
+    einziges FFI, Passwörter nur im Speicher), `archive/view.rs` (App-Cache),
+  - `duplicates/comic.rs` (Seiten eines Comics, `natural_cmp`, Titelseite), `duplicates/images.rs` (Decoder mit
+    Limits, Semaphor), `duplicates/thumbs.rs` (JPEG-Thumbnails im Speicher, Token), `duplicates/phash.rs`,
+  - `preview/` (asynchrones URI-Schema `fnfpreview` mit Tokens, `register_asynchronous_uri_scheme_protocol` in
+    `lib.rs`), `jobs/` (Engine: Warteschlange, Fortschritt, Abbruch), `opener.rs`, `platform/desktop.rs`,
+    `fs_atomic.rs`, `settings.rs`, `core/i18n/`, `core/theme/`.
+  Nur übernehmen, was der Prompt braucht – kein Ballast (kein Dual-Pane, keine Dateioperationen).
+- **comiccommander** (Marc): fachliche Vorlage für Verhalten, Konfiguration und UI (`docs/legacy-analysis.md`); der
+  Code (NestJS/Material) passt nicht und wird nicht übernommen.
+- GuiExpert Table: MIT.
+- Externe Formate: RAR über die UnRAR-Quellen (unRAR-Lizenz: Entpacken erlaubt, kein RAR-Erzeugen) – in Prompt 012
+  in `docs/licenses.md` dokumentieren.
+
+## 9. Arbeitsumgebung für Claude (Remote-Sitzung) – zuerst lesen, spart Zeit
+
+**Wo was läuft**
+- Das Repo liegt auf Marcs Mac (`~/WebstormProjects/comic-commander-tauri`). Die Geräte-Shell (`device_bash`) ist eine
+  Linux-VM ohne pnpm/cargo – dort keine Checks, nur `git` und Lesen. Die Vorlagen liegen daneben
+  (`~/WebstormProjects/comiccommander`, `~/WebstormProjects/files-and-folders-tauri`) – per `device_bash` lesen.
+- `git` auf dem Gerät braucht **Löschrechte** (Lock-Dateien): einmal je Sitzung `device_request_delete_permission`
+  für den Repo-Ordner. Dort gibt es keine Git-Identität: Commits mit
+  `git -c "user.name=Marc Kronberg" -c user.email=krocon@gmail.com …`.
+- Gebaut und getestet wird in der **Cloud-Umgebung** (Klon des Repos über `add_repo`).
+
+**Container einrichten (einmal je Sitzung, im Hintergrund starten und währenddessen lesen)**
+- `apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xdotool imagemagick`
+  (Xvfb ist da), `pnpm install`, `cd src-tauri && CARGO_INCREMENTAL=0 cargo build --tests` (~4 min beim ersten Mal).
+- Node im Container ist zu alt für die Angular-CLI (22.22.0 < 22.22.3): `npm pack node-linux-x64@22.23.3` (npm-Registry
+  ist erreichbar, nodejs.org nicht) in den Scratch-Ordner entpacken und dessen `package/bin` vorn in den `PATH`
+  stellen (die System-Binary nicht überschreiben).
+
+**Übergabe auf den Mac**
+- Pushen aus dem Container kann scheitern (GitHub-App ohne Schreibrecht für das Repo, Stand 22.10.2026). Dann:
+  Container `git bundle create /mnt/user-data/outputs/<slug>.bundle <basis>..<branch>` (beim ersten Mal `--all`) →
+  `device_commit_files` nach `.tmp-bundle/<slug>.bundle` → Gerät: `git pull --ff-only .tmp-bundle/<slug>.bundle <branch>`
+  → Push vom Mac (Marc: `git push`). `.tmp-bundle/` ist in `.gitignore`.
+
+**Ende-zu-Ende im Container**
+- `pnpm tauri build --debug --no-bundle`, dann `Xvfb :99 &`, `DISPLAY=:99 src-tauri/target/debug/comic-commander-tauri &`,
+  Screenshot `DISPLAY=:99 import -window root shot.png`. `GTK_THEME=Adwaita:dark` schaltet `prefers-color-scheme: dark`.
+  `xdotool click` geht im WebKitGTK-Fenster manchmal verloren – `mousedown`, kurz warten, `mouseup`; `xdotool type`
+  kann keine Mehrbyte-Zeichen – solche Namen per Datei anlegen.
+- Platte ist knapp: `export CARGO_INCREMENTAL=0`, `df -h /` im Blick, `target/release` nach Messungen löschen.
+
+**Sparsam lesen** – Einstieg: `docs/architecture.md` (Entscheidungen, Commands), dann der Prompt und das Design-Dokument
+des Vorgängers. Aus `docs/legacy-analysis.md` nur die im Prompt genannten Abschnitte.
