@@ -1,0 +1,30 @@
+# Compiled output
+/dist
+/tmp
+/out-tsc
+
+# Node
+/node_modules
+npm-debug.log
+
+# Rust / Tauri
+/src-tauri/target
+/src-tauri/gen
+
+# IDEs and editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.history/*
+
+# Miscellaneous
+/.angular/cache
+/coverage
+__screenshots__/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Claude: bundles handed over from a remote session (CLAUDE.md §9)
+/.tmp-bundle

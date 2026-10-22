@@ -1,0 +1,55 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Comic Commander",
+  "version": "../package.json",
+  "identifier": "io.github.krocon.comiccommander",
+  "build": {
+    "frontendDist": "../dist/comic-commander-tauri/browser",
+    "devUrl": "http://localhost:1430",
+    "beforeDevCommand": "pnpm start",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Comic Commander",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 480,
+        "minHeight": 360,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "devCsp": null,
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "targets": ["deb", "rpm", "appimage", "dmg", "app", "msi", "nsis"],
+    "publisher": "Marc Kronberg",
+    "copyright": "© 2026 Marc Kronberg",
+    "homepage": "https://github.com/krocon/comic-commander-tauri",
+    "category": "Graphics",
+    "shortDescription": "Comic browser with cover thumbnails",
+    "longDescription": "Comic Commander shows your comic library (CBZ, CBR, CB7, CBT, PDF) as a grid of cover thumbnails and opens the books in a built-in reader – for macOS, Windows and Linux.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "signingIdentity": null
+    }
+  }
+}
