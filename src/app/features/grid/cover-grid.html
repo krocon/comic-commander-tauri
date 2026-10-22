@@ -1,0 +1,19 @@
+<guiexpert-table-signal
+  class="table"
+  [tableModel]="model"
+  [tableOptions]="options"
+  [(tableApi)]="api"
+  (mouseClicked)="onClick($event)"
+  (contextMenu)="onContextMenu($event)"
+  (scroll)="onScroll($event)"
+/>
+@if (menu(); as m) {
+  <app-book-menu
+    [book]="m.book"
+    [x]="m.x"
+    [y]="m.y"
+    (chosen)="onAction($event)"
+    (closed)="closeMenu()"
+  />
+}
+<div class="visually-hidden" aria-live="polite">{{ announcement() }}</div>

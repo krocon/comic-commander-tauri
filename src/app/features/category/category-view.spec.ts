@@ -8,8 +8,11 @@ import { FakeCoversApi } from '../../../testing/fake-covers-api';
 import { books, category, config, stats } from '../../../testing/fixtures';
 import { CategoriesStore } from '../categories/categories.store';
 import { DialogService } from '../../shared/dialog/dialog.service';
-import { COVER_RETRIES, COVER_RETRY_MS, CategoryView, MAX_LIST_ROWS } from './category-view';
+import { CategoryView } from './category-view';
 import { Provider } from '@angular/core';
+import { BooksApi } from '../../core/books/books-api';
+import { FakeBooksApi } from '../../../testing/fake-books-api';
+import { FILTER_DEBOUNCE_MS, GridStore, VIEW_STATE_STORE } from '../grid/grid.store';
 
 const flush = () => new Promise((r) => setTimeout(r));
 
@@ -20,6 +23,9 @@ async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provi
       { provide: CategoriesApi, useClass: FakeCategoriesApi },
       { provide: ScanApi, useClass: FakeScanApi },
       { provide: CoversApi, useClass: FakeCoversApi },
+      { provide: BooksApi, useClass: FakeBooksApi },
+      { provide: VIEW_STATE_STORE, useValue: null },
+      { provide: FILTER_DEBOUNCE_MS, useValue: 1 },
       ...providers,
     ],
   });
@@ -58,20 +64,20 @@ describe('CategoryView', () => {
   });
 
   it('opens the active category and shows cache, then the fresh state', async () => {
-    const { el, scan, update } = await render(twoCategories);
+    const { el, scan, update, fixture } = await render(twoCategories);
     expect(scan.opened.map((o) => o.id)).toEqual(['c1']);
     scan.last.emit({
       kind: 'cached',
       books: books('b.cbz', 'a.cbz'),
       scannedAt: Date.now(),
       stats: stats(),
+      complete: true,
     });
     scan.last.emit({ kind: 'started', firstScan: false });
     await update();
-    expect([...el.querySelectorAll('.book .name')].map((n) => n.textContent?.trim())).toEqual([
-      'a.cbz',
-      'b.cbz',
-    ]);
+    const grid = fixture.debugElement.injector.get(GridStore);
+    expect(grid.filtered().map((b) => b.relPath)).toEqual(['a.cbz', 'b.cbz']);
+    expect(el.querySelector('app-cover-grid')).not.toBeNull();
     expect(el.querySelector('[role=status]')?.textContent).toContain('refreshing');
     scan.last.emit({ kind: 'diff', added: [], removed: [], changed: [] });
     scan.last.emit({ kind: 'done', scannedAt: Date.now(), stats: stats({ skippedDirLinks: 2 }) });
@@ -104,11 +110,12 @@ describe('CategoryView', () => {
       books: books('a.cbz'),
       scannedAt: 1_700_000_000_000,
       stats: stats(),
+      complete: true,
     });
     scan.last.emit({ kind: 'failed', error: { code: 'not_found', message: 'x' }, cacheKept: true });
     await update();
     expect(el.querySelector('[role=status]')?.textContent).toContain('Folder not reachable');
-    expect(el.querySelectorAll('.book').length).toBe(1);
+    expect(el.querySelector('app-cover-grid')).not.toBeNull();
   });
 
   it('missing folder without cache: error text and „Edit category…“', async () => {
@@ -137,59 +144,67 @@ describe('CategoryView', () => {
     expect(scan.cancelled).toEqual(['c1']);
   });
 
-  it('shows the cover of each book, the format when it fails', async () => {
-    const { el, scan, update } = await render(twoCategories);
-    const list = books('a.cbz', 'b.pdf');
-    scan.last.emit({ kind: 'cached', books: list, scannedAt: 1, stats: stats() });
+  it('shows the grid with filter, sizes and order once there are books', async () => {
+    const { el, scan, update, fixture } = await render(twoCategories);
+    expect(el.querySelector('app-cover-grid')).toBeNull();
+    expect(el.querySelector('input[type="search"]')).toBeNull();
+    scan.last.emit({
+      kind: 'cached',
+      books: books('Bessy 1.cbz', 'Bessy 2.cbz', 'Hägar 1.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: true,
+    });
     await update();
-    const imgs = [...el.querySelectorAll('.book img')] as HTMLImageElement[];
-    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
-      new FakeCoversApi().coverUrl('c1', list[0], 0),
-      new FakeCoversApi().coverUrl('c1', list[1], 0),
+    expect(el.querySelector('app-cover-grid')).not.toBeNull();
+    expect(el.querySelector('.toolbar')!.classList.contains('floating')).toBe(true);
+    const input = el.querySelector('input[type="search"]') as HTMLInputElement;
+    input.value = 'bessy';
+    input.dispatchEvent(new Event('input'));
+    await new Promise((r) => setTimeout(r, 10));
+    await update();
+    expect(el.querySelector('.filter .count')!.textContent!.trim()).toBe('2 / 3');
+    input.value = 'nothing';
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await update();
+    expect(el.textContent).toContain('No book matches the filter.');
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await update();
+    expect(input.value).toBe('');
+    const selects = [...el.querySelectorAll('select')].map((s) =>
+      [...s.options].map((o) => o.textContent!.trim()),
+    );
+    expect(selects).toEqual([
+      ['200 × 300', '800 × 1200'],
+      ['Folder and name', 'File name', 'Newest first', 'Largest first'],
     ]);
-    expect(imgs[0].getAttribute('loading')).toBe('lazy');
-    imgs[1].dispatchEvent(new Event('error'));
-    await update();
-    expect(el.querySelectorAll('.book img').length).toBe(1);
-    expect(el.querySelectorAll('.book .cover')[1].textContent?.trim()).toBe('cbz');
+    const grid = fixture.debugElement.injector.get(GridStore);
+    expect(grid.dimIndex()).toBe(1);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '-', ctrlKey: true }));
+    expect(grid.dimIndex()).toBe(0);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', ctrlKey: true }));
+    expect(document.activeElement).toBe(input);
   });
 
-  it('asks again for a failed cover after a pause, then gives up (review 003 #4)', async () => {
-    const { el, scan, update } = await render(twoCategories, [
-      { provide: COVER_RETRY_MS, useValue: 40 },
-    ]);
-    const list = books('a.cbz');
-    scan.last.emit({ kind: 'cached', books: list, scannedAt: 1, stats: stats() });
+  it('puts keys typed in the grid into the filter', async () => {
+    const { el, scan, update, fixture } = await render(twoCategories);
+    scan.last.emit({
+      kind: 'cached',
+      books: books('a.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: true,
+    });
     await update();
-    const src = () => el.querySelector('.book img')?.getAttribute('src') ?? null;
-    const base = new FakeCoversApi().coverUrl('c1', list[0], 0);
-    expect(src()).toBe(base);
-    for (let n = 1; n <= COVER_RETRIES; n++) {
-      el.querySelector('.book img')?.dispatchEvent(new Event('error'));
-      await update();
-      expect(src()).toBeNull(); // the format while waiting
-      await new Promise((r) => setTimeout(r, 40 * n + 20));
-      await update();
-      expect(src()).toBe(`${base}&retry=${n}`);
-    }
-    el.querySelector('.book img')?.dispatchEvent(new Event('error'));
-    await new Promise((r) => setTimeout(r, 20));
+    const gridEl = el.querySelector('app-cover-grid') as HTMLElement;
+    gridEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
     await update();
-    expect(src()).toBeNull();
-    // a changed book (new URL) gets a fresh chance
-    const changed = { ...list[0], modifiedMs: 99 };
-    scan.last.emit({ kind: 'diff', added: [], removed: [], changed: [changed] });
-    await update();
-    expect(src()).toBe(new FakeCoversApi().coverUrl('c1', changed, 0));
-  });
-
-  it('renders at most MAX_LIST_ROWS rows', async () => {
-    const { el, scan, update } = await render(twoCategories);
-    const names = Array.from({ length: MAX_LIST_ROWS + 3 }, (_, i) => `b${i}.cbz`);
-    scan.last.emit({ kind: 'cached', books: books(...names), scannedAt: 1, stats: stats() });
-    await update();
-    expect(el.querySelectorAll('.book').length).toBe(MAX_LIST_ROWS);
-    expect(el.textContent).toContain('and 3 more');
+    const grid = fixture.debugElement.injector.get(GridStore);
+    expect(grid.filterText()).toBe('x');
+    expect(document.activeElement).toBe(el.querySelector('input[type="search"]'));
+    gridEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(grid.filterText()).toBe('');
   });
 
   it('Mod+R scans again, Mod+2 chooses the second category', async () => {

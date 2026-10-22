@@ -26,6 +26,7 @@ describe('CategoryStore', () => {
       books: books('b 10.cbz', 'b 2.cbz', 'gone.cbz'),
       scannedAt: 1,
       stats: stats(),
+      complete: true,
     });
     expect(rels(store)).toEqual(['b 2.cbz', 'b 10.cbz', 'gone.cbz']);
     expect(store.fromCache()).toBe(true);
@@ -78,7 +79,7 @@ describe('CategoryStore', () => {
     await store.open('c1');
     const old = api.last.emit;
     await store.open('c2');
-    old({ kind: 'cached', books: books('old.cbz'), scannedAt: 1, stats: stats() });
+    old({ kind: 'cached', books: books('old.cbz'), scannedAt: 1, stats: stats(), complete: true });
     expect(store.books()).toEqual([]);
     expect(store.categoryId()).toBe('c2');
   });
@@ -86,7 +87,13 @@ describe('CategoryStore', () => {
   it('a rescan of the same category keeps the list, another category clears it', async () => {
     const { store, api } = setup();
     await store.open('c1');
-    api.last.emit({ kind: 'cached', books: books('a.cbz'), scannedAt: 1, stats: stats() });
+    api.last.emit({
+      kind: 'cached',
+      books: books('a.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: true,
+    });
     await store.rescan();
     expect(rels(store)).toEqual(['a.cbz']);
     expect(api.opened.map((o) => o.id)).toEqual(['c1', 'c1']);
@@ -98,7 +105,7 @@ describe('CategoryStore', () => {
     const { store, api } = setup();
     await store.open('c1');
     const { emit } = api.last;
-    emit({ kind: 'cached', books: books('a.cbz'), scannedAt: 1, stats: stats() });
+    emit({ kind: 'cached', books: books('a.cbz'), scannedAt: 1, stats: stats(), complete: true });
     emit({ kind: 'started', firstScan: false });
     emit({ kind: 'failed', error: { code: 'not_found', message: 'x' }, cacheKept: true });
     expect(store.phase()).toBe('failed');
@@ -130,5 +137,35 @@ describe('CategoryStore', () => {
     await store.open(null);
     expect(store.phase()).toBe('idle');
     expect(api.opened).toEqual([]);
+  });
+
+  it('shows a cache sent in parts at once and sorts it when complete (design 004)', async () => {
+    const { store, api } = setup();
+    await store.open('c1');
+    const { emit } = api.last;
+    emit({
+      kind: 'cached',
+      books: books('c.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: false,
+    });
+    expect(rels(store)).toEqual(['c.cbz']);
+    expect(store.fromCache()).toBe(true);
+    emit({ kind: 'cachedMore', books: books('a.cbz'), complete: false });
+    expect(rels(store)).toEqual(['c.cbz', 'a.cbz']); // order of Rust until complete
+    emit({ kind: 'cachedMore', books: books('b.cbz'), complete: true });
+    expect(rels(store)).toEqual(['a.cbz', 'b.cbz', 'c.cbz']);
+    // a new open drops the parts of the old one
+    emit({ kind: 'cached', books: books('x.cbz'), scannedAt: 1, stats: stats(), complete: false });
+    await store.open('c2');
+    api.last.emit({
+      kind: 'cached',
+      books: books('y.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: true,
+    });
+    expect(rels(store)).toEqual(['y.cbz']);
   });
 });

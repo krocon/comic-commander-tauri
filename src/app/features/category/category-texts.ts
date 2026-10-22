@@ -36,8 +36,6 @@ export const CATEGORY_TEXTS = {
   unreadableDirs: (n: number) => count(n, 'folder', 'folders') + ' unreadable',
   truncated: 'Too many books – the list stops at 500,000.',
   noBooks: (exts: string[]) => `No books of the types ${exts.join(' ')} in this folder.`,
-  more: (n: number) =>
-    `… and ${n.toLocaleString('en')} more – the cover grid follows in prompt 004.`,
   firstStartTitle: 'No category yet',
   firstStartText:
     'A category is a folder with comics; it is scanned with all subfolders. You can add several.',

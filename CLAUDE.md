@@ -21,8 +21,10 @@
 - **Prompt 003 (Cover)** ist fertig: Bücher nach Inhalt lesen (ZIP/RAR/7z/TAR, Grenzen), Titelseite wählen, alte
   Sidecars lesen, Thumbnails im App-Cache, LIFO-Pool, URI-Schema `cccover`; die Liste zeigt kleine Cover. Design:
   `prompts/done/003-cover-thumbnails.design.md`.
-- Als Nächstes: **004** (Cover-Grid) → 005 (Leser). Reihenfolge und Status:
-  `prompts/README.md`.
+- **Prompt 004 (Cover-Grid)** ist fertig: GuiExpert Cover-Grid randlos mit schwebender Toolbar (Filter `+/-`,
+  Größe, Sortierung), eigener Cursor + Tastatur, Aktionsmenü (Standard-App, Finder, Serie filtern, Pfad kopieren),
+  Ansichtszustand je Kategorie, Scan-Ereignisse in Teilen. Design: `prompts/done/004-cover-grid.design.md`.
+- Als Nächstes: **005** (Leser). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -64,13 +66,20 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   app/core/scan/              DTOs (= Rust model.rs/scan_hub.rs: BookEntry, ScanStats, ScanEvent), ScanApi (Channel)
   app/core/about/             AppInfo, AboutApi
   app/core/covers/            CoversApi: Cover-URL (Schema cccover, `<cat>.<book>.<dim>?v=<mtime>`)
+  app/core/books/             BooksApi: Buch mit Standard-App öffnen / im Dateimanager zeigen (nur Ids)
   app/features/categories/    CategoriesStore (Root: Konfig, aktive Kategorie, Import), category-form.ts (rein: Listen
                               = Rust, Prüfung), Dialog „Manage categories“, ImportDialog, Texte
-  app/features/category/      CategoryStore (je Ansicht, ereignisgetrieben), CategoryView (Toolbar, Status, Liste →
-                              Cover-Grid in 004, Cover-Platzhalter, Erststart), CategoryMenu (Menü-Button nach APG), book-order.ts
-                              (Intl.Collator, NFC-Filterschlüssel), Texte
+  app/features/category/      CategoryStore (je Ansicht, ereignisgetrieben, Cache in Teilen), CategoryView (schwebende
+                              Toolbar: Menü, Filter, Größe, Sortierung; Status, Hinweise, Erststart), CategoryMenu
+                              (Menü-Button nach APG), book-order.ts (Intl.Collator, Sortierarten, NFC-Filterschlüssel)
+  app/features/grid/          Cover-Grid (004): GridStore (Filter, Sortierung, Größe, Cursor, Aktionen, Ansichtszustand),
+                              CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
+                              in styles.css), BookMenu, rein: filter-logic (+ .cases.json), series-filter, grid-math,
+                              view-state, cover-retries
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
-  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi), Fixtures – nie im Produktivcode importieren
+  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi), Fixtures – nie im
+                              Produktivcode importieren
+  test-setup.ts               Vitest-Setup (ResizeObserver für jsdom, fnf G11)
 public/                       favicon.png
 src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib `cc_lib`
   src/lib.rs                  Modulübersicht, Builder (Dialog-Plugin, AppState, Schema cccover), Commands
@@ -85,7 +94,9 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               FFI, fnf); Budget (Zeit/Abbruch), Grenzen; tests.rs mit Generatoren (cbz/cbt/cb7/cbr4)
   src/cover/                  choose (Titelseite), image (Decoder mit Limits, JPEG), sidecar (alte Thumbs lesen),
                               cache (App-Cache, 2 GiB), pool (LIFO), mod.rs (URL parsen, CoverService, Status)
-  src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert)
+  src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert/geöffnet)
+  src/opener.rs               Buch auflösen (Registry) + mit Standard-App öffnen (fnf, `open` crate)
+  src/platform/desktop.rs     reveal je OS (Finder/Explorer/D-Bus, Argument-Arrays, fnf)
   src/scan_hub.rs             ein Scan je Ziel (Thread, max. 4), Ereignisse an Abonnenten, Messung (ignored-Test)
   src/config_file.rs, fs_atomic.rs  Lader mit .bad / atomar schreiben (aus files-and-folders)
   src/paths.rs                Eingabepfade prüfen (~, absolut, NUL, Länge), rel_display
@@ -126,7 +137,8 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
 - **Nichts in die Comic-Ordner schreiben**, außer der Nutzer schaltet es ausdrücklich ein (legacy §10.2): Caches und
   Thumbnails liegen im App-Cache (`app_cache_dir`), Einstellungen im App-Config-Ordner (`app_config_dir`).
 - **Sicherheit**: keine Tauri-Plugins mit breitem Dateisystem- oder Shell-Zugriff; kein Shell-Aufruf, keine externen
-  Programme (`unar`/`7z` der Vorlage werden durch Rust-Crates ersetzt). CSP strikt (`style-src 'unsafe-inline'`
+  Programme (`unar`/`7z` der Vorlage werden durch Rust-Crates ersetzt). Einzige Ausnahme: der Dateimanager des OS für
+  „Im Finder zeigen“ (`platform/desktop.rs`, Argument-Array, Pfad aus der Registry – 004 E5). CSP strikt (`style-src 'unsafe-inline'`
   wegen Angulars Laufzeit-Styles). Keine Dateiinhalte oder vollständigen Nutzerpfade unnötig loggen.
 - **Destruktives** (Löschen von Duplikaten, Cache leeren) wird im Rust-Backend validiert und getestet; Standard beim
   Löschen ist der Papierkorb.
@@ -149,8 +161,12 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
   verdrahtet in einem `effect()` – **kein `tableReady`**. Die klassische `TableComponent` nicht verwenden.
 - Cover-Grid: `CoverGridFactory.createCoverGridModel(items, cellRenderer, coverWidth, coverHeight, width,
   firstRowPaddingTop)` → `CoverGridTableModel<T>`; Breite ändern: `setParentWidth(w)` + `recalcHeightAndPadding()` +
-  `tableApi.repaintHard()`; Cover-Größe: `bodyModel.coverWidth/coverHeight` + `recalcHeightAndPadding()`; Filter:
-  `externalFilterFunction` + `tableApi.externalFilterChanged()`. Vorlage: legacy §6 (`cc-overview.component.ts`).
+  `tableApi.repaintHard()`; Cover-Größe: `bodyModel.coverWidth/coverHeight` + `recalcHeightAndPadding()`. Wir
+  filtern im `GridStore` und setzen `bodyModel.items = filteredItems = Liste` (004). Vorlage: legacy §6.
+- Erfahrungen aus 004: Cover-Grid hat kein Fokusmodell (eigener Cursor, Live-Region), die Table setzt `role="grid"`
+  und entfernt `aria-activedescendant` je Durchgang; ihr Fokus-Zellrahmen umfasst die ganze Zeile 0 → CSS-Variablen
+  `--ge-table-focus-*` transparent; Renderer-DOM global stylen (`::ng-deep` + Nesting greift nicht);
+  `shortcutActionsDisabled`, `overlayOptions.autoNoRows: false`, `overflowY: 'scroll'`.
 - Renderer ohne Angular (`CellRendererIf`) sind schneller als Angular-Komponenten; Dateinamen nie unescaped in
   `innerHTML` (Nutzerdaten!). Host braucht eine feste Höhe (Flex-Kind mit `min-height: 0`).
 - **Referenz für jede API-Aussage**: das Mono-Repo (lokal `~/WebstormProjects/video/2026/guiexpert-table/mono`, sonst

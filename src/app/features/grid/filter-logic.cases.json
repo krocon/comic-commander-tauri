@@ -1,0 +1,43 @@
+{
+  "comment": "Cases of cc-overview-filter.service.spec.ts (comiccommander) + Unicode. files: relPaths; expect: count or list.",
+  "files": [
+    "b/Bessy/005_Bessy_ _Im_Tal_der_silbernen_Spuren.cbr",
+    "b/Bessy/Bessy 002 Aufstand der Sioux (1965).cbr",
+    "b/Bessy/Bessy 003 Der Koenig der Berge (1965).cbr",
+    "b/Bessy/001_Bessy_ _Das_Geheimnis_der_sieben_Feuer.jpg",
+    "b/Bessy/009_Bessy_ _Die_Geister_der_roten_Grotte.jpg",
+    "b/Bessy/006_Bessy_ _Die_Banditen_von_Buffalo.jpg",
+    "b/Bessy/009_Bessy_ _Die_Geister_der_roten_Grotte.cbr",
+    "b/Bessy/010_Bessy_ _Dem_Tod_entronnen.cbr",
+    "b/Bessy/Bessy 001 Das Geheimnis der sieben Feuer (1965).jpg",
+    "b/Bessy/002_Bessy_ _Aufstand_der_Sioux.jpg",
+    "b/Bessy/005_Bessy_ _Im_Tal_der_silbernen_Spuren.jpg",
+    "b/Bessy/010_Bessy_ _Dem_Tod_entronnen.jpg",
+    "b/Bessy/Bessy 002 Aufstand der Sioux (1965).jpg",
+    "b/Bessy/002_Bessy_ _Aufstand_der_Sioux.cbr",
+    "b/Bessy/001_Bessy_ _Das_Geheimnis_der_sieben_Feuer.cbr",
+    "b/Bessy/Bessy 001 002 Das Geheimnis der sieben Feuer (1965).cbr",
+    "b/Bessy/006_Bessy_ _Die_Banditen_von_Buffalo.cbr",
+    "h/Hägar/Hägar 01.cbz",
+    "h/Hägar/Hägar 02 🦸.cbz",
+    "s/Spider-Man/Spider-Man 01.cbz",
+    "s/Spiderman/Spiderman 01.cbz"
+  ],
+  "cases": [
+    { "filter": "", "count": 21 },
+    { "filter": "   ", "count": 21 },
+    { "filter": "+ -", "count": 21 },
+    { "filter": "001 002", "count": 8 },
+    { "filter": "+001 +002", "count": 1 },
+    { "filter": "-001 +bessy", "count": 13 },
+    { "filter": "-BESSY +bessy", "count": 0 },
+    {
+      "filter": "+BESSY -aufStand tal TOD -silber",
+      "list": ["b/Bessy/010_Bessy_ _Dem_Tod_entronnen.cbr", "b/Bessy/010_Bessy_ _Dem_Tod_entronnen.jpg"]
+    },
+    { "filter": "hägar", "count": 2 },
+    { "filter": "+hägar", "count": 2 },
+    { "filter": "🦸", "count": 1 },
+    { "filter": "+spider -spider-man", "list": ["s/Spiderman/Spiderman 01.cbz"] }
+  ]
+}

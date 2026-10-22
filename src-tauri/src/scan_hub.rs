@@ -26,6 +26,10 @@ pub const MAX_PARALLEL: usize = 4;
 pub const BATCH_BOOKS: usize = 500;
 pub const BATCH_INTERVAL: Duration = Duration::from_millis(50);
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+/// Books per message at most. One `cached` of 50 000 books (11 MB) got stuck in the IPC of
+/// WebKitGTK – nothing arrived for minutes, and every later event waited behind it (design 004,
+/// found in the E2E test). Cache, late openers and diffs go in parts of this size.
+pub const MESSAGE_BOOKS: usize = 2000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(
@@ -34,10 +38,17 @@ pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
     rename_all_fields = "camelCase"
 )]
 pub enum ScanEvent {
+    /// The cached books – the first part; `complete` = no `cachedMore` follows.
     Cached {
         books: Vec<BookEntry>,
         scanned_at: i64,
         stats: ScanStats,
+        complete: bool,
+    },
+    /// More cached books (after `cached`), until `complete`.
+    CachedMore {
+        books: Vec<BookEntry>,
+        complete: bool,
     },
     Started {
         first_scan: bool,
@@ -147,14 +158,9 @@ impl ScanHub {
         let key = scan_cache::cache_key(&target.base_dir, &target.extensions);
         let cached = scan_cache::read(cache_dir, &target.base_dir, &target.extensions);
         if let Some(c) = &cached {
-            deliver(
-                &sink,
-                ScanEvent::Cached {
-                    books: c.books.clone(),
-                    scanned_at: c.scanned_at,
-                    stats: c.stats.clone(),
-                },
-            );
+            for e in cached_events(&c.books, c.scanned_at, &c.stats) {
+                deliver(&sink, e);
+            }
         }
         let mut map = lock(&self.inner.running);
         if let Some(r) = map.get_mut(&key) {
@@ -182,7 +188,14 @@ impl ScanHub {
             drop(map);
             // the books so far – outside the lock (up to 500 000, review 002 #10)
             if let Some(books) = sent {
-                deliver(&sink, ScanEvent::Batch { books });
+                for part in books.chunks(MESSAGE_BOOKS) {
+                    deliver(
+                        &sink,
+                        ScanEvent::Batch {
+                            books: part.to_vec(),
+                        },
+                    );
+                }
             }
             return;
         }
@@ -227,6 +240,74 @@ impl ScanHub {
     pub fn walks(&self) -> usize {
         self.inner.walks.load(Ordering::Relaxed)
     }
+}
+
+/// The cache as `cached` + `cachedMore` events of at most [`MESSAGE_BOOKS`] books.
+pub fn cached_events(books: &[BookEntry], scanned_at: i64, stats: &ScanStats) -> Vec<ScanEvent> {
+    let parts: Vec<&[BookEntry]> = if books.is_empty() {
+        vec![&[]]
+    } else {
+        books.chunks(MESSAGE_BOOKS).collect()
+    };
+    let last = parts.len() - 1;
+    parts
+        .into_iter()
+        .enumerate()
+        .map(|(i, part)| {
+            if i == 0 {
+                ScanEvent::Cached {
+                    books: part.to_vec(),
+                    scanned_at,
+                    stats: stats.clone(),
+                    complete: i == last,
+                }
+            } else {
+                ScanEvent::CachedMore {
+                    books: part.to_vec(),
+                    complete: i == last,
+                }
+            }
+        })
+        .collect()
+}
+
+/// A diff as one event – or several of at most [`MESSAGE_BOOKS`] entries when large (e.g. all
+/// books changed after the collection was copied).
+pub fn diff_events(
+    added: Vec<BookEntry>,
+    removed: Vec<String>,
+    changed: Vec<BookEntry>,
+) -> Vec<ScanEvent> {
+    if added.len() + removed.len() + changed.len() <= MESSAGE_BOOKS {
+        return vec![ScanEvent::Diff {
+            added,
+            removed,
+            changed,
+        }];
+    }
+    let mut events = Vec::new();
+    for part in added.chunks(MESSAGE_BOOKS) {
+        events.push(ScanEvent::Diff {
+            added: part.to_vec(),
+            removed: Vec::new(),
+            changed: Vec::new(),
+        });
+    }
+    for part in removed.chunks(MESSAGE_BOOKS) {
+        events.push(ScanEvent::Diff {
+            added: Vec::new(),
+            removed: part.to_vec(),
+            changed: Vec::new(),
+        });
+    }
+    for part in changed.chunks(MESSAGE_BOOKS) {
+        events.push(ScanEvent::Diff {
+            added: Vec::new(),
+            removed: Vec::new(),
+            changed: part.to_vec(),
+        });
+    }
+    events
 }
 
 /// Registers a new scan under `key` (the map lock is held by the caller) and starts its thread.
@@ -455,11 +536,7 @@ fn scan_once(
             let mut events = Vec::new();
             if let Some(old) = cached {
                 let d = scan_cache::diff(&old.books, &cache.books);
-                events.push(ScanEvent::Diff {
-                    added: d.added,
-                    removed: d.removed,
-                    changed: d.changed,
-                });
+                events.extend(diff_events(d.added, d.removed, d.changed));
             }
             events.push(ScanEvent::Done {
                 scanned_at,
@@ -510,6 +587,7 @@ mod tests {
             .iter()
             .map(|e| match e {
                 ScanEvent::Cached { .. } => "cached",
+                ScanEvent::CachedMore { .. } => "cachedMore",
                 ScanEvent::Started { .. } => "started",
                 ScanEvent::Batch { .. } => "batch",
                 ScanEvent::Progress { .. } => "progress",
@@ -567,6 +645,95 @@ mod tests {
         // nothing was written into the comic folder
         let names: Vec<_> = std::fs::read_dir(lib.path()).unwrap().flatten().collect();
         assert_eq!(names.len(), 3);
+    }
+
+    fn entries(n: usize) -> Vec<BookEntry> {
+        (0..n)
+            .map(|i| {
+                let p = format!("/lib/b{i}.cbz");
+                BookEntry {
+                    id: crate::scan::book_id(&p),
+                    path: p,
+                    rel_path: format!("b{i}.cbz"),
+                    name: format!("b{i}.cbz"),
+                    format: crate::model::BookFormat::Cbz,
+                    size: 1,
+                    modified_ms: None,
+                }
+            })
+            .collect()
+    }
+
+    /// Design 004 (E2E): no message with more than MESSAGE_BOOKS books.
+    #[test]
+    fn large_caches_and_diffs_go_in_parts() {
+        let stats = ScanStats::default();
+        let small = cached_events(&entries(3), 7, &stats);
+        assert!(matches!(
+            &small[..],
+            [ScanEvent::Cached { books, complete: true, scanned_at: 7, .. }] if books.len() == 3
+        ));
+        let empty = cached_events(&[], 7, &stats);
+        assert!(matches!(
+            &empty[..],
+            [ScanEvent::Cached { complete: true, .. }]
+        ));
+
+        let big = cached_events(&entries(2 * MESSAGE_BOOKS + 5), 7, &stats);
+        let sizes: Vec<(usize, bool)> = big
+            .iter()
+            .map(|e| match e {
+                ScanEvent::Cached {
+                    books, complete, ..
+                }
+                | ScanEvent::CachedMore { books, complete } => (books.len(), *complete),
+                _ => panic!("{e:?}"),
+            })
+            .collect();
+        assert_eq!(
+            sizes,
+            [(MESSAGE_BOOKS, false), (MESSAGE_BOOKS, false), (5, true)]
+        );
+        assert!(matches!(big[0], ScanEvent::Cached { .. }));
+
+        assert_eq!(diff_events(entries(2), vec![], vec![]).len(), 1);
+        let d = diff_events(entries(MESSAGE_BOOKS + 1), vec!["/x".into()], entries(3));
+        let total: usize = d
+            .iter()
+            .map(|e| match e {
+                ScanEvent::Diff {
+                    added,
+                    removed,
+                    changed,
+                } => {
+                    let n = added.len() + removed.len() + changed.len();
+                    assert!(n <= MESSAGE_BOOKS);
+                    n
+                }
+                _ => panic!(),
+            })
+            .sum();
+        assert_eq!(total, MESSAGE_BOOKS + 5);
+    }
+
+    #[test]
+    fn a_large_cache_arrives_in_parts() {
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        for i in 0..(MESSAGE_BOOKS + 10) {
+            touch(lib.path(), &format!("d{}/Band {i}.cbz", i % 7));
+        }
+        let hub = ScanHub::default();
+        let (sink, _) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink);
+        wait_idle(&hub);
+        let (sink, log) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink);
+        wait_idle(&hub);
+        assert_eq!(
+            kinds(&log),
+            ["cached", "cachedMore", "started", "diff", "done"]
+        );
     }
 
     #[test]
@@ -761,6 +928,7 @@ mod tests {
             books: c.books.clone(),
             scanned_at: 0,
             stats: c.stats.clone(),
+            complete: true,
         })
         .unwrap();
         let ser = started.elapsed();

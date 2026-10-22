@@ -18,6 +18,11 @@ export const SORT_WHILE_SCANNING = 5000;
 export class CategoryStore {
   private readonly api = inject(ScanApi);
   private seq = 0;
+  /**
+   * Parts of the cache until `complete` (design 004: ≤ 2000 books per message). Shown at once in
+   * the order of Rust (natural, nearly the display order), sorted for display when complete.
+   */
+  private cacheParts: BookEntry[] = [];
 
   readonly categoryId = signal<string | null>(null);
   readonly books = signal<BookEntry[]>([]);
@@ -36,6 +41,7 @@ export class CategoryStore {
   /** Opens a category; the same id again = scan again without clearing the list. */
   async open(id: string | null): Promise<void> {
     const seq = ++this.seq;
+    this.cacheParts = [];
     if (id !== this.categoryId()) {
       this.books.set([]);
       this.scannedAt.set(null);
@@ -69,14 +75,29 @@ export class CategoryStore {
     if (id && this.scanning()) await this.api.cancel(id);
   }
 
+  /** Shows the parts so far; the whole cache sorted once. */
+  private takeCache(complete: boolean): void {
+    if (complete) {
+      this.books.set(sortBooks(this.cacheParts));
+      this.cacheParts = [];
+    } else {
+      this.books.set([...this.cacheParts]);
+    }
+  }
+
   private apply(seq: number, e: ScanEvent): void {
     if (seq !== this.seq) return;
     switch (e.kind) {
       case 'cached':
-        this.books.set(sortBooks(e.books));
+        this.cacheParts = [...e.books];
         this.scannedAt.set(e.scannedAt);
         this.stats.set(e.stats);
         this.fromCache.set(true);
+        this.takeCache(e.complete);
+        break;
+      case 'cachedMore':
+        this.cacheParts.push(...e.books);
+        this.takeCache(e.complete);
         break;
       case 'started':
         this.firstScan.set(e.firstScan);

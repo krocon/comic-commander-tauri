@@ -28,7 +28,9 @@ impl BookRegistry {
                 add(books, list);
             }
             ScanEvent::Started { first_scan: true } => books.clear(),
-            ScanEvent::Batch { books: list } => add(books, list),
+            ScanEvent::Batch { books: list } | ScanEvent::CachedMore { books: list, .. } => {
+                add(books, list)
+            }
             ScanEvent::Diff {
                 added,
                 removed,
@@ -90,10 +92,20 @@ mod tests {
                 books: vec![a.clone()],
                 scanned_at: 0,
                 stats: ScanStats::default(),
+                complete: true,
             },
         );
         assert_eq!(r.path("c1", &a.id), Some(PathBuf::from("/c/a.cbz")));
         assert_eq!(r.path("c2", &a.id), None, "per category");
+        let more = book("/c/more.cbz");
+        r.apply(
+            "c1",
+            &ScanEvent::CachedMore {
+                books: vec![more.clone()],
+                complete: true,
+            },
+        );
+        assert_eq!(r.path("c1", &more.id), Some(PathBuf::from("/c/more.cbz")));
         r.apply(
             "c1",
             &ScanEvent::Diff {

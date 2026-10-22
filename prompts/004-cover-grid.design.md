@@ -1,6 +1,6 @@
 # Design 004 – Cover-Grid mit der GuiExpert Table
 
-> Status: 🛑 wartet auf Freigabe · 22.10.2026 · Branch `feat/cover-grid`
+> Status: umgesetzt · freigegeben 22.10.2026 · Branch `feat/cover-grid`
 > Auftrag: [`004-cover-grid.md`](004-cover-grid.md) (mit „Zielbild“ nach Marcs Screenshot) · Vorlage: legacy §6 ·
 > Table: `CLAUDE.md` §5, `@guiexpert/table` 1.1.102 (Quellen im Mono-Repo gelesen)
 
@@ -135,11 +135,39 @@ Neuer Code `unknown_book` (Buch nicht in der Registry, z. B. nach Neu-Scan gelö
 - `devicePixelRatio`-Wahl (E2) lädt auf Retina die `_xl`-Cover (200–300 KB) – bei 584 Büchern unkritisch, bei
   50 000 nur die sichtbaren (LIFO-Pool aus 003).
 
+## Abweichungen bei der Umsetzung
+
+- **E8 ARIA:** kein `role="listbox"` + `aria-activedescendant` – die Table setzt in jedem Zeichendurchgang
+  `role="grid"` auf ihren Host und entfernt `aria-activedescendant` (der Cover-Grid-Modus hat kein Fokusmodell).
+  Stattdessen sagt eine Live-Region (`aria-live="polite"`) das Fokus-Buch an („Name, 3 of 584“); der Host trägt
+  `aria-label`. → Vorschlag für `mono/TODO.md`: Fokusmodell/ARIA im Cover-Grid.
+- **Filter:** Der `GridStore` filtert selbst (Zähler, Cursor und Serie brauchen die Liste ohnehin) und gibt dem Modell
+  die fertige Liste (`items = filteredItems`), statt `externalFilterFunction` + `externalFilterChanged()`.
+- **Filter-Syntax:** nur das führende `+`/`-` wird entfernt (die Vorlage entfernte jedes `-`: `-spider-man` suchte
+  `spiderman`). **Serie:** `_` bleibt wie in der Vorlage (`Die_alten_Knacker_08` → `+Die_alten_Knacker`).
+- **Toolbar** ist die Toolbar der `CategoryView` (schwebt, sobald es Bücher gibt); Höhe `GRID_TOP` = 56 px =
+  `firstRowPaddingTop`. Das Cover sitzt unten in seiner Zelle (Zeile 0 ist 56 px höher).
+- **Table-Einstellungen:** `shortcutActionsDisabled`, `overflowY: 'scroll'` (Breite ohne Scrollbalken rechnen),
+  `overlayOptions.autoNoRows: false` (eigene Hinweise), CSS-Variablen für Hintergrund, Rahmen und den eigenen
+  Fokusrahmen der Table auf `transparent` (der Fokus-Zellrahmen der Table reichte über die ganze Zeile 0 bis in die
+  Toolbar). Renderer-Stile (`.cc-cover`) stehen global in `styles.css` – verschachtelte Regeln unter `::ng-deep`
+  bekommen sonst wieder das Komponenten-Attribut.
+- **Nach Größen-/Breitenwechsel** bleibt das Fokus-Buch (sonst das oberste) im Blick (E10 erweitert).
+- **Scan-Ereignisse in Teilen (Fund im E2E-Test):** Bei 50 000 Büchern brauchte das eine `cached`-Ereignis (11 MB)
+  im Container rund 20 s durch die IPC (Debug-Build: Rust 0,7 s, Frontend 40 ms – der Rest ist Transport, ~0,5 MB/s).
+  Jetzt `cached` + `cachedMore` mit je ≤ 2000 Büchern (`complete` am letzten), große `diff` und späte Öffner ebenso
+  in Teilen; das Frontend zeigt die Teile sofort (Reihenfolge von Rust) und sortiert einmal am Ende → erste Cover
+  nach ~2 s. DTO geändert (Rust + TS + Tests). Zunächst hielt ich die eine große Nachricht für „hängengeblieben“ –
+  das lag an zehn versehentlich parallel laufenden App-Instanzen im Test (`pkill -x` mit 14 von 15 Zeichen); mit
+  einer Instanz kommt auch die große Nachricht an, nur langsam.
+- **Test-Setup:** `src/test-setup.ts` (ResizeObserver-Doppelgänger für jsdom, fnf G11), in `angular.json`
+  `test.options.setupFiles`.
+
 ## Fortschritt
 
-- [x] Phase 1: Design (dieses Dokument) – 🛑 wartet auf Freigabe
-- [ ] Phase 2: Rust (zwei Commands, `opener`, `reveal`)
-- [ ] Phase 3: Frontend
+- [x] Phase 1: Design – freigegeben 22.10.2026
+- [x] Phase 2: Rust (zwei Commands, `opener`, `reveal`; Scan-Ereignisse in Teilen)
+- [x] Phase 3: Frontend
 - [ ] Phase 4: Ende-zu-Ende
 - [ ] Phase 5: Doku
 - [ ] Phase 6: Abschlussprüfung

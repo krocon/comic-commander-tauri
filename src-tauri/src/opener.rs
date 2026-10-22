@@ -63,6 +63,7 @@ mod tests {
                 }],
                 scanned_at: 0,
                 stats: ScanStats::default(),
+                complete: true,
             },
         );
         registry

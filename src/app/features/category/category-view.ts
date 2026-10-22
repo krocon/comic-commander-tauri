@@ -2,59 +2,52 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  InjectionToken,
+  ElementRef,
   computed,
   effect,
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { describeFsError } from '../../core/errors/fs-error';
 import { DialogService } from '../../shared/dialog/dialog.service';
-import { CoversApi } from '../../core/covers/covers-api';
-import { BookEntry } from '../../core/scan/scan.models';
 import { CategoriesStore } from '../categories/categories.store';
+import { CoverGrid, GRID_TOP } from '../grid/cover-grid';
+import { GRID_TEXTS } from '../grid/grid-texts';
+import { GridStore } from '../grid/grid.store';
+import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
 import { CATEGORY_TEXTS } from './category-texts';
 
-/** Rows of the plain list (the cover grid of prompt 004 virtualises). */
-export const MAX_LIST_ROWS = 500;
-
-/** How often a failed cover is asked for again (review 003 #4). */
-export const COVER_RETRIES = 2;
-/** Pause before the n-th retry: n × this (tests set it small). */
-export const COVER_RETRY_MS = new InjectionToken<number>('COVER_RETRY_MS', {
-  factory: () => 2000,
-});
-
 /**
- * The active category (design 002): toolbar with the category menu, „scan again“, status; the
- * list of books (→ cover grid in 004); the first-start screen. Scans again whenever the
- * active category, its folder or its file types change. Keys: `Mod+R` scan again,
- * `Mod+1…9` choose a category.
+ * The active category (design 002, 004): the cover grid with a floating toolbar (category
+ * menu, filter, thumb size, order, scan again, to the top / bottom), status and notes; the
+ * first-start screen. Scans again whenever the active category, its folder or its file types
+ * change. Keys: `Mod+R` scan again, `Mod+1…9` choose a category, `Mod+F` filter,
+ * `Mod +/−` cover size; the grid keys are in `CoverGrid`.
  */
 @Component({
   selector: 'app-category-view',
-  imports: [CategoryMenu],
+  imports: [CategoryMenu, CoverGrid],
   templateUrl: './category-view.html',
   styleUrl: './category-view.css',
-  providers: [CategoryStore],
+  providers: [CategoryStore, GridStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown)': 'onKeydown($event)' },
+  host: { '(document:keydown)': 'onKeydown($event)', '[style.--grid-top.px]': 'gridTop' },
 })
 export class CategoryView {
   protected readonly categories = inject(CategoriesStore);
   protected readonly store = inject(CategoryStore);
+  protected readonly grid = inject(GridStore);
   private readonly dialogs = inject(DialogService);
-  private readonly covers = inject(CoversApi);
-  private readonly retryMs = inject(COVER_RETRY_MS);
-  /** Failed loads per cover URL (a changed book has a new URL and a fresh chance). */
-  private readonly coverFailures = signal<ReadonlyMap<string, number>>(new Map());
-  /** Cover URLs waiting for their next try: the format shows meanwhile. */
-  private readonly coverWaiting = signal<ReadonlySet<string>>(new Set());
-  private readonly retryTimers = new Set<ReturnType<typeof setTimeout>>();
   protected readonly t = CATEGORY_TEXTS;
+  protected readonly g = GRID_TEXTS;
+  protected readonly gridTop = GRID_TOP;
+  protected readonly sortModes = SORT_MODES;
+  private readonly coverGrid = viewChild(CoverGrid);
+  private readonly filterInput = viewChild<ElementRef<HTMLInputElement>>('filterInput');
 
   /** Ticks every 30 s for „updated 3 min ago“. */
   private readonly now = signal(Date.now());
@@ -66,10 +59,8 @@ export class CategoryView {
     return c ? [c.id, c.baseDir, ...c.bookExtensions].join('\u0000') : '';
   });
 
-  protected readonly shown = computed(() => this.store.books().slice(0, MAX_LIST_ROWS));
-  protected readonly hidden = computed(() =>
-    Math.max(0, this.store.books().length - MAX_LIST_ROWS),
-  );
+  /** The grid is there as soon as there are books. */
+  protected readonly showGrid = computed(() => this.store.books().length > 0);
 
   protected readonly status = computed(() => {
     const s = this.store;
@@ -115,47 +106,59 @@ export class CategoryView {
       untracked(() => void this.store.open(this.categories.active()?.id ?? null));
     });
     const timer = setInterval(() => this.now.set(Date.now()), 30_000);
-    inject(DestroyRef).onDestroy(() => {
-      clearInterval(timer);
-      this.retryTimers.forEach(clearTimeout);
-    });
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 
-  /** Smallest size of the category (`thumbsDims[0]`) – the list shows 32 × 48 px. */
-  private coverUrl(book: BookEntry): string | null {
-    const c = this.categories.active();
-    return c ? this.covers.coverUrl(c.id, book, 0) : null;
+  protected onFilterInput(event: Event): void {
+    this.grid.setFilter((event.target as HTMLInputElement).value);
   }
 
-  /**
-   * `src` of the cover, `null` = show the format. A failed cover is asked for again after a
-   * pause (busy pool → 503, a sleeping NAS), [COVER_RETRIES] times; `retry=` makes the
-   * WebView load it again (errors are `no-store` anyway).
-   */
-  protected coverSrc(book: BookEntry): string | null {
-    const url = this.coverUrl(book);
-    if (url === null || this.coverWaiting().has(url)) return null;
-    const failed = this.coverFailures().get(url) ?? 0;
-    if (failed > COVER_RETRIES) return null;
-    return failed ? `${url}${url.includes('?') ? '&' : '?'}retry=${failed}` : url;
+  protected onFilterKey(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.grid.applyFilterNow();
+      this.coverGrid()?.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      if (this.grid.filterText()) this.grid.applyFilterNow('');
+      else this.coverGrid()?.focus();
+    }
   }
 
-  protected coverFailed(book: BookEntry): void {
-    const url = this.coverUrl(book);
-    if (url === null) return;
-    const failed = (this.coverFailures().get(url) ?? 0) + 1;
-    this.coverFailures.update((m) => new Map(m).set(url, failed));
-    if (failed > COVER_RETRIES) return;
-    this.coverWaiting.update((s) => new Set(s).add(url));
-    const timer = setTimeout(() => {
-      this.retryTimers.delete(timer);
-      this.coverWaiting.update((s) => {
-        const next = new Set(s);
-        next.delete(url);
-        return next;
-      });
-    }, this.retryMs * failed);
-    this.retryTimers.add(timer);
+  protected clearFilter(): void {
+    this.grid.applyFilterNow('');
+    this.filterInput()?.nativeElement.focus();
+  }
+
+  /** A key typed in the grid goes to the end of the filter (design 004 E3). */
+  protected onTyped(char: string): void {
+    const input = this.filterInput()?.nativeElement;
+    this.grid.setFilter(this.grid.filterText() + char);
+    if (input) {
+      input.focus();
+      // after Angular wrote the value
+      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length));
+    }
+  }
+
+  protected onGridEscape(): void {
+    if (this.grid.filterText()) this.grid.applyFilterNow('');
+  }
+
+  protected onSizeChange(event: Event): void {
+    this.grid.setDim(Number((event.target as HTMLSelectElement).value));
+  }
+
+  protected onSortChange(event: Event): void {
+    this.grid.setSort((event.target as HTMLSelectElement).value as SortMode);
+  }
+
+  protected toTop(): void {
+    this.coverGrid()?.scrollToStart();
+  }
+
+  protected toBottom(): void {
+    this.coverGrid()?.scrollToEnd();
   }
 
   protected rescan(): void {
@@ -163,8 +166,20 @@ export class CategoryView {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (this.dialogs.open() !== null || event.altKey || event.shiftKey) return;
+    if (this.dialogs.open() !== null || event.altKey) return;
     if (!(event.metaKey || event.ctrlKey)) return;
+    if (event.key === '+' || event.key === '=' || event.key === '-') {
+      event.preventDefault();
+      this.grid.stepDim(event.key === '-' ? -1 : 1);
+      return;
+    }
+    if (event.shiftKey) return;
+    if (event.key === 'f' || event.key === 'F') {
+      event.preventDefault();
+      this.filterInput()?.nativeElement.focus();
+      this.filterInput()?.nativeElement.select();
+      return;
+    }
     if (event.key === 'r' || event.key === 'R') {
       event.preventDefault();
       this.rescan();
