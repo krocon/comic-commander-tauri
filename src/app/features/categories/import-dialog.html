@@ -1,0 +1,56 @@
+<app-modal [heading]="t.importTitle" width="60rem" (closed)="store.closeDialog()">
+  @if (preview.categories.length === 0) {
+    <p>{{ t.importNone }}</p>
+  } @else {
+    <p class="intro">{{ t.importIntro(preview.file) }}</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col"><span class="visually-hidden">✓</span></th>
+            <th scope="col">{{ t.importColTitle }}</th>
+            <th scope="col">{{ t.importColFolder }}</th>
+            <th scope="col">{{ t.importColTypes }}</th>
+            <th scope="col">{{ t.importColSizes }}</th>
+            <th scope="col">{{ t.importColNotes }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of preview.categories; track $index; let i = $index) {
+            <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  [attr.aria-label]="c.title"
+                  [checked]="checked()[i]"
+                  [attr.data-autofocus]="i === 0 ? '' : null"
+                  (change)="toggle(i, $any($event.target).checked)"
+                />
+              </td>
+              <td><i [class]="'fa fa-fw fa-' + c.icon" aria-hidden="true"></i> {{ c.title }}</td>
+              <td class="path" [title]="c.baseDir">{{ c.baseDir }}</td>
+              <td>{{ c.bookExtensions.join(' ') }}</td>
+              <td>{{ sizes(c) }}</td>
+              <td class="notes">{{ notesOf(i) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+  @if (skipped.length) {
+    <p class="skipped">
+      {{ t.importSkipped }}
+      @for (n of skipped; track $index) {
+        <span>„{{ n.title }}“ – {{ t.note(n) }} </span>
+      }
+    </p>
+  }
+  <div class="footer">
+    <span class="error" role="alert">{{ errorText() }}</span>
+    <button type="button" class="btn" (click)="store.closeDialog()">{{ t.cancel }}</button>
+    <button type="button" class="btn primary" [disabled]="chosen().length === 0" (click)="add()">
+      {{ t.importAdd }}
+    </button>
+  </div>
+</app-modal>

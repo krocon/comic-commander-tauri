@@ -1,0 +1,54 @@
+.intro {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--color-surface-2);
+  font-weight: 600;
+}
+
+.path {
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  color: var(--color-warning);
+}
+
+.skipped {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+
+  .error {
+    flex: 1;
+    color: var(--color-error);
+  }
+}

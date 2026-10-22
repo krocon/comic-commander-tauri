@@ -1,0 +1,74 @@
+<header class="toolbar">
+  <app-category-menu />
+  @if (categories.active()) {
+    <button
+      type="button"
+      class="btn icon"
+      [disabled]="store.scanning()"
+      [attr.aria-label]="t.rescan"
+      [title]="t.rescan + ' (Ctrl/⌘+R)'"
+      (click)="rescan()"
+    >
+      <i class="fa fa-refresh" [class.fa-spin]="store.scanning()" aria-hidden="true"></i>
+    </button>
+  }
+  @if (store.scanning() && store.firstScan()) {
+    <button type="button" class="btn" (click)="store.cancel()">{{ t.cancel }}</button>
+  }
+  <span class="status" role="status" aria-live="polite" [class.warn]="warn()">{{ status() }}</span>
+</header>
+
+@if (categories.warning()) {
+  <p class="note warn">{{ t.configBroken }}</p>
+}
+
+@if (!categories.loaded()) {
+  <!-- loading the categories: a few ms -->
+} @else if (!categories.active()) {
+  <section class="first-start" aria-labelledby="first-start-title">
+    <i class="fa fa-book big" aria-hidden="true"></i>
+    <h1 id="first-start-title">{{ t.firstStartTitle }}</h1>
+    <p>{{ t.firstStartText }}</p>
+    <div class="actions">
+      @if (categories.comicsDir(); as dir) {
+        <button type="button" class="btn primary" (click)="categories.addFolder(dir)">
+          {{ t.useComics(dir) }}
+        </button>
+      }
+      <button type="button" class="btn" (click)="categories.openManage()">
+        {{ t.createCategory }}
+      </button>
+      <button type="button" class="btn" (click)="categories.startImport()">
+        {{ t.importOld }}
+      </button>
+    </div>
+    <p class="error" role="alert">{{ categoriesError() }}</p>
+  </section>
+} @else {
+  @if (store.phase() === 'failed' && !store.cacheKept()) {
+    <div class="note">
+      <button type="button" class="btn" (click)="categories.openManage()">
+        {{ t.editCategory }}
+      </button>
+    </div>
+  }
+  @if (store.stats()?.truncated) {
+    <p class="note">{{ t.truncated }}</p>
+  }
+  @if (store.phase() === 'done' && store.books().length === 0) {
+    <p class="note">{{ t.noBooks(categories.active()!.bookExtensions) }}</p>
+  }
+  @if (store.books().length) {
+    <ul class="books" [attr.aria-label]="t.listLabel">
+      @for (book of shown(); track book.path) {
+        <li class="book">
+          <span class="cover" aria-hidden="true">{{ book.format }}</span>
+          <span class="name" [title]="book.relPath">{{ book.relPath }}</span>
+        </li>
+      }
+    </ul>
+    @if (hidden() > 0) {
+      <p class="note">{{ t.more(hidden()) }}</p>
+    }
+  }
+}

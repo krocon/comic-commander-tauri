@@ -1,0 +1,227 @@
+<app-modal [heading]="t.manageTitle" width="58rem" (closed)="cancel()">
+  <div class="body">
+    <div class="side">
+      @if (draft().length === 0) {
+        <p class="empty">{{ t.empty }}</p>
+      } @else {
+        <ul
+          class="list"
+          role="listbox"
+          tabindex="0"
+          [attr.aria-label]="t.listLabel"
+          [attr.aria-activedescendant]="optionId(selected())"
+          (keydown)="onListKeydown($event)"
+        >
+          @for (c of draft(); track $index; let i = $index) {
+            <li
+              role="option"
+              tabindex="-1"
+              [id]="optionId(i)"
+              [attr.aria-selected]="i === selected()"
+              [class.selected]="i === selected()"
+              [class.invalid]="invalidIndexes().has(i)"
+              (click)="selected.set(i)"
+              (keydown.enter)="selected.set(i)"
+            >
+              <i [class]="'fa fa-fw fa-' + c.icon" aria-hidden="true"></i>
+              <span class="name">{{ label(c) }}</span>
+            </li>
+          }
+        </ul>
+      }
+      <div class="side-actions">
+        <button type="button" class="btn" (click)="add()">
+          <i class="fa fa-plus" aria-hidden="true"></i> {{ t.add }}
+        </button>
+        <button type="button" class="btn" (click)="remove()" [disabled]="!current()">
+          {{ t.remove }}
+        </button>
+        <button
+          type="button"
+          class="btn icon"
+          (click)="moveSelected(-1)"
+          [disabled]="selected() === 0"
+          [attr.aria-label]="t.moveUp"
+          [title]="t.moveUp"
+        >
+          <i class="fa fa-arrow-up" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="btn icon"
+          (click)="moveSelected(1)"
+          [disabled]="selected() >= draft().length - 1"
+          [attr.aria-label]="t.moveDown"
+          [title]="t.moveDown"
+        >
+          <i class="fa fa-arrow-down" aria-hidden="true"></i>
+        </button>
+      </div>
+      <button type="button" class="btn" (click)="importOld()" [disabled]="dirty()">
+        <i class="fa fa-download" aria-hidden="true"></i> {{ t.importOld }}
+      </button>
+    </div>
+
+    @if (current(); as c) {
+      <div class="form">
+        <label for="cat-title">{{ t.title }}</label>
+        <input
+          id="cat-title"
+          class="input"
+          type="text"
+          data-autofocus
+          [placeholder]="t.titlePlaceholder"
+          [value]="c.title"
+          (input)="update({ title: text($event) })"
+        />
+
+        <label for="cat-folder">{{ t.folder }}</label>
+        <div class="row">
+          <input
+            id="cat-folder"
+            class="input grow"
+            type="text"
+            spellcheck="false"
+            [placeholder]="t.folderPlaceholder"
+            [value]="c.baseDir"
+            [attr.aria-invalid]="problemsOf('baseDir').length > 0"
+            aria-describedby="cat-folder-problem"
+            (input)="update({ baseDir: text($event) })"
+          />
+          <button type="button" class="btn" (click)="chooseFolder()">{{ t.choose }}</button>
+        </div>
+        <p id="cat-folder-problem" class="problem">{{ problemsOf('baseDir').join(' ') }}</p>
+
+        <span id="cat-types-label" class="label">{{ t.extensions }}</span>
+        <div class="checks" role="group" aria-labelledby="cat-types-label">
+          @for (ext of extensions; track ext) {
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="c.bookExtensions.includes(ext)"
+                (change)="toggleExtension(ext, $any($event.target).checked)"
+              />
+              {{ ext }}
+            </label>
+          }
+        </div>
+        <p class="problem">{{ problemsOf('bookExtensions').join(' ') }}</p>
+
+        <span id="cat-icon-label" class="label">{{ t.icon }}</span>
+        <div class="icons" role="radiogroup" aria-labelledby="cat-icon-label">
+          @for (icon of icons; track icon) {
+            <label class="icon-choice" [title]="icon">
+              <input
+                type="radio"
+                name="cat-icon"
+                class="visually-hidden"
+                [value]="icon"
+                [checked]="c.icon === icon"
+                [attr.aria-label]="icon"
+                (change)="update({ icon })"
+              />
+              <i [class]="'fa fa-fw fa-' + icon" aria-hidden="true"></i>
+            </label>
+          }
+        </div>
+
+        <span id="cat-sizes-label" class="label">{{ t.sizes }}</span>
+        <div class="sizes" role="group" aria-labelledby="cat-sizes-label">
+          @for (d of c.thumbsDims; track $index; let i = $index) {
+            <div class="size">
+              <input
+                class="input num"
+                type="number"
+                min="32"
+                max="2000"
+                [attr.aria-label]="t.width"
+                [value]="d.width"
+                (input)="updateDim(i, { width: number($event) })"
+              />
+              <span aria-hidden="true">×</span>
+              <input
+                class="input num"
+                type="number"
+                min="32"
+                max="2000"
+                [attr.aria-label]="t.height"
+                [value]="d.height"
+                (input)="updateDim(i, { height: number($event) })"
+              />
+              <input
+                class="input suffix"
+                type="text"
+                spellcheck="false"
+                [attr.aria-label]="t.suffix"
+                [title]="t.suffixHint"
+                [placeholder]="t.suffix"
+                [value]="d.nameExtension"
+                (input)="updateDim(i, { nameExtension: text($event) })"
+              />
+              <label class="check">
+                <input
+                  type="radio"
+                  name="cat-default-size"
+                  [checked]="c.dimIndex === i"
+                  (change)="update({ dimIndex: i })"
+                />
+                {{ t.defaultSize }}
+              </label>
+              <button
+                type="button"
+                class="btn icon"
+                [disabled]="c.thumbsDims.length <= 1"
+                [attr.aria-label]="t.removeSize"
+                [title]="t.removeSize"
+                (click)="removeDim(i)"
+              >
+                <i class="fa fa-minus" aria-hidden="true"></i>
+              </button>
+            </div>
+          }
+          <button
+            type="button"
+            class="btn add-size"
+            [disabled]="c.thumbsDims.length >= maxDims"
+            (click)="addDim()"
+          >
+            <i class="fa fa-plus" aria-hidden="true"></i> {{ t.addSize }}
+          </button>
+        </div>
+        <p class="problem">{{ problemsOf('thumbsDims').join(' ') }}</p>
+
+        <label for="cat-filter">{{ t.initialFilter }}</label>
+        <input
+          id="cat-filter"
+          class="input"
+          type="text"
+          spellcheck="false"
+          [title]="t.initialFilterHint"
+          [value]="c.initialFilter"
+          (input)="update({ initialFilter: text($event) })"
+        />
+      </div>
+    }
+  </div>
+
+  <div class="footer">
+    <span class="error" role="alert">{{ errorText() }}</span>
+    @if (confirmDiscard()) {
+      <span class="question">{{ t.discardQuestion }}</span>
+      <button type="button" class="btn" (click)="store.closeDialog()">{{ t.discard }}</button>
+      <button type="button" class="btn" (click)="confirmDiscard.set(false)">
+        {{ t.keepEditing }}
+      </button>
+    } @else {
+      <button type="button" class="btn" (click)="cancel()">{{ t.cancel }}</button>
+      <button
+        type="button"
+        class="btn primary"
+        [disabled]="invalidIndexes().size > 0 || saving()"
+        (click)="save()"
+      >
+        {{ t.save }}
+      </button>
+    }
+  </div>
+</app-modal>

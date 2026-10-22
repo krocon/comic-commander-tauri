@@ -1,0 +1,69 @@
+<button
+  type="button"
+  class="btn menu-button"
+  aria-haspopup="menu"
+  aria-controls="category-menu"
+  [attr.aria-expanded]="open()"
+  [attr.aria-label]="t.menuLabel + ': ' + (store.active()?.title ?? t.noCategory)"
+  (click)="toggle()"
+  (keydown)="onButtonKey($event)"
+>
+  <i [class]="'fa fa-fw fa-' + (store.active()?.icon ?? 'book')" aria-hidden="true"></i>
+  <span class="title">{{ store.active()?.title ?? t.noCategory }}</span>
+  <i class="fa fa-caret-down" aria-hidden="true"></i>
+</button>
+@if (open()) {
+  <ul
+    id="category-menu"
+    class="menu"
+    role="menu"
+    tabindex="-1"
+    [attr.aria-label]="t.menuLabel"
+    (keydown)="onMenuKey($event)"
+  >
+    @for (c of store.categories(); track c.id; let i = $index) {
+      <li
+        role="menuitemradio"
+        tabindex="-1"
+        [id]="itemId(i)"
+        [attr.aria-checked]="c.id === store.config().activeId"
+        (click)="choose(i)"
+        (keydown.enter)="choose(i)"
+      >
+        <span class="check" aria-hidden="true">{{
+          c.id === store.config().activeId ? '✓' : ''
+        }}</span>
+        <i [class]="'fa fa-fw fa-' + c.icon" aria-hidden="true"></i>
+        <span class="label">{{ c.title }}</span>
+        @if (i < 9) {
+          <kbd aria-hidden="true">{{ i + 1 }}</kbd>
+        }
+      </li>
+    }
+    @if (store.categories().length) {
+      <li role="separator"></li>
+    }
+    <li
+      role="menuitem"
+      tabindex="-1"
+      [id]="itemId(store.categories().length)"
+      (click)="choose(store.categories().length)"
+      (keydown.enter)="choose(store.categories().length)"
+    >
+      <span class="check" aria-hidden="true"></span>
+      <i class="fa fa-fw fa-cog" aria-hidden="true"></i>
+      <span class="label">{{ t.manage }}</span>
+    </li>
+    <li
+      role="menuitem"
+      tabindex="-1"
+      [id]="itemId(store.categories().length + 1)"
+      (click)="choose(store.categories().length + 1)"
+      (keydown.enter)="choose(store.categories().length + 1)"
+    >
+      <span class="check" aria-hidden="true"></span>
+      <i class="fa fa-fw fa-download" aria-hidden="true"></i>
+      <span class="label">{{ t.importOld }}</span>
+    </li>
+  </ul>
+}

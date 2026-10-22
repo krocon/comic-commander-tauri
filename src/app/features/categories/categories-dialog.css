@@ -1,0 +1,176 @@
+.body {
+  display: grid;
+  grid-template-columns: 15rem 1fr;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow: auto;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.list {
+  flex: 1;
+  min-height: 12rem;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: 4px;
+    cursor: pointer;
+
+    &.selected {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+    }
+
+    &.invalid .name::after {
+      content: ' ⚠';
+    }
+  }
+
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.side-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.btn.icon {
+  padding: 0 var(--space-2);
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+
+  .label,
+  label[for] {
+    align-self: start;
+    padding-top: 6px;
+  }
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.problem {
+  grid-column: 2;
+  min-height: 1em;
+  margin: 0 0 var(--space-1);
+  color: var(--color-error);
+  font-size: var(--font-size-small);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(12, 2rem);
+  gap: 2px;
+  margin-bottom: var(--space-2);
+}
+
+.icon-choice {
+  display: grid;
+  place-items: center;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-hover);
+  }
+
+  &:has(input:checked) {
+    border-color: var(--color-accent);
+    background: var(--color-hover);
+  }
+
+  &:has(input:focus-visible) {
+    outline: 2px solid var(--color-focus);
+  }
+}
+
+.sizes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.size {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  .num {
+    width: 5.5rem;
+  }
+
+  .suffix {
+    width: 8rem;
+  }
+}
+
+.add-size {
+  align-self: flex-start;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+
+  .error {
+    flex: 1;
+    color: var(--color-error);
+  }
+
+  .question {
+    font-weight: 600;
+  }
+}

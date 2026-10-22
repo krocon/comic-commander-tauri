@@ -9,6 +9,9 @@ export type FsErrorCode =
   | 'invalid_path'
   | 'no_home_directory'
   | 'io'
+  | 'invalid_categories'
+  | 'invalid_legacy_config'
+  | 'unknown_category'
   /** Frontend only: no Tauri backend (e.g. `pnpm start` in a browser). */
   | 'backend_unavailable'
   /** Frontend only: something that is no `FsError` was thrown. */
@@ -27,6 +30,9 @@ const KNOWN: readonly FsErrorCode[] = [
   'invalid_path',
   'no_home_directory',
   'io',
+  'invalid_categories',
+  'invalid_legacy_config',
+  'unknown_category',
   'backend_unavailable',
   'unknown',
 ];
@@ -61,6 +67,12 @@ export function describeFsError(error: FsError): string {
       return 'Your home folder could not be determined.';
     case 'io':
       return 'The folder could not be read.';
+    case 'invalid_categories':
+      return 'The categories could not be saved – please check the entries.';
+    case 'invalid_legacy_config':
+      return 'This file is no configuration of the old Comic Commander.';
+    case 'unknown_category':
+      return 'This category no longer exists.';
     case 'backend_unavailable':
       return 'The desktop backend is not available (running in a browser?).';
     case 'unknown':
