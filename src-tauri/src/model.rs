@@ -1,11 +1,13 @@
 //! DTOs shared with the frontend. Keep in sync by hand with
-//! `src/app/core/library/library.models.ts` (and `about.models.ts`); every change on both
+//! `src/app/core/scan/scan.models.ts` (and `about.models.ts`); every change on both
 //! sides plus a test.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// The kinds of comic books we know. Serialised in lower case (`"cbz"`, …).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+/// The container kind of a book **by extension**, serialised in lower case (`"cbz"`, …).
+/// `.zip` → `cbz`, `.rar` → `cbr`, `.7z` → `cb7`, `.tar` → `cbt` (design 002 E3); the real
+/// format is detected from the content when a book is read (prompt 003).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BookFormat {
     /// ZIP archive with images.
@@ -20,13 +22,13 @@ pub enum BookFormat {
     Pdf,
 }
 
-/// One comic book found in a library.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// One comic book found in a category.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookEntry {
     /// Full path – opaque for the frontend (never split or joined there).
     pub path: String,
-    /// Path below the library root, segments joined with `/`. For display, filter and sort
+    /// Path below the category's `baseDir`, segments joined with `/`. For display, filter and sort
     /// only – never turned back into a file system path.
     pub rel_path: String,
     /// File name with extension.
@@ -37,20 +39,23 @@ pub struct BookEntry {
     pub modified_ms: Option<i64>,
 }
 
-/// The result of scanning one library folder.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Statistics of one scan (design 002).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LibraryScan {
-    /// The root as it was scanned (after `~` expansion).
-    pub root: String,
-    /// Books in natural order of `rel_path`.
-    pub books: Vec<BookEntry>,
+pub struct ScanStats {
+    pub books: u64,
+    pub dirs: u64,
     /// Folders that could not be read (permissions, vanished) – the scan goes on.
-    pub unreadable_dirs: u32,
-    /// Entries left out: symbolic links, names that are not valid UTF-8.
-    pub skipped_entries: u32,
-    /// `true` when the scan stopped at [`crate::library::MAX_BOOKS`].
+    pub unreadable_dirs: u64,
+    /// Entries left out: names that are not valid UTF-8, entries that vanished.
+    pub skipped_entries: u64,
+    /// Symbolic links to folders – never followed (design 002 E2).
+    pub skipped_dir_links: u64,
+    /// Symbolic links whose target is missing.
+    pub broken_links: u64,
+    /// `true` when the scan stopped at [`crate::scan::MAX_BOOKS`].
     pub truncated: bool,
+    pub duration_ms: u64,
 }
 
 /// Data for the About dialog.

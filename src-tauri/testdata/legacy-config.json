@@ -1,0 +1,53 @@
+{
+  "port": 3333,
+  "tempDir": "/demo/Temp",
+  "categories": [
+    {
+      "apiUrl": "/api/files/0",
+      "baseDir": "@ROOT@/comics",
+      "bookExtensions": [
+        ".cbz",
+        ".cbr"
+      ],
+      "title": "Comics",
+      "icon": "stars",
+      "thumbsDims": [
+        {
+          "width": 200,
+          "height": 300,
+          "nameExtension": ""
+        },
+        {
+          "width": 800,
+          "height": 1200,
+          "nameExtension": "_xl"
+        }
+      ],
+      "dimIndex": 1,
+      "initialFilter": ""
+    },
+    {
+      "apiUrl": "/api/files/1",
+      "baseDir": "@ROOT@/ct Make",
+      "bookExtensions": [
+        ".pdf"
+      ],
+      "title": "Make",
+      "icon": "stars",
+      "thumbsDims": [
+        {
+          "width": 200,
+          "height": 300,
+          "nameExtension": ""
+        },
+        {
+          "width": 800,
+          "height": 1200,
+          "nameExtension": "_xl"
+        }
+      ],
+      "dimIndex": 1,
+      "initialFilter": ""
+    }
+  ]
+}

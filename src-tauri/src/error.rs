@@ -15,6 +15,12 @@ pub enum FsErrorCode {
     NoHomeDirectory,
     /// Any other I/O error (message carries the details).
     Io,
+    /// The categories sent to `save_categories` are not valid (design 002).
+    InvalidCategories,
+    /// The file chosen for the import is no config of the old comiccommander (design 002 E7).
+    InvalidLegacyConfig,
+    /// `open_category`/`cancel_scan` with an id that is not configured.
+    UnknownCategory,
 }
 
 /// The one error type every command returns.
