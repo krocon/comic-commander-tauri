@@ -1,4 +1,5 @@
 :host {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -12,10 +13,69 @@
   padding: var(--space-2) var(--space-4);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
+
+  /* over the grid (design 004 „Zielbild“): the covers run below it */
+  &.floating {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 10;
+    height: var(--grid-top);
+    border-bottom: none;
+    background: var(--color-toolbar-overlay);
+    backdrop-filter: blur(10px);
+  }
 }
 
 .btn.icon {
   padding: 0 var(--space-2);
+}
+
+.filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 22rem;
+  min-width: 8rem;
+
+  .fa-search {
+    position: absolute;
+    left: var(--space-2);
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+
+  .input {
+    width: 100%;
+    padding-left: calc(var(--space-2) * 3.5);
+    padding-right: 6.5rem;
+  }
+
+  .count {
+    position: absolute;
+    right: 2rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+    pointer-events: none;
+  }
+
+  .clear {
+    position: absolute;
+    right: var(--space-1);
+    padding: 0 var(--space-1);
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+
+  /* the own clear button replaces the one of type=search */
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+}
+
+.select select {
+  max-width: 11rem;
 }
 
 .status {
@@ -32,9 +92,29 @@
   color: var(--color-warning);
 }
 
+.notes {
+  &.floating {
+    position: absolute;
+    inset: var(--grid-top) 0 auto;
+    z-index: 9;
+
+    .note {
+      margin: 0;
+      padding: var(--space-2) var(--space-4);
+      background: var(--color-toolbar-overlay);
+      backdrop-filter: blur(10px);
+    }
+  }
+}
+
 .note {
   margin: var(--space-3) var(--space-4);
   color: var(--color-text-muted);
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
 }
 
 .first-start {
@@ -66,50 +146,5 @@
 
   .error {
     color: var(--color-error);
-  }
-}
-
-.books {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  margin: 0;
-  padding: var(--space-2) var(--space-4);
-  list-style: none;
-}
-
-.book {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-1) 0;
-  border-bottom: 1px solid var(--color-border);
-
-  .cover {
-    position: relative;
-    overflow: hidden;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 48px;
-    border-radius: 3px;
-    background: var(--color-cover-placeholder);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-small);
-    text-transform: uppercase;
-
-    img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-  }
-
-  .name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 }

@@ -1,5 +1,61 @@
-<header class="toolbar">
+<header class="toolbar" [class.floating]="showGrid()">
   <app-category-menu />
+  @if (showGrid()) {
+    <div class="filter">
+      <i class="fa fa-search" aria-hidden="true"></i>
+      <input
+        #filterInput
+        class="input"
+        type="search"
+        spellcheck="false"
+        autocomplete="off"
+        [attr.aria-label]="g.filter"
+        [placeholder]="g.filterPlaceholder"
+        [title]="g.filterPlaceholder + ' (Ctrl/⌘+F)'"
+        [value]="grid.filterText()"
+        (input)="onFilterInput($event)"
+        (keydown)="onFilterKey($event)"
+      />
+      @if (grid.filtering()) {
+        <span class="count" aria-hidden="true">{{
+          g.filterCount(grid.filtered().length, grid.total())
+        }}</span>
+        <button
+          type="button"
+          class="clear"
+          [attr.aria-label]="g.clearFilter"
+          (click)="clearFilter()"
+        >
+          <i class="fa fa-times" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
+    @if (grid.dims().length > 1) {
+      <label class="select">
+        <span class="visually-hidden">{{ g.thumbSize }}</span>
+        <select
+          class="input"
+          [title]="g.thumbSize + ' (Ctrl/⌘ + / −)'"
+          [value]="grid.dimIndex()"
+          (change)="onSizeChange($event)"
+        >
+          @for (d of grid.dims(); track $index) {
+            <option [value]="$index" [selected]="$index === grid.dimIndex()">
+              {{ d.width }} × {{ d.height }}
+            </option>
+          }
+        </select>
+      </label>
+    }
+    <label class="select">
+      <span class="visually-hidden">{{ g.sort }}</span>
+      <select class="input" [title]="g.sort" (change)="onSortChange($event)">
+        @for (m of sortModes; track m) {
+          <option [value]="m" [selected]="m === grid.sort()">{{ g.sortModes[m] }}</option>
+        }
+      </select>
+    </label>
+  }
   @if (categories.active()) {
     <button
       type="button"
@@ -16,11 +72,52 @@
     <button type="button" class="btn" (click)="store.cancel()">{{ t.cancel }}</button>
   }
   <span class="status" role="status" aria-live="polite" [class.warn]="warn()">{{ status() }}</span>
+  @if (showGrid()) {
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="g.toTop"
+      [title]="g.toTop + ' (Ctrl+Home)'"
+      (click)="toTop()"
+    >
+      <i class="fa fa-long-arrow-up" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="g.toBottom"
+      [title]="g.toBottom + ' (Ctrl+End)'"
+      (click)="toBottom()"
+    >
+      <i class="fa fa-long-arrow-down" aria-hidden="true"></i>
+    </button>
+  }
 </header>
 
-@if (categories.warning()) {
-  <p class="note warn">{{ t.configBroken }}</p>
-}
+<div class="notes" [class.floating]="showGrid()">
+  @if (categories.warning()) {
+    <p class="note warn">{{ t.configBroken }}</p>
+  }
+  @if (grid.message(); as m) {
+    <p class="note" [class.warn]="m.error" role="status">{{ m.text }}</p>
+  }
+  @if (categories.active() && store.phase() === 'failed' && !store.cacheKept()) {
+    <div class="note">
+      <button type="button" class="btn" (click)="categories.openManage()">
+        {{ t.editCategory }}
+      </button>
+    </div>
+  }
+  @if (categories.active() && store.stats()?.truncated) {
+    <p class="note">{{ t.truncated }}</p>
+  }
+  @if (categories.active() && store.phase() === 'done' && store.books().length === 0) {
+    <p class="note">{{ t.noBooks(categories.active()!.bookExtensions) }}</p>
+  }
+  @if (showGrid() && grid.filtered().length === 0) {
+    <p class="note">{{ g.noMatch }}</p>
+  }
+</div>
 
 @if (!categories.loaded()) {
   <!-- loading the categories: a few ms -->
@@ -44,37 +141,6 @@
     </div>
     <p class="error" role="alert">{{ categoriesError() }}</p>
   </section>
-} @else {
-  @if (store.phase() === 'failed' && !store.cacheKept()) {
-    <div class="note">
-      <button type="button" class="btn" (click)="categories.openManage()">
-        {{ t.editCategory }}
-      </button>
-    </div>
-  }
-  @if (store.stats()?.truncated) {
-    <p class="note">{{ t.truncated }}</p>
-  }
-  @if (store.phase() === 'done' && store.books().length === 0) {
-    <p class="note">{{ t.noBooks(categories.active()!.bookExtensions) }}</p>
-  }
-  @if (store.books().length) {
-    <ul class="books" [attr.aria-label]="t.listLabel">
-      @for (book of shown(); track book.path) {
-        <li class="book">
-          <span class="cover" aria-hidden="true">
-            {{ book.format }}
-            @let src = coverSrc(book);
-            @if (src) {
-              <img alt="" loading="lazy" decoding="async" [src]="src" (error)="coverFailed(book)" />
-            }
-          </span>
-          <span class="name" [title]="book.relPath">{{ book.relPath }}</span>
-        </li>
-      }
-    </ul>
-    @if (hidden() > 0) {
-      <p class="note">{{ t.more(hidden()) }}</p>
-    }
-  }
+} @else if (showGrid()) {
+  <app-cover-grid class="grid" (typed)="onTyped($event)" (escape)="onGridEscape()" />
 }

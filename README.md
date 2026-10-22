@@ -8,8 +8,8 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 [files-and-folders-tauri](https://github.com/krocon/files-and-folders-tauri). Das Cover-Raster ist eine
 [GuiExpert Table](https://github.com/guiexperttable/mono) im Cover-Grid-Modus.
 
-> **Stand:** Cover (Prompt 003). Die App verwaltet Kategorien, scannt sie rekursiv und listet die Bücher mit ihrem
-> Cover. Cover-Grid und Leser folgen – Fahrplan in [`prompts/README.md`](prompts/README.md).
+> **Stand:** Cover-Grid (Prompt 004). Die App zeigt die Bücher einer Kategorie als randloses Raster aus Covern mit
+> Filter, Größen und Tastaturbedienung. Der Leser folgt – Fahrplan in [`prompts/README.md`](prompts/README.md).
 
 ## Was funktioniert
 
@@ -26,6 +26,12 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   Thumbnails des alten Comic Commanders (`Band.jpg`, `Band_xl.jpg`) werden genutzt; neue Cover liegen im App-Cache
   (höchstens 2 GiB) und erscheinen beim nächsten Start sofort. Kaputte oder verschlüsselte Bücher zeigen das
   Format-Kürzel. PDF-Cover folgen mit Prompt 006.
+- **Cover-Grid**: randlos über die ganze Breite, die Toolbar schwebt darüber. Filter wie im alten Comic Commander
+  (`asterix obelix` = eins davon, `+asterix` = muss, `-album` = darf nicht), „Thumb size“ aus der Kategorie,
+  Sortierung nach Ordner und Name, Dateiname, Datum oder Größe. Filter, Größe, Sortierung und Position merkt sich
+  die App je Kategorie. Auf Retina werden automatisch die großen Cover geladen.
+- **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
+  filtern, Pfad kopieren. Lesen folgt mit dem Leser (Prompt 005).
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 
@@ -33,6 +39,12 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 
 | Taste | Funktion |
 |---|---|
+| Pfeiltasten, `Home`/`End`, `Bild ↑/↓` | Cursor im Raster |
+| `Enter` / Doppelklick | Buch öffnen (bis zum Leser: Standard-App) |
+| `Leertaste`, `Shift+F10`, Rechtsklick | Aktionen für das Buch |
+| Tippen | springt in den Filter; `Esc` leert ihn |
+| `Ctrl/⌘ + F` | Filter |
+| `Ctrl/⌘ + Plus / Minus` | Cover größer / kleiner |
 | `Ctrl/⌘ + R` | Kategorie neu scannen |
 | `Ctrl/⌘ + 1 … 9` | Kategorie 1 … 9 wählen |
 | Menü-Button, `↓`/`Enter` | Kategorie-Menü öffnen (`↑`/`↓`, `Enter`, `Esc`) |

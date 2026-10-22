@@ -1,0 +1,45 @@
+:host {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.menu {
+  position: absolute;
+  min-width: 15rem;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+
+  [role='menuitem'] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover,
+    &:focus {
+      background: var(--color-hover);
+      outline: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-focus);
+      outline-offset: -2px;
+    }
+
+    &.disabled {
+      color: var(--color-text-muted);
+      cursor: default;
+    }
+  }
+}

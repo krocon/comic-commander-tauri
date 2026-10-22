@@ -1,5 +1,5 @@
 import { book } from '../../../testing/fixtures';
-import { filterKey, sortBooks } from './book-order';
+import { filterKey, SortMode, sortBooks, sortBooksBy } from './book-order';
 
 const rels = (list: { relPath: string }[]) => list.map((b) => b.relPath);
 
@@ -26,5 +26,18 @@ describe('book-order', () => {
     const list = [book('b'), book('a')];
     sortBooks(list);
     expect(rels(list)).toEqual(['b', 'a']);
+  });
+
+  it('sorts by file name, date and size (design 004 E4)', () => {
+    const list = [
+      book('b/x 2.cbz', { size: 5, modifiedMs: 1 }),
+      book('a/y 10.cbz', { size: 9, modifiedMs: 3 }),
+      book('c/x 10.cbz', { size: 5, modifiedMs: 2 }),
+    ];
+    const order = (m: SortMode) => sortBooksBy(list, m).map((b) => b.relPath);
+    expect(order('path')).toEqual(['a/y 10.cbz', 'b/x 2.cbz', 'c/x 10.cbz']);
+    expect(order('name')).toEqual(['b/x 2.cbz', 'c/x 10.cbz', 'a/y 10.cbz']);
+    expect(order('date')).toEqual(['a/y 10.cbz', 'c/x 10.cbz', 'b/x 2.cbz']);
+    expect(order('size')).toEqual(['a/y 10.cbz', 'b/x 2.cbz', 'c/x 10.cbz']);
   });
 });

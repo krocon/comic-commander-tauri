@@ -33,7 +33,9 @@ export interface ScanStats {
 
 /** Events of `open_category` (design 002 E9). */
 export type ScanEvent =
-  | { kind: 'cached'; books: BookEntry[]; scannedAt: number; stats: ScanStats }
+  /** The cached books, in parts of ≤ 2000 (design 004): `complete` = no `cachedMore` follows. */
+  | { kind: 'cached'; books: BookEntry[]; scannedAt: number; stats: ScanStats; complete: boolean }
+  | { kind: 'cachedMore'; books: BookEntry[]; complete: boolean }
   | { kind: 'started'; firstScan: boolean }
   | { kind: 'batch'; books: BookEntry[] }
   | { kind: 'progress'; books: number; dirs: number }

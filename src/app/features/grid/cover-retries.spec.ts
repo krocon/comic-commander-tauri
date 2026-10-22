@@ -1,0 +1,52 @@
+import { COVER_RETRIES, CoverRetries, Timers } from './cover-retries';
+
+function manualTimers(): Timers & { run(): void; count(): number } {
+  const queue = new Map<number, () => void>();
+  let next = 0;
+  return {
+    set: (fn) => {
+      queue.set(++next, fn);
+      return next;
+    },
+    clear: (h) => void queue.delete(h as number),
+    run: () => {
+      const fns = [...queue.values()];
+      queue.clear();
+      fns.forEach((f) => f());
+    },
+    count: () => queue.size,
+  };
+}
+
+describe('CoverRetries (review 003 #4)', () => {
+  it('asks again after a pause, then gives up', () => {
+    const timers = manualTimers();
+    let changes = 0;
+    const r = new CoverRetries(10, () => changes++, timers);
+    const url = 'cccover://localhost/c1.b.0?v=5';
+    expect(r.src(url)).toBe(url);
+    for (let n = 1; n <= COVER_RETRIES; n++) {
+      r.failed(url);
+      expect(r.src(url)).toBeNull(); // the format while waiting
+      r.failed(url); // a second error event while waiting counts once
+      timers.run();
+      expect(changes).toBe(n);
+      expect(r.src(url)).toBe(`${url}&retry=${n}`);
+    }
+    r.failed(url);
+    expect(timers.count()).toBe(0);
+    expect(r.src(url)).toBeNull();
+    expect(r.src('fake:x')).toBe('fake:x');
+    r.failed('fake:x');
+    timers.run();
+    expect(r.src('fake:x')).toBe('fake:x?retry=1');
+  });
+
+  it('cancels its timers when disposed', () => {
+    const timers = manualTimers();
+    const r = new CoverRetries(10, () => undefined, timers);
+    r.failed('a');
+    r.dispose();
+    expect(timers.count()).toBe(0);
+  });
+});
