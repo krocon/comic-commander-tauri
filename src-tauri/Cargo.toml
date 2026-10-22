@@ -29,6 +29,7 @@ unrar-ng-sys = "=0.7.7"
 sevenz-rust2 = { version = "0.24.1", default-features = false, features = ["bzip2", "ppmd"] }
 lzma-rust2 = { version = "0.23", default-features = false, features = ["std"] }
 crc32fast = "1.5"
+open = "5"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 
 [dev-dependencies]

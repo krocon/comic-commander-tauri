@@ -13,6 +13,8 @@
 //! - [`book`]          comic books by content: ZIP/RAR/7z/TAR, list + one entry with limits (design 003)
 //! - [`cover`]         cover choice, decoder, sidecars, disk cache, LIFO pool, scheme `cccover` (design 003)
 //! - [`book_registry`] which books the scans listed – the only ones covers are served for
+//! - [`opener`]        open a listed book with the default app (design 004 E5, from files-and-folders)
+//! - [`platform`]      OS functions with one signature each: `desktop::reveal` (design 004 E5)
 //! - [`about`]         data for the About dialog (version, platform)
 //! - [`commands`]      thin Tauri command layer (validate, `spawn_blocking`, never synchronous)
 
@@ -27,7 +29,9 @@ pub mod error;
 pub mod fs_atomic;
 pub mod legacy_import;
 pub mod model;
+pub mod opener;
 pub mod paths;
+pub mod platform;
 pub mod scan;
 pub mod scan_cache;
 pub mod scan_hub;
@@ -89,6 +93,8 @@ pub fn run() {
             commands::import_legacy_config,
             commands::open_category,
             commands::cancel_scan,
+            commands::open_book_external,
+            commands::reveal_book,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

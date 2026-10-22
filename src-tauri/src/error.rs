@@ -37,6 +37,10 @@ pub enum FsErrorCode {
     Timeout,
     /// Too much work waiting (cover pool full) – ask again later.
     Busy,
+    /// A book id the scan of that category did not list (design 004 E5).
+    UnknownBook,
+    /// An OS program (file manager) is missing (design 004 E5).
+    ProgramNotFound,
 }
 
 /// The one error type every command returns.

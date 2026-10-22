@@ -12,7 +12,7 @@ use crate::error::{FsError, FsErrorCode};
 use crate::legacy_import::{self, LegacyImport};
 use crate::model::AppInfo;
 use crate::scan_hub::{ScanEvent, ScanHub, Target};
-use crate::{about, paths, scan_cache};
+use crate::{about, opener, paths, platform, scan_cache};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -244,6 +244,34 @@ pub async fn cancel_scan(app: AppHandle, id: String) -> Result<(), FsError> {
     .await
 }
 
+/// Opens a listed book with the system's default app (design 004 E5).
+#[tauri::command]
+pub async fn open_book_external(
+    app: AppHandle,
+    category_id: String,
+    book_id: String,
+) -> Result<(), FsError> {
+    blocking(move || {
+        let path = opener::resolve_book(&app.state::<AppState>().registry, &category_id, &book_id)?;
+        opener::open_with_default_app(&path)
+    })
+    .await
+}
+
+/// Shows a listed book in Finder / Explorer / the file manager (design 004 E5).
+#[tauri::command]
+pub async fn reveal_book(
+    app: AppHandle,
+    category_id: String,
+    book_id: String,
+) -> Result<(), FsError> {
+    blocking(move || {
+        let path = opener::resolve_book(&app.state::<AppState>().registry, &category_id, &book_id)?;
+        platform::desktop::reveal(&path)
+    })
+    .await
+}
+
 /// The cover service of the app (created on first use).
 pub fn covers(app: &AppHandle) -> Result<Arc<CoverService>, FsError> {
     let state = app.state::<AppState>();
@@ -300,6 +328,6 @@ mod command_rules {
                 count += 1;
             }
         }
-        assert!(count >= 8);
+        assert!(count >= 10);
     }
 }
