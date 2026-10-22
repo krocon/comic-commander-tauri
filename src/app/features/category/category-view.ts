@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  InjectionToken,
   computed,
   effect,
   inject,
@@ -10,6 +11,8 @@ import {
 } from '@angular/core';
 import { describeFsError } from '../../core/errors/fs-error';
 import { DialogService } from '../../shared/dialog/dialog.service';
+import { CoversApi } from '../../core/covers/covers-api';
+import { BookEntry } from '../../core/scan/scan.models';
 import { CategoriesStore } from '../categories/categories.store';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
@@ -17,6 +20,13 @@ import { CATEGORY_TEXTS } from './category-texts';
 
 /** Rows of the plain list (the cover grid of prompt 004 virtualises). */
 export const MAX_LIST_ROWS = 500;
+
+/** How often a failed cover is asked for again (review 003 #4). */
+export const COVER_RETRIES = 2;
+/** Pause before the n-th retry: n × this (tests set it small). */
+export const COVER_RETRY_MS = new InjectionToken<number>('COVER_RETRY_MS', {
+  factory: () => 2000,
+});
 
 /**
  * The active category (design 002): toolbar with the category menu, „scan again“, status; the
@@ -37,6 +47,13 @@ export class CategoryView {
   protected readonly categories = inject(CategoriesStore);
   protected readonly store = inject(CategoryStore);
   private readonly dialogs = inject(DialogService);
+  private readonly covers = inject(CoversApi);
+  private readonly retryMs = inject(COVER_RETRY_MS);
+  /** Failed loads per cover URL (a changed book has a new URL and a fresh chance). */
+  private readonly coverFailures = signal<ReadonlyMap<string, number>>(new Map());
+  /** Cover URLs waiting for their next try: the format shows meanwhile. */
+  private readonly coverWaiting = signal<ReadonlySet<string>>(new Set());
+  private readonly retryTimers = new Set<ReturnType<typeof setTimeout>>();
   protected readonly t = CATEGORY_TEXTS;
 
   /** Ticks every 30 s for „updated 3 min ago“. */
@@ -98,7 +115,47 @@ export class CategoryView {
       untracked(() => void this.store.open(this.categories.active()?.id ?? null));
     });
     const timer = setInterval(() => this.now.set(Date.now()), 30_000);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      this.retryTimers.forEach(clearTimeout);
+    });
+  }
+
+  /** Smallest size of the category (`thumbsDims[0]`) – the list shows 32 × 48 px. */
+  private coverUrl(book: BookEntry): string | null {
+    const c = this.categories.active();
+    return c ? this.covers.coverUrl(c.id, book, 0) : null;
+  }
+
+  /**
+   * `src` of the cover, `null` = show the format. A failed cover is asked for again after a
+   * pause (busy pool → 503, a sleeping NAS), [COVER_RETRIES] times; `retry=` makes the
+   * WebView load it again (errors are `no-store` anyway).
+   */
+  protected coverSrc(book: BookEntry): string | null {
+    const url = this.coverUrl(book);
+    if (url === null || this.coverWaiting().has(url)) return null;
+    const failed = this.coverFailures().get(url) ?? 0;
+    if (failed > COVER_RETRIES) return null;
+    return failed ? `${url}${url.includes('?') ? '&' : '?'}retry=${failed}` : url;
+  }
+
+  protected coverFailed(book: BookEntry): void {
+    const url = this.coverUrl(book);
+    if (url === null) return;
+    const failed = (this.coverFailures().get(url) ?? 0) + 1;
+    this.coverFailures.update((m) => new Map(m).set(url, failed));
+    if (failed > COVER_RETRIES) return;
+    this.coverWaiting.update((s) => new Set(s).add(url));
+    const timer = setTimeout(() => {
+      this.retryTimers.delete(timer);
+      this.coverWaiting.update((s) => {
+        const next = new Set(s);
+        next.delete(url);
+        return next;
+      });
+    }, this.retryMs * failed);
+    this.retryTimers.add(timer);
   }
 
   protected rescan(): void {

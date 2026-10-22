@@ -15,7 +15,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const VERSION: u32 = 1;
+/// 2: `BookEntry.id` (design 003) – older caches count as missing.
+pub const VERSION: u32 = 2;
 /// Largest cache file read (≈ 1 million books).
 pub const MAX_BYTES: u64 = 256 << 20;
 pub const DIR_NAME: &str = "scans";
@@ -149,6 +150,7 @@ mod tests {
 
     fn book(p: &str, size: u64) -> BookEntry {
         BookEntry {
+            id: crate::scan::book_id(&format!("/lib/{p}")),
             path: format!("/lib/{p}"),
             rel_path: p.into(),
             name: p.into(),

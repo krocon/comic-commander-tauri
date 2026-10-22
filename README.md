@@ -8,8 +8,8 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 [files-and-folders-tauri](https://github.com/krocon/files-and-folders-tauri). Das Cover-Raster ist eine
 [GuiExpert Table](https://github.com/guiexperttable/mono) im Cover-Grid-Modus.
 
-> **Stand:** Kategorien und Scan (Prompt 002). Die App verwaltet Kategorien, scannt sie rekursiv und listet die
-> Bücher. Cover-Grid, Thumbnails und Leser folgen – Fahrplan in [`prompts/README.md`](prompts/README.md).
+> **Stand:** Cover (Prompt 003). Die App verwaltet Kategorien, scannt sie rekursiv und listet die Bücher mit ihrem
+> Cover. Cover-Grid und Leser folgen – Fahrplan in [`prompts/README.md`](prompts/README.md).
 
 ## Was funktioniert
 
@@ -21,6 +21,11 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 - **Scan** rekursiv in Rust; beim nächsten Öffnen erscheint die Liste sofort aus dem Cache und wird im Hintergrund
   aktualisiert. Nichts wird in die Comic-Ordner geschrieben. Ist ein Ordner nicht erreichbar, bleibt der letzte
   Stand sichtbar.
+- **Cover** aus CBZ, CBR (RAR4, RAR5, auch CBR, die eigentlich ZIP sind), CB7 und CBT – erkannt am Inhalt, nicht an
+  der Endung. Titelseite: ein Bild mit `cover` im Namen, sonst das erste Bild in natürlicher Reihenfolge. Vorhandene
+  Thumbnails des alten Comic Commanders (`Band.jpg`, `Band_xl.jpg`) werden genutzt; neue Cover liegen im App-Cache
+  (höchstens 2 GiB) und erscheinen beim nächsten Start sofort. Kaputte oder verschlüsselte Bücher zeigen das
+  Format-Kürzel. PDF-Cover folgen mit Prompt 006.
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 

@@ -47,6 +47,11 @@ pub fn match_extension(name: &str, extensions: &[String]) -> Option<BookFormat> 
     FORMATS.iter().find(|(e, _)| e == ext).map(|(_, f)| *f)
 }
 
+/// The id of a book: `fnv64(path)` as 16 hex digits (design 003 E1).
+pub fn book_id(path: &str) -> String {
+    format!("{:016x}", crate::categories::fnv64(path.as_bytes()))
+}
+
 /// Hidden (`.x`) – includes AppleDouble (`._x`).
 fn is_hidden(name: &str) -> bool {
     name.starts_with('.')
@@ -231,8 +236,10 @@ pub fn walk(
                 continue;
             };
             stats.books += 1;
+            let path_text = path.to_string_lossy().into_owned();
             let book = BookEntry {
-                path: path.to_string_lossy().into_owned(),
+                id: book_id(&path_text),
+                path: path_text,
                 rel_path,
                 name: name.to_owned(),
                 format,

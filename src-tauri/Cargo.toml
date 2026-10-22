@@ -20,6 +20,18 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2"
+# design 003: reading comic books (no external programs) and making cover thumbnails
+zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2"] }
+tar = { version = "0.4.46", default-features = false }
+# design 003 E6: RAR through the vendored UnRAR source (C++, unRAR licence) – as in files-and-folders
+unrar-ng-sys = "=0.7.7"
+# design 003 E7: 7z with the fail-closed header check taken over from files-and-folders
+sevenz-rust2 = { version = "0.24.1", default-features = false, features = ["bzip2", "ppmd"] }
+lzma-rust2 = { version = "0.23", default-features = false, features = ["std"] }
+crc32fast = "1.5"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 
 [dev-dependencies]
 tempfile = "3"
+# design 003: writing 7z test books
+sevenz-rust2 = { version = "0.24.1", default-features = false, features = ["bzip2", "ppmd", "compress"] }

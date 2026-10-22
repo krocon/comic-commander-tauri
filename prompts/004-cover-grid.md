@@ -9,6 +9,16 @@ Die Hauptansicht: alle Bücher der aktiven Kategorie als **virtualisiertes Raste
 `CoverGridTableModel`), flüssig bei 50 000 Büchern, mit Filter, Größenwahl und Tastaturbedienung. Ersetzt die
 Skelett-Liste aus 001.
 
+## Zielbild (Marc, 22.10.2026 – Screenshot der alten App)
+
+- Cover **randlos** aneinander, keine Lücken, keine Rahmen; die Spaltenzahl ergibt sich aus der Fensterbreite, die
+  Cover füllen die Breite (letzter Rest höchstens schmal).
+- **Toolbar schwebt über dem Grid** (halbtransparent, das Grid läuft darunter durch): links ☰ + Kategorie-Titel
+  (= Kategorie-Menü aus 002), daneben **Filter**-Feld und Select **„Thumb size“** (`200 x 300` …), rechts Knöpfe
+  **nach oben / nach unten**. Filter also oben, nicht unten wie in Anforderung 4 offen gelassen.
+- Ohne Titel unter dem Cover (Name nur als Tooltip) – Vorgabe für E1, Titel optional per Einstellung.
+- Dunkler Hintergrund wirkt am besten; light/dark trotzdem beide.
+
 ## Anforderungen
 
 1. **Grid**: `TableSignalComponent` + `CoverGridFactory.createCoverGridModel(books, renderer, w, h, width, paddingTop)`;

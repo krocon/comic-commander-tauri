@@ -3,19 +3,24 @@ import { CategoriesApi } from '../../core/categories/categories-api';
 import { ScanApi } from '../../core/scan/scan-api';
 import { FakeCategoriesApi } from '../../../testing/fake-categories-api';
 import { FakeScanApi } from '../../../testing/fake-scan-api';
+import { CoversApi } from '../../core/covers/covers-api';
+import { FakeCoversApi } from '../../../testing/fake-covers-api';
 import { books, category, config, stats } from '../../../testing/fixtures';
 import { CategoriesStore } from '../categories/categories.store';
 import { DialogService } from '../../shared/dialog/dialog.service';
-import { CategoryView, MAX_LIST_ROWS } from './category-view';
+import { COVER_RETRIES, COVER_RETRY_MS, CategoryView, MAX_LIST_ROWS } from './category-view';
+import { Provider } from '@angular/core';
 
 const flush = () => new Promise((r) => setTimeout(r));
 
-async function render(setup?: (api: FakeCategoriesApi) => void) {
+async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provider[] = []) {
   TestBed.configureTestingModule({
     imports: [CategoryView],
     providers: [
       { provide: CategoriesApi, useClass: FakeCategoriesApi },
       { provide: ScanApi, useClass: FakeScanApi },
+      { provide: CoversApi, useClass: FakeCoversApi },
+      ...providers,
     ],
   });
   const api = TestBed.inject(CategoriesApi) as FakeCategoriesApi;
@@ -130,6 +135,52 @@ describe('CategoryView', () => {
     );
     cancel?.click();
     expect(scan.cancelled).toEqual(['c1']);
+  });
+
+  it('shows the cover of each book, the format when it fails', async () => {
+    const { el, scan, update } = await render(twoCategories);
+    const list = books('a.cbz', 'b.pdf');
+    scan.last.emit({ kind: 'cached', books: list, scannedAt: 1, stats: stats() });
+    await update();
+    const imgs = [...el.querySelectorAll('.book img')] as HTMLImageElement[];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
+      new FakeCoversApi().coverUrl('c1', list[0], 0),
+      new FakeCoversApi().coverUrl('c1', list[1], 0),
+    ]);
+    expect(imgs[0].getAttribute('loading')).toBe('lazy');
+    imgs[1].dispatchEvent(new Event('error'));
+    await update();
+    expect(el.querySelectorAll('.book img').length).toBe(1);
+    expect(el.querySelectorAll('.book .cover')[1].textContent?.trim()).toBe('cbz');
+  });
+
+  it('asks again for a failed cover after a pause, then gives up (review 003 #4)', async () => {
+    const { el, scan, update } = await render(twoCategories, [
+      { provide: COVER_RETRY_MS, useValue: 40 },
+    ]);
+    const list = books('a.cbz');
+    scan.last.emit({ kind: 'cached', books: list, scannedAt: 1, stats: stats() });
+    await update();
+    const src = () => el.querySelector('.book img')?.getAttribute('src') ?? null;
+    const base = new FakeCoversApi().coverUrl('c1', list[0], 0);
+    expect(src()).toBe(base);
+    for (let n = 1; n <= COVER_RETRIES; n++) {
+      el.querySelector('.book img')?.dispatchEvent(new Event('error'));
+      await update();
+      expect(src()).toBeNull(); // the format while waiting
+      await new Promise((r) => setTimeout(r, 40 * n + 20));
+      await update();
+      expect(src()).toBe(`${base}&retry=${n}`);
+    }
+    el.querySelector('.book img')?.dispatchEvent(new Event('error'));
+    await new Promise((r) => setTimeout(r, 20));
+    await update();
+    expect(src()).toBeNull();
+    // a changed book (new URL) gets a fresh chance
+    const changed = { ...list[0], modifiedMs: 99 };
+    scan.last.emit({ kind: 'diff', added: [], removed: [], changed: [changed] });
+    await update();
+    expect(src()).toBe(new FakeCoversApi().coverUrl('c1', changed, 0));
   });
 
   it('renders at most MAX_LIST_ROWS rows', async () => {
