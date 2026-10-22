@@ -64,14 +64,9 @@
         <li class="book">
           <span class="cover" aria-hidden="true">
             {{ book.format }}
-            @if (!brokenCovers().has(book.id)) {
-              <img
-                alt=""
-                loading="lazy"
-                decoding="async"
-                [src]="coverUrl(book)"
-                (error)="coverFailed(book.id)"
-              />
+            @let src = coverSrc(book);
+            @if (src) {
+              <img alt="" loading="lazy" decoding="async" [src]="src" (error)="coverFailed(book)" />
             }
           </span>
           <span class="name" [title]="book.relPath">{{ book.relPath }}</span>

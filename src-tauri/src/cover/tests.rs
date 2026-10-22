@@ -181,3 +181,22 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
     }
     out
 }
+
+/// Only failures that a retry cannot change are remembered (review 003 #5).
+#[test]
+fn only_lasting_failures_are_remembered() {
+    use FsErrorCode as C;
+    for c in [
+        C::NoImage,
+        C::UnsupportedFormat,
+        C::UnsupportedImage,
+        C::ArchiveError,
+        C::ArchiveEncrypted,
+        C::ArchiveTooLarge,
+    ] {
+        assert!(remembered(c), "{c:?}");
+    }
+    for c in [C::Timeout, C::Busy, C::Io, C::NotFound, C::PermissionDenied] {
+        assert!(!remembered(c), "{c:?}");
+    }
+}

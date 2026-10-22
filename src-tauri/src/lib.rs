@@ -44,7 +44,11 @@ fn http_reply(reply: cover::Reply) -> tauri::http::Response<Vec<u8>> {
         .header(tauri::http::header::CONTENT_TYPE, reply.mime)
         .header(tauri::http::header::CACHE_CONTROL, cache)
         .body(reply.body)
-        .unwrap_or_else(|_| tauri::http::Response::new(Vec::new()))
+        .unwrap_or_else(|_| {
+            let mut r = tauri::http::Response::new(Vec::new());
+            *r.status_mut() = tauri::http::StatusCode::INTERNAL_SERVER_ERROR;
+            r
+        })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

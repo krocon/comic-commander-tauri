@@ -192,6 +192,14 @@ fnf-RAR-Testdateien + 3 echte Bücher; Sichtprüfung der Liste mit Covern, Neust
   `read_entry`.
 - **`cover_stats`** entfällt (E10 „optional“): Fehler stehen in `CoverService::failures()` bereit, 007 entscheidet.
 - **Größe `_xl`**: 200–300 KB statt geschätzter 120 KB (Messung in `docs/architecture.md`).
+- **Review** (separater Agent): ZIP-Verzeichnis wird vor dem Parsen geprüft (Anzahl, ≤ 64 MiB); Wörterbuch ≤ 256 MiB
+  statt 1 GiB (fnf-Wert galt dem Entpacken, 4 Cover-Worker × 1 GiB wären zu viel); höchstens 512 MiB vor der
+  Titelseite eines soliden Buchs; Zeitlimit auch beim RAR-Listing; nur bleibende Fehler gemerkt; ein erneut
+  angefragtes Cover rückt im Pool nach oben; Ordner-/Typwechsel vergisst die Bücher der Kategorie; das Frontend fragt
+  ein fehlgeschlagenes Cover zweimal neu (503 bei voller Warteschlange) statt es für die Sitzung zu verstecken.
+  Bewusst offen: das Dekodieren eines Bildes hat kein Zeitlimit (begrenzt durch 64 MP); fnv64-Ids sind nicht
+  kollisionsfest (schlimmstenfalls falsches Cover, kein Zugriff außerhalb der Kategorie); nicht-UTF-8-Pfade, die sich
+  nur in ungültigen Bytes unterscheiden, teilen sich eine Id (Linux, selten).
 
 ## Akzeptanz (Ergebnis, 22.10.2026)
 

@@ -21,13 +21,16 @@ use crate::error::{FsError, FsErrorCode};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Entries per book at most.
 pub const MAX_ENTRIES: usize = 200_000;
-/// Largest dictionary / model memory a 7z block or RAR entry may ask for.
-pub const MAX_DICT: u64 = 1 << 30;
+/// Largest dictionary / model memory a 7z block or RAR entry may ask for. Real comics use 4–32 MiB;
+/// files-and-folders allows 1 GiB for extraction – too much for 4 cover workers (review 003 #2).
+pub const MAX_DICT: u64 = 256 << 20;
+/// Bytes decoded and dropped before the wanted entry of a solid book (review 003 #2).
+pub const MAX_SKIPPED: u64 = 512 << 20;
 /// Largest entry read into memory (a page).
 pub const MAX_ENTRY_BYTES: u64 = 64 << 20;
 /// Longest TAR metadata entry (GNU long name, PAX header) accepted.
@@ -64,10 +67,12 @@ pub struct Entry {
     pub encrypted: bool,
 }
 
-/// Time limit and cancel flag of one operation.
+/// Time limit, cancel flag and skip limit of one operation.
 pub struct Budget<'a> {
     deadline: Instant,
     cancel: Option<&'a AtomicBool>,
+    skipped: AtomicU64,
+    skip_limit: u64,
 }
 
 impl<'a> Budget<'a> {
@@ -75,7 +80,30 @@ impl<'a> Budget<'a> {
         Self {
             deadline: Instant::now() + limit,
             cancel,
+            skipped: AtomicU64::new(0),
+            skip_limit: MAX_SKIPPED,
         }
+    }
+
+    /// Another limit for skipped data (tests).
+    pub fn with_skip_limit(mut self, limit: u64) -> Self {
+        self.skip_limit = limit;
+        self
+    }
+
+    /// Counts `n` skipped bytes; `false` once more than the skip limit were skipped.
+    fn skip(&self, n: usize) -> bool {
+        self.skipped.fetch_add(n as u64, Ordering::Relaxed) + n as u64 <= self.skip_limit
+    }
+
+    fn skip_error(&self, path: &Path) -> FsError {
+        too_large(
+            format!(
+                "more than {} MiB before the wanted entry",
+                self.skip_limit >> 20
+            ),
+            path,
+        )
     }
 
     /// `true` while the operation may go on.
@@ -232,7 +260,8 @@ pub(crate) fn read_limited(
     }
 }
 
-/// Reads and drops `r` (an entry before the wanted one in a solid stream).
+/// Reads and drops `r` (an entry before the wanted one in a solid stream), at most
+/// [`MAX_SKIPPED`] bytes per operation.
 pub(crate) fn drain(r: &mut dyn Read, budget: &Budget<'_>, path: &Path) -> Result<(), FsError> {
     let mut buf = vec![0u8; 64 << 10];
     loop {
@@ -243,11 +272,14 @@ pub(crate) fn drain(r: &mut dyn Read, budget: &Budget<'_>, path: &Path) -> Resul
         if n == 0 {
             return Ok(());
         }
+        if !budget.skip(n) {
+            return Err(budget.skip_error(path));
+        }
     }
 }
 
 fn rar_list(path: &Path, budget: &Budget<'_>) -> Result<Vec<Entry>, FsError> {
-    let (headers, header_encrypted) = rar::headers(path, MAX_ENTRIES, budget.cancel)?;
+    let (headers, header_encrypted) = rar::headers(path, MAX_ENTRIES, budget)?;
     if header_encrypted {
         return Err(encrypted(path));
     }
@@ -301,11 +333,18 @@ fn rar_read(
             return Ok(data);
         }
         // a solid archive decodes skipped entries: through a sink that checks the budget
+        let mut over = false;
         let went_on = if archive.solid {
-            archive.test_into(&h, &mut |_| budget.ok())?
+            archive.test_into(&h, &mut |chunk| {
+                over = !budget.skip(chunk.len());
+                !over && budget.ok()
+            })?
         } else {
             archive.skip(&h)?
         };
+        if over {
+            return Err(budget.skip_error(path));
+        }
         if !went_on {
             return Err(timeout(path));
         }

@@ -63,6 +63,11 @@ impl Pool {
             let mut s = lock(&self.inner.state);
             if let Some(ws) = s.waiters.get_mut(&key) {
                 ws.push(waiter);
+                // asked for again: still queued → to the top, it is visible now (review 003 #7)
+                if let Some(i) = s.stack.iter().position(|(k, _)| *k == key) {
+                    let job = s.stack.remove(i);
+                    s.stack.push(job);
+                }
                 return;
             }
             s.waiters.insert(key.clone(), vec![waiter]);
@@ -146,7 +151,7 @@ mod tests {
                 waiter(&tx, k),
             );
         }
-        // a second request for "b" joins the queued one
+        // a second request for "b" joins the queued one and moves it to the top (review 003 #7)
         pool.submit(
             "b".into(),
             Box::new(|| panic!("never runs")),
@@ -159,10 +164,10 @@ mod tests {
             .map(|_| rx.recv_timeout(Duration::from_secs(5)).unwrap())
             .collect();
         let names: Vec<&str> = order.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, ["block", "p", "c", "b", "b2", "a"]);
+        assert_eq!(names, ["block", "p", "b", "b2", "c", "a"]);
         assert!(order[1].1.is_err(), "a panic is an error");
+        assert_eq!(order[2].1.as_ref().unwrap(), b"b");
         assert_eq!(order[3].1.as_ref().unwrap(), b"b");
-        assert_eq!(order[4].1.as_ref().unwrap(), b"b");
         // the pool still works after the panic
         pool.submit("z".into(), Box::new(|| Ok(vec![9])), waiter(&tx, "z"));
         assert_eq!(
@@ -187,11 +192,12 @@ mod tests {
             waiter(&tx, "block"),
         );
         std::thread::sleep(Duration::from_millis(50));
-        for k in ["1", "2", "3"] {
+        for k in ["1", "2", "1", "3"] {
             pool.submit(k.into(), Box::new(|| Ok(vec![])), waiter(&tx, k));
         }
+        // "1" was asked for again, so "2" is now the oldest
         let (name, outcome) = rx.recv_timeout(Duration::from_secs(5)).unwrap();
-        assert_eq!(name, "1");
+        assert_eq!(name, "2");
         assert_eq!(outcome.unwrap_err().code, FsErrorCode::Busy);
         gate_tx.send(()).unwrap();
     }

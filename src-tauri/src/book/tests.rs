@@ -372,3 +372,75 @@ fn broken_and_unknown_books() {
         FsErrorCode::NotFound
     );
 }
+
+/// End of a ZIP whose directory claims `entries` records of `dir_size` bytes (ZIP64 form).
+fn zip64_tail(entries: u64, dir_size: u64) -> Vec<u8> {
+    let mut out = b"PK\x03\x04".to_vec();
+    out.resize(64, 0);
+    let eocd64_at = out.len() as u64;
+    out.extend_from_slice(b"PK\x06\x06");
+    out.extend_from_slice(&44u64.to_le_bytes()); // size of the rest
+    out.extend_from_slice(&[45, 0, 45, 0]); // versions
+    out.extend_from_slice(&[0; 8]); // disk numbers
+    out.extend_from_slice(&entries.to_le_bytes()); // on this disk
+    out.extend_from_slice(&entries.to_le_bytes()); // total
+    out.extend_from_slice(&dir_size.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes()); // directory offset
+    out.extend_from_slice(b"PK\x06\x07");
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&eocd64_at.to_le_bytes());
+    out.extend_from_slice(&1u32.to_le_bytes());
+    out.extend_from_slice(b"PK\x05\x06");
+    out.extend_from_slice(&[0; 4]);
+    out.extend_from_slice(&[0xFF; 4]); // entries: see ZIP64
+    out.extend_from_slice(&[0xFF; 8]); // size + offset: see ZIP64
+    out.extend_from_slice(&[0; 2]);
+    out
+}
+
+#[test]
+fn zip_directory_is_checked_before_it_is_parsed() {
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("many.cbz");
+    std::fs::write(&p, zip64_tail(10_000_000, 46 * 10_000_000)).unwrap();
+    assert_eq!(
+        zip_book::check_directory(&p).unwrap_err().code,
+        FsErrorCode::ArchiveTooLarge
+    );
+    std::fs::write(&p, zip64_tail(10, 1 << 30)).unwrap();
+    assert_eq!(
+        zip_book::check_directory(&p).unwrap_err().code,
+        FsErrorCode::ArchiveTooLarge
+    );
+    assert_eq!(
+        list(&p, &budget()).unwrap_err().code,
+        FsErrorCode::ArchiveTooLarge
+    );
+    // ordinary books pass
+    build::cbz(&p, &pages());
+    zip_book::check_directory(&p).unwrap();
+}
+
+#[test]
+fn data_skipped_before_the_cover_is_bounded() {
+    let d = tempfile::tempdir().unwrap();
+    let p = d.path().join("solid.cb7");
+    build::cb7(
+        &p,
+        &[
+            ("a.bin", vec![0u8; 3 << 20]),
+            ("z.jpg", build::jpeg(8, 8, 1)),
+        ],
+        true,
+    );
+    let (c, e) = list(&p, &budget()).unwrap();
+    let cover = e.iter().find(|e| e.name == "z.jpg").unwrap();
+    let small = Budget::new(TIME_LIMIT, None).with_skip_limit(1 << 20);
+    assert_eq!(
+        read(&p, c, cover, MAX_ENTRY_BYTES, &small)
+            .unwrap_err()
+            .code,
+        FsErrorCode::ArchiveTooLarge
+    );
+    read(&p, c, cover, MAX_ENTRY_BYTES, &budget()).unwrap();
+}

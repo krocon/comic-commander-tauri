@@ -124,10 +124,16 @@ pub async fn save_categories(
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .replace(saved.clone());
-        // books of removed categories can no longer be asked for (design 003 E1)
-        for gone in before.into_iter().flat_map(|c| c.categories) {
-            if !saved.categories.iter().any(|c| c.id == gone.id) {
-                state.registry.forget(&gone.id);
+        // books of removed categories – or of a category whose folder or types changed – can no
+        // longer be asked for (design 003 E1, review 003 #6)
+        for old in before.into_iter().flat_map(|c| c.categories) {
+            let same = saved.categories.iter().any(|c| {
+                c.id == old.id
+                    && c.base_dir == old.base_dir
+                    && c.book_extensions == old.book_extensions
+            });
+            if !same {
+                state.registry.forget(&old.id);
             }
         }
         // caches of running scans stay – their walk is about to write them (review 002 #6)

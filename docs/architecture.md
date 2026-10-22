@@ -54,11 +54,11 @@
 | A15 | Font Awesome 4.5.0 (nur `woff2`) wie files-and-folders | einheitlich, Lizenz geprüft | 002 E4 |
 | A16 | Ordner-Überwachung verschoben; Neu-Scan beim Öffnen + `Mod+R` | Netzlaufwerke melden Änderungen unzuverlässig | 002 E8 |
 | A17 | Cover über das asynchrone URI-Schema **`cccover`**, Pfad `/<Kategorie-Id>.<Buch-Id>.<dimIndex>?v=<mtime>`; die Buch-Id (`fnv64(Pfad)`) kommt aus dem Scan, `BookRegistry` kennt nur gelistete Bücher – kein Vorab-`invoke`, kein Pfad in der URL | kein Base64 über IPC, nichts außerhalb der Kategorien auslieferbar | 003 E1 |
-| A18 | Containerart nach **Inhalt** (Magic Bytes); ZIP `zip`, TAR `tar`, 7z `sevenz-rust2` hinter fnfs fail-closed Header-Prüfung, RAR über UnRAR (`unrar-ng-sys`, einziges `unsafe`); Grenzen: 200 000 Einträge, 64 MiB je Eintrag, Wörterbuch ≤ 1 GiB, 20 s je Buch, Bilder ≤ 16 384 px / 64 MP | 8 × CBR = ZIP bei Marc; Bücher sind feindlich | 003 E6, E7 |
+| A18 | Containerart nach **Inhalt** (Magic Bytes); ZIP `zip`, TAR `tar`, 7z `sevenz-rust2` hinter fnfs fail-closed Header-Prüfung, RAR über UnRAR (`unrar-ng-sys`, einziges `unsafe`); Grenzen: 200 000 Einträge, ZIP-Verzeichnis ≤ 64 MiB (vor dem Parsen geprüft), 64 MiB je Eintrag, Wörterbuch ≤ 256 MiB, ≤ 512 MiB vor der Titelseite überspringen (solid), 20 s je Buch, Bilder ≤ 16 384 px / 64 MP | 8 × CBR = ZIP bei Marc; Bücher sind feindlich | 003 E6, E7 |
 | A19 | Titelseite: Bilder ohne versteckte/`__MACOSX`; `cover.` im Namen → weniger Ordnerebenen → natürliche Reihenfolge | Vorlage + natürliche Sortierung | 003 E8 |
-| A20 | Alte Sidecars (`Band.jpg`, `Band_xl.jpg` …) werden **gelesen**, nie geschrieben; erzeugte Cover als JPEG q80 im App-Cache (Grenze 2 GiB, älteste zuerst weg), Fehler je Sitzung gemerkt | nichts in die Comic-Ordner (legacy §10.2) | 003 E4, E5 |
+| A20 | Alte Sidecars (`Band.jpg`, `Band_xl.jpg` …) werden **gelesen**, nie geschrieben; erzeugte Cover als JPEG q80 im App-Cache (Grenze 2 GiB, älteste zuerst weg); bleibende Fehler (kein Bild, kaputt, verschlüsselt …) je Sitzung gemerkt, Zeitlimit/I/O nicht | nichts in die Comic-Ordner (legacy §10.2) | 003 E4, E5 |
 | A21 | Eigener Cover-Pool: min(4, Kerne − 1) Threads, **LIFO**, gleiche Schlüssel zusammengelegt, > 2 000 wartende → älteste 503 | sichtbare Cover zuerst nach schnellem Scrollen | 003 E9 |
-| A22 | Status: 404 kein Bild/unbekannt, 415 Format (PDF bis 006), 422 kaputt/verschlüsselt/zu groß/Zeitlimit, 503 voll, 500 Panik; 200 mit `immutable`, sonst `no-store` | Frontend zeigt bei Fehler das Format-Kürzel | 003 E10 |
+| A22 | Status: 404 kein Bild/unbekannt, 415 Format (PDF bis 006), 422 kaputt/verschlüsselt/zu groß/Zeitlimit, 503 voll, 500 Panik; 200 mit `immutable`, sonst `no-store` | Frontend zeigt bei Fehler das Format-Kürzel und fragt nach 2 s/4 s noch zweimal (`&retry=n`) | 003 E10 |
 
 ## DTO-Vertrag
 

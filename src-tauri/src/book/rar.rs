@@ -444,11 +444,13 @@ impl<'p> RarArchive<'p> {
 pub(crate) fn headers(
     path: &Path,
     limit: usize,
-    cancel: Option<&AtomicBool>,
+    budget: &super::Budget<'_>,
 ) -> Result<(Vec<RarHeader>, bool), FsError> {
-    let mut a = RarArchive::open(path, false, cancel)?;
+    let mut a = RarArchive::open(path, false, budget.cancel)?;
     let mut out = Vec::new();
     while let Some(h) = a.next_header()? {
+        // the time limit holds while listing, too (review 003 #3)
+        budget.check(path)?;
         a.skip(&h)?;
         out.push(h);
         if out.len() > limit {

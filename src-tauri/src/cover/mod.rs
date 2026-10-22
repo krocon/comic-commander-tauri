@@ -110,12 +110,28 @@ pub struct CoverService {
 }
 
 /// Makes the thumbnail of `book` (the slow part, runs in the pool).
+/// Failures a retry cannot change (the key holds size and mtime): remembered for the session.
+/// Time limit, busy, I/O (a sleeping NAS) are asked again next time (review 003 #5).
+pub fn remembered(code: FsErrorCode) -> bool {
+    use FsErrorCode as C;
+    matches!(
+        code,
+        C::NoImage
+            | C::UnsupportedFormat
+            | C::UnsupportedImage
+            | C::ArchiveError
+            | C::ArchiveEncrypted
+            | C::ArchiveTooLarge
+    )
+}
+
 pub fn make_thumbnail(book: &Path, width: u32, height: u32) -> Result<Vec<u8>, FsError> {
     let budget = Budget::new(TIME_LIMIT, None);
     let (container, entries) = book::list(book, &budget)?;
     let cover = choose::cover(&entries)
         .ok_or_else(|| FsError::new(FsErrorCode::NoImage, "no image in the book", Some(book)))?;
     let data = book::read(book, container, cover, MAX_ENTRY_BYTES, &budget)?;
+    budget.check(book)?;
     image::thumbnail_jpeg(&data, width, height, book)
 }
 
@@ -184,12 +200,13 @@ impl CoverService {
                     Ok(data) => {
                         let _ = me.cache.put(&job_key, data);
                     }
-                    Err(e) => {
+                    Err(e) if remembered(e.code) => {
                         me.failures
                             .lock()
                             .unwrap_or_else(|p| p.into_inner())
                             .insert(job_key, e.code);
                     }
+                    Err(_) => {}
                 }
                 outcome
             }),
