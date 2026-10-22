@@ -18,7 +18,10 @@
   `config.json` (`baseDir`, `bookExtensions`, `thumbsDims`, …) zur Laufzeit verwalten, alte Konfiguration importieren,
   Scan in Rust mit Cache im App-Cache (stale-while-revalidate), Kategorie-Menü, Liste der Bücher (Platzhalter für das
   Cover-Grid). Design: `prompts/done/002-kategorien-scan.design.md`.
-- Als Nächstes: **003** (Cover/Thumbnails) → 004 (Cover-Grid) → 005 (Leser). Reihenfolge und Status:
+- **Prompt 003 (Cover)** ist fertig: Bücher nach Inhalt lesen (ZIP/RAR/7z/TAR, Grenzen), Titelseite wählen, alte
+  Sidecars lesen, Thumbnails im App-Cache, LIFO-Pool, URI-Schema `cccover`; die Liste zeigt kleine Cover. Design:
+  `prompts/done/003-cover-thumbnails.design.md`.
+- Als Nächstes: **004** (Cover-Grid) → 005 (Leser). Reihenfolge und Status:
   `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -60,28 +63,36 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   app/core/categories/        DTOs (= Rust categories.rs/legacy_import.rs), CategoriesApi
   app/core/scan/              DTOs (= Rust model.rs/scan_hub.rs: BookEntry, ScanStats, ScanEvent), ScanApi (Channel)
   app/core/about/             AppInfo, AboutApi
+  app/core/covers/            CoversApi: Cover-URL (Schema cccover, `<cat>.<book>.<dim>?v=<mtime>`)
   app/features/categories/    CategoriesStore (Root: Konfig, aktive Kategorie, Import), category-form.ts (rein: Listen
                               = Rust, Prüfung), Dialog „Manage categories“, ImportDialog, Texte
   app/features/category/      CategoryStore (je Ansicht, ereignisgetrieben), CategoryView (Toolbar, Status, Liste →
-                              Cover-Grid in 004, Erststart), CategoryMenu (Menü-Button nach APG), book-order.ts
+                              Cover-Grid in 004, Cover-Platzhalter, Erststart), CategoryMenu (Menü-Button nach APG), book-order.ts
                               (Intl.Collator, NFC-Filterschlüssel), Texte
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
-  testing/                    Fakes (FakeCategoriesApi, FakeScanApi), Fixtures – nie im Produktivcode importieren
+  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi), Fixtures – nie im Produktivcode importieren
 public/                       favicon.png
 src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib `cc_lib`
-  src/lib.rs                  Modulübersicht, Builder (Dialog-Plugin, AppState), Command-Registrierung
-  src/commands.rs             dünne Command-Schicht (AppState: Kategorien + ScanHub), Test command_rules
+  src/lib.rs                  Modulübersicht, Builder (Dialog-Plugin, AppState, Schema cccover), Commands
+  src/commands.rs             dünne Command-Schicht (AppState: Kategorien, ScanHub, BookRegistry, CoverService),
+                              serve_cover, Test command_rules
   src/categories.rs           categories.json: sanitize (streng beim Speichern, nachsichtig beim Laden), Ids, Icons,
                               Endungen, fnv64
   src/legacy_import.rs        alte config.json → Vorschau mit Hinweisen (feindliche Eingabe, ≤ 1 MiB)
   src/scan.rs                 Walk (rein, std): Endungen je Kategorie, Abbruch, Datei-Symlinks, natural_cmp
   src/scan_cache.rs           <app cache>/scans/<key>.json, Diff, Aufräumen
+  src/book/                   Bücher nach Inhalt (Magic): zip_book, tar_book, sevenz (+ sevenz_header, fnf), rar (UnRAR-
+                              FFI, fnf); Budget (Zeit/Abbruch), Grenzen; tests.rs mit Generatoren (cbz/cbt/cb7/cbr4)
+  src/cover/                  choose (Titelseite), image (Decoder mit Limits, JPEG), sidecar (alte Thumbs lesen),
+                              cache (App-Cache, 2 GiB), pool (LIFO), mod.rs (URL parsen, CoverService, Status)
+  src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert)
   src/scan_hub.rs             ein Scan je Ziel (Thread, max. 4), Ereignisse an Abonnenten, Messung (ignored-Test)
   src/config_file.rs, fs_atomic.rs  Lader mit .bad / atomar schreiben (aus files-and-folders)
   src/paths.rs                Eingabepfade prüfen (~, absolut, NUL, Länge), rel_display
   src/model.rs, error.rs      DTOs (serde camelCase), FsError { code, message, path }
   src/about.rs                AppInfo (Version aus tauri.conf.json → package.json)
   testdata/legacy-config.json alte config.json (Marcs Struktur, Pfade neutralisiert)
+  testdata/archives/          RAR/7z-Testdateien + Generatoren aus files-and-folders (Bomben, Slip, verschlüsselt)
   capabilities/default.json   nur core:default
   icons/source/app-icon.svg   Quelle des App-Icons
 docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),

@@ -10,7 +10,7 @@
 
 | Nr. | Frage | Empfehlung |
 |---|---|---|
-| E1 | Wie kommt das Bild ins `<img>`? | URI-Schema **`cccover`**, URL = `<Kategorie-Id>/<Buch-Id>/<dimIndex>?v=<mtime>`; die Buch-Id stammt aus dem Scan und ist der „Token“ – Rust liefert nur Bücher, die es selbst gelistet hat. Kein Vorab-`invoke` je Cover |
+| E1 | Wie kommt das Bild ins `<img>`? | URI-Schema **`cccover`**, URL = `<Kategorie-Id>.<Buch-Id>.<dimIndex>?v=<mtime>`; die Buch-Id stammt aus dem Scan und ist der „Token“ – Rust liefert nur Bücher, die es selbst gelistet hat. Kein Vorab-`invoke` je Cover |
 | E2 | Format | JPEG, Qualität 80 (wie Vorlage, sidecar-kompatibel, reiner Rust-Encoder) |
 | E3 | `ComicInfo.xml` (FrontCover) | nicht jetzt → 011 |
 | E4 | Cache | Platte: `<app cache>/covers/<xx>/<schlüssel>.jpg`, Schlüssel = fnv64(Pfad, Größe, mtime, Breite×Höhe); Grenze 2 GiB, beim Start und nach je 500 neuen Covern die ältesten weg; WebView-Cache über unveränderliche URLs |
@@ -183,11 +183,34 @@ fnf-RAR-Testdateien + 3 echte Bücher; Sichtprüfung der Liste mit Covern, Neust
 - [ ] Nichts wird in die Comic-Ordner geschrieben.
 - [ ] Review durch separaten Agenten (Archive, Decoder, Schema-Handler).
 
+## Abweichungen bei der Umsetzung
+
+- **URL** `/<Kategorie-Id>.<Buch-Id>.<dimIndex>?v=<mtime>` statt Schrägstrichen: ein Segment, streng geparst
+  (`cover::parse_path`), Ids nur `[0-9a-z-]`.
+- **Module**: `book/zip_book.rs`, `book/tar_book.rs` (statt `zip.rs`/`tar.rs`, Namenskonflikt mit den Crates);
+  URL und Antwort in `cover/mod.rs` statt `cover/scheme.rs`; API `book::list` + `book::read` statt `images()` /
+  `read_entry`.
+- **`cover_stats`** entfällt (E10 „optional“): Fehler stehen in `CoverService::failures()` bereit, 007 entscheidet.
+- **Größe `_xl`**: 200–300 KB statt geschätzter 120 KB (Messung in `docs/architecture.md`).
+
+## Akzeptanz (Ergebnis, 22.10.2026)
+
+- [x] Richtige Cover für CBZ, CBR (RAR4, RAR5, ZIP-als-CBR), CBT, CB7 (Tests + echte Bücher); Cache-Treffer 0,05–0,1 ms.
+- [x] Sidecars werden ausgeliefert statt erzeugt (`cover::tests::sidecars_win`); auf dem Mac mit „Comics“ zu prüfen.
+- [x] Kaputte/feindliche Archive: Platzhalter (404/415/422), Bomben/Slip/Lügner aus fnf als Tests, Zeitlimit 20 s.
+- [x] Nichts in die Comic-Ordner geschrieben (E2E: Testsammlung vor/nach unverändert).
+- [x] Review durch separaten Agenten – Befunde und Fixes im Commit `fix(rust): Befunde des Reviews zu Design 003`.
+
+Ende-zu-Ende (Container, Debug-Build, Xvfb): Testsammlung mit 3 echten CBR, erzeugten CBZ (Umlaut, Emoji, `cover.jpg`
+im Unterordner), ZIP-als-CBR, CBT und kaputten Dateien. Während des Ladens zeigt die Zeile das Format-Kürzel, dann das
+Cover; Hägar zeigt das tiefe `cover.jpg`; kaputte Bücher und PDF behalten das Kürzel. Neustart: alle Cover sofort aus
+dem Cache; dunkles Schema ok. Screenshots: `003-screenshots/` (Cover echter Bücher verpixelt).
+
 ## Fortschritt
 
-- [x] Phase 1: Design (dieses Dokument) – 🛑 wartet auf Freigabe (vor allem E7)
-- [ ] Phase 2: Rust
-- [ ] Phase 3: Frontend
-- [ ] Phase 4: Ende-zu-Ende
-- [ ] Phase 5: Doku
-- [ ] Phase 6: Abschlussprüfung
+- [x] Phase 1: Design – freigegeben mit E7 (CB7), 22.10.2026
+- [x] Phase 2: Rust
+- [x] Phase 3: Frontend
+- [x] Phase 4: Ende-zu-Ende
+- [x] Phase 5: Doku
+- [x] Phase 6: Abschlussprüfung

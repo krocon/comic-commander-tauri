@@ -9,19 +9,22 @@
 ```
 ┌──────────────────────────── WebView (Angular 22, zoneless, Signals) ───────────────────────────┐
 │ features/*  Komponenten (OnPush) + Stores: CategoriesStore (Root), CategoryStore (je Ansicht)  │
-│ core/*      typisierte Fassaden CategoriesApi, ScanApi, AboutApi ── einzige Stelle mit         │
-│             invoke(): core/backend/call.ts; der Channel für Scan-Ereignisse entsteht in ScanApi │
+│ core/*      typisierte Fassaden CategoriesApi, ScanApi, CoversApi, AboutApi ── einzige Stelle  │
+│             mit invoke(): core/backend/call.ts; Channel in ScanApi; Cover-URLs in CoversApi    │
 │ testing/    Fakes der Fassaden für Vitest                                                      │
 └───────────────┬───────────────────────────────────────────────────────┬────────────────────────┘
-                │ invoke (JSON, camelCase) + Channel<ScanEvent>          │ <img src="…">  (ab 003)
+                │ invoke (JSON, camelCase) + Channel<ScanEvent>          │ <img src="cccover://…">
 ┌───────────────▼────────────── Rust (Tauri 2) ─────────────────────────▼────────────────────────┐
 │ commands.rs   dünn: validieren, spawn_blocking, FsError; AppState (Kategorien, ScanHub)        │
 │ categories.rs categories.json (sanitize, Ids)   legacy_import.rs  alte config.json → Vorschau │
 │ scan.rs       Walk (rein)   scan_cache.rs  App-Cache + Diff   scan_hub.rs  ein Scan je Ziel    │
 │ model.rs ↔ core/scan/scan.models.ts   categories.rs ↔ core/categories/categories.models.ts     │
-│ error.rs ↔ core/errors/fs-error.ts    covers/ (003) reader/ (005) pdf/ (006) jobs/ (007)        │
+│ error.rs ↔ core/errors/fs-error.ts    book_registry.rs  Buch-Ids der Scans → Pfade             │
+│ book/   ZIP/RAR/7z/TAR nach Inhalt, Liste + ein Eintrag mit Grenzen (RAR: unrar-ng-sys, FFI)   │
+│ cover/  Wahl, Decoder, Sidecars, Plattencache, LIFO-Pool, Schema cccover    reader/ (005) …    │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
  Dateien:  <app config>/categories.json        <app cache>/scans/<fnv64(baseDir+Endungen)>.json
+           <app cache>/covers/<xx>/<fnv64(Pfad, Größe, mtime, B×H)>.jpg
 ```
 
 - **Kein HTTP-Server** wie in der Vorlage (legacy §1): Daten über Tauri-Commands, lange Läufe mit
@@ -50,13 +53,19 @@
 | A14 | Import der alten `config.json`: Vorschau mit Hinweisen, gespeichert wird erst nach Bestätigung; Material-Icons → Font Awesome | nichts ohne Bestätigung ändern; Marcs zwei Kategorien in einem Schritt | 002 E7, E4 |
 | A15 | Font Awesome 4.5.0 (nur `woff2`) wie files-and-folders | einheitlich, Lizenz geprüft | 002 E4 |
 | A16 | Ordner-Überwachung verschoben; Neu-Scan beim Öffnen + `Mod+R` | Netzlaufwerke melden Änderungen unzuverlässig | 002 E8 |
+| A17 | Cover über das asynchrone URI-Schema **`cccover`**, Pfad `/<Kategorie-Id>.<Buch-Id>.<dimIndex>?v=<mtime>`; die Buch-Id (`fnv64(Pfad)`) kommt aus dem Scan, `BookRegistry` kennt nur gelistete Bücher – kein Vorab-`invoke`, kein Pfad in der URL | kein Base64 über IPC, nichts außerhalb der Kategorien auslieferbar | 003 E1 |
+| A18 | Containerart nach **Inhalt** (Magic Bytes); ZIP `zip`, TAR `tar`, 7z `sevenz-rust2` hinter fnfs fail-closed Header-Prüfung, RAR über UnRAR (`unrar-ng-sys`, einziges `unsafe`); Grenzen: 200 000 Einträge, 64 MiB je Eintrag, Wörterbuch ≤ 1 GiB, 20 s je Buch, Bilder ≤ 16 384 px / 64 MP | 8 × CBR = ZIP bei Marc; Bücher sind feindlich | 003 E6, E7 |
+| A19 | Titelseite: Bilder ohne versteckte/`__MACOSX`; `cover.` im Namen → weniger Ordnerebenen → natürliche Reihenfolge | Vorlage + natürliche Sortierung | 003 E8 |
+| A20 | Alte Sidecars (`Band.jpg`, `Band_xl.jpg` …) werden **gelesen**, nie geschrieben; erzeugte Cover als JPEG q80 im App-Cache (Grenze 2 GiB, älteste zuerst weg), Fehler je Sitzung gemerkt | nichts in die Comic-Ordner (legacy §10.2) | 003 E4, E5 |
+| A21 | Eigener Cover-Pool: min(4, Kerne − 1) Threads, **LIFO**, gleiche Schlüssel zusammengelegt, > 2 000 wartende → älteste 503 | sichtbare Cover zuerst nach schnellem Scrollen | 003 E9 |
+| A22 | Status: 404 kein Bild/unbekannt, 415 Format (PDF bis 006), 422 kaputt/verschlüsselt/zu groß/Zeitlimit, 503 voll, 500 Panik; 200 mit `immutable`, sonst `no-store` | Frontend zeigt bei Fehler das Format-Kürzel | 003 E10 |
 
 ## DTO-Vertrag
 
 | Rust | TypeScript | Hinweis |
 |---|---|---|
 | `model::BookFormat` (`lowercase`) | `BookFormat` in `scan.models.ts` | `'cbz' \| 'cbr' \| 'cb7' \| 'cbt' \| 'pdf'` |
-| `model::BookEntry` | `BookEntry` | `path` opak, `relPath` nur Anzeige/Filter/Sortierung |
+| `model::BookEntry` | `BookEntry` | `path` opak, `relPath` nur Anzeige/Filter/Sortierung, `id` = `fnv64(path)` hex (003; Scan-Cache `VERSION = 2`) |
 | `model::ScanStats` | `ScanStats` | |
 | `scan_hub::ScanEvent` (`tag = "kind"`) | `ScanEvent` | `cached`, `started`, `batch`, `progress`, `diff`, `done`, `cancelled`, `failed` |
 | `categories::{Category, ThumbsDim, CategoriesConfig, CategoriesLoaded}` | `categories.models.ts` | Feldnamen wie die alte `config.json` |
@@ -81,6 +90,10 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `open_category` | `id`, `onEvent: Channel<ScanEvent>` | `void` (alles weitere als Ereignis) | `unknown_category` |
 | `cancel_scan` | `id` | `void` | – |
 
+**URI-Schema `cccover`** (kein Command, A17): `convertFileSrc('<cat>.<book>.<dim>', 'cccover')` + `?v=<mtime>` →
+`cccover://localhost/…` (macOS/Linux) bzw. `http://cccover.localhost/…` (Windows). Antwort `image/jpeg`/`image/png`
+oder Status nach A22. CSP: `img-src 'self' data: cccover: http://cccover.localhost`.
+
 ## Messungen
 
 **Scan (Design 002, 22.10.2026)** – Container (2 Kerne, ext4), Release-Build,
@@ -95,6 +108,18 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 JSON reicht (Schwelle 300 ms aus E5). Marcs Sammlung „Comics“ (584 Bücher, Spiegel aus leeren Dateien mit
 denselben Namen): Erstscan und Anzeige < 1 s im Debug-Build. Netzlaufwerke: noch nicht gemessen (Mac).
 
+**Cover (Design 003, 22.10.2026)** – Container, Release-Build, `CC_REAL_BOOKS=<dir> cargo test --release --lib --
+--ignored --nocapture real_books`, drei echte Bücher aus Marcs Sammlung (nur im Scratch-Ordner):
+
+| Buch | erstes Cover 200×300 | aus dem Cache | 800×1200 (`_xl`) |
+|---|---|---|---|
+| RAR4 (Goofy Magazin, 18 MB) | 38 ms | 0,05 ms | 113 ms |
+| ZIP als CBR | 84 ms | 0,05 ms | 140 ms |
+| RAR5 | 77 ms | 0,05 ms | 165 ms |
+
+Cover 200×300 ≈ 10–25 KB, `_xl` ≈ 200–300 KB (mehr als die geschätzten 120 KB; 2 GiB reichen trotzdem für > 7 000
+`_xl`-Cover). Im Debug-Build dauert ein RAR-Cover 1–3 s – im Fenster zuerst das Format-Kürzel, dann das Cover.
+
 ## Abhängigkeiten
 
 Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4).
@@ -108,10 +133,15 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 | `@angular/*` 22, `rxjs`, `tslib` | Frontend | UI | 001 |
 | `@guiexpert/table` 1.1.102, `@guiexpert/angular-table` 22.1.102 | Frontend | Cover-Grid (ab 004; schon gepinnt) | 001 |
 | Font Awesome 4.5.0 (Assets `src/assets/font-awesome-4.5.0/`, CSS MIT, Font SIL OFL 1.1) | Frontend | Icons (A15) | 002 |
+| `zip` 9 (`deflate-flate2`) | Rust | CBZ und ZIP-als-CBR lesen | 003 |
+| `tar` 0.4 | Rust | CBT lesen | 003 |
+| `unrar-ng-sys` =0.7.7 (vendierte UnRAR-Quellen, C++, unRAR-Lizenz → `docs/licenses.md` in 012) | Rust | CBR (RAR4/RAR5), einziges FFI | 003 |
+| `sevenz-rust2` 0.24 (`bzip2`, `ppmd`), `lzma-rust2` 0.23, `crc32fast` | Rust | CB7, fail-closed Header-Prüfung aus fnf | 003 |
+| `image` 0.25 (`jpeg png gif webp bmp`) | Rust | dekodieren mit Limits, verkleinern, JPEG | 003 |
 | `vitest`, `jsdom`, `eslint`, `angular-eslint`, `typescript-eslint`, `prettier` | dev | Tests, Lint, Format | 001 |
 
 Übernommen aus files-and-folders-tauri (MIT, gleicher Autor): `config_file.rs`, `fs_atomic.rs` (ohne `backup_copy`),
-`shared/dialog/modal.ts` + `dialog.service.ts` (gekürzt).
+`shared/dialog/modal.ts` + `dialog.service.ts` (gekürzt), `book/rar.rs`, `book/sevenz_header.rs`, Teile von
+`book/sevenz.rs` (ohne Passwörter) und die Archiv-Testdateien unter `src-tauri/testdata/archives/`.
 
-Geplant (Entscheidung im jeweiligen Prompt): `zip`, `sevenz-rust2`, `tar`, `unrar-ng-sys` (003), `image` (003),
-PDF-Renderer (006), `trash` (010).
+Geplant (Entscheidung im jeweiligen Prompt): PDF-Renderer (006), `trash` (010).
