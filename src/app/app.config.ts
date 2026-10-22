@@ -2,6 +2,7 @@ import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/
 import { AboutApi, TauriAboutApi } from './core/about/about-api';
 import { CategoriesApi, TauriCategoriesApi } from './core/categories/categories-api';
 import { ScanApi, TauriScanApi } from './core/scan/scan-api';
+import { CoversApi, TauriCoversApi } from './core/covers/covers-api';
 
 /**
  * Zoneless (Angular 22 default, no zone.js). Every backend facade is bound here; tests
@@ -12,6 +13,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     { provide: CategoriesApi, useClass: TauriCategoriesApi },
     { provide: ScanApi, useClass: TauriScanApi },
+    { provide: CoversApi, useClass: TauriCoversApi },
     { provide: AboutApi, useClass: TauriAboutApi },
   ],
 };

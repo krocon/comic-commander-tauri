@@ -1,9 +1,17 @@
 import { BookEntry, ScanStats } from '../app/core/scan/scan.models';
 import { CategoriesConfig, Category } from '../app/core/categories/categories.models';
 
+/** 16 hex digits derived from the text (stand-in for Rust's fnv64). */
+function fakeId(text: string): string {
+  let h = 0x811c9dc5;
+  for (const ch of text) h = Math.imul(h ^ ch.codePointAt(0)!, 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, '0').repeat(2);
+}
+
 export function book(relPath: string, overrides: Partial<BookEntry> = {}): BookEntry {
   const name = relPath.split('/').pop() ?? relPath; // test data only – never in app code
   return {
+    id: fakeId(relPath),
     path: `/lib/${relPath}`,
     relPath,
     name,

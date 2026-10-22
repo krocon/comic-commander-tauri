@@ -12,6 +12,14 @@ export type FsErrorCode =
   | 'invalid_categories'
   | 'invalid_legacy_config'
   | 'unknown_category'
+  | 'archive_error'
+  | 'archive_too_large'
+  | 'archive_encrypted'
+  | 'unsupported_format'
+  | 'unsupported_image'
+  | 'no_image'
+  | 'timeout'
+  | 'busy'
   /** Frontend only: no Tauri backend (e.g. `pnpm start` in a browser). */
   | 'backend_unavailable'
   /** Frontend only: something that is no `FsError` was thrown. */
@@ -33,6 +41,14 @@ const KNOWN: readonly FsErrorCode[] = [
   'invalid_categories',
   'invalid_legacy_config',
   'unknown_category',
+  'archive_error',
+  'archive_too_large',
+  'archive_encrypted',
+  'unsupported_format',
+  'unsupported_image',
+  'no_image',
+  'timeout',
+  'busy',
   'backend_unavailable',
   'unknown',
 ];
@@ -73,6 +89,22 @@ export function describeFsError(error: FsError): string {
       return 'This file is no configuration of the old Comic Commander.';
     case 'unknown_category':
       return 'This category no longer exists.';
+    case 'archive_error':
+      return 'The book is damaged or uses a format that cannot be read.';
+    case 'archive_too_large':
+      return 'The book is too large to be read safely.';
+    case 'archive_encrypted':
+      return 'The book is encrypted.';
+    case 'unsupported_format':
+      return 'This book format is not supported yet.';
+    case 'unsupported_image':
+      return 'The image cannot be read.';
+    case 'no_image':
+      return 'The book contains no image.';
+    case 'timeout':
+      return 'Reading the book took too long.';
+    case 'busy':
+      return 'Too much to do right now – please try again.';
     case 'backend_unavailable':
       return 'The desktop backend is not available (running in a browser?).';
     case 'unknown':

@@ -8,6 +8,8 @@ import { FsError } from '../errors/fs-error';
 export type BookFormat = 'cbz' | 'cbr' | 'cb7' | 'cbt' | 'pdf';
 
 export interface BookEntry {
+  /** `fnv64(path)` as 16 hex digits – addresses the book in cover URLs (design 003 E1). */
+  id: string;
   /** Full path (opaque). */
   path: string;
   /** Below the category's `baseDir`, segments joined with `/` – display, filter, sort only. */

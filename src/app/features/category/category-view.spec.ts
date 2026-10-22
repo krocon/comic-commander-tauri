@@ -3,6 +3,8 @@ import { CategoriesApi } from '../../core/categories/categories-api';
 import { ScanApi } from '../../core/scan/scan-api';
 import { FakeCategoriesApi } from '../../../testing/fake-categories-api';
 import { FakeScanApi } from '../../../testing/fake-scan-api';
+import { CoversApi } from '../../core/covers/covers-api';
+import { FakeCoversApi } from '../../../testing/fake-covers-api';
 import { books, category, config, stats } from '../../../testing/fixtures';
 import { CategoriesStore } from '../categories/categories.store';
 import { DialogService } from '../../shared/dialog/dialog.service';
@@ -16,6 +18,7 @@ async function render(setup?: (api: FakeCategoriesApi) => void) {
     providers: [
       { provide: CategoriesApi, useClass: FakeCategoriesApi },
       { provide: ScanApi, useClass: FakeScanApi },
+      { provide: CoversApi, useClass: FakeCoversApi },
     ],
   });
   const api = TestBed.inject(CategoriesApi) as FakeCategoriesApi;
@@ -130,6 +133,23 @@ describe('CategoryView', () => {
     );
     cancel?.click();
     expect(scan.cancelled).toEqual(['c1']);
+  });
+
+  it('shows the cover of each book, the format when it fails', async () => {
+    const { el, scan, update } = await render(twoCategories);
+    const list = books('a.cbz', 'b.pdf');
+    scan.last.emit({ kind: 'cached', books: list, scannedAt: 1, stats: stats() });
+    await update();
+    const imgs = [...el.querySelectorAll('.book img')] as HTMLImageElement[];
+    expect(imgs.map((i) => i.getAttribute('src'))).toEqual([
+      `fake-cover:c1.${list[0].id}.0`,
+      `fake-cover:c1.${list[1].id}.0`,
+    ]);
+    expect(imgs[0].getAttribute('loading')).toBe('lazy');
+    imgs[1].dispatchEvent(new Event('error'));
+    await update();
+    expect(el.querySelectorAll('.book img').length).toBe(1);
+    expect(el.querySelectorAll('.book .cover')[1].textContent?.trim()).toBe('cbz');
   });
 
   it('renders at most MAX_LIST_ROWS rows', async () => {

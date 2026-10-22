@@ -10,6 +10,8 @@ import {
 } from '@angular/core';
 import { describeFsError } from '../../core/errors/fs-error';
 import { DialogService } from '../../shared/dialog/dialog.service';
+import { CoversApi } from '../../core/covers/covers-api';
+import { BookEntry } from '../../core/scan/scan.models';
 import { CategoriesStore } from '../categories/categories.store';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
@@ -37,6 +39,9 @@ export class CategoryView {
   protected readonly categories = inject(CategoriesStore);
   protected readonly store = inject(CategoryStore);
   private readonly dialogs = inject(DialogService);
+  private readonly covers = inject(CoversApi);
+  /** Books whose cover failed (no image, broken, PDF …): the format stays visible. */
+  protected readonly brokenCovers = signal<ReadonlySet<string>>(new Set());
   protected readonly t = CATEGORY_TEXTS;
 
   /** Ticks every 30 s for „updated 3 min ago“. */
@@ -99,6 +104,16 @@ export class CategoryView {
     });
     const timer = setInterval(() => this.now.set(Date.now()), 30_000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  /** Smallest size of the category (`thumbsDims[0]`) – the list shows 32 × 48 px. */
+  protected coverUrl(book: BookEntry): string {
+    const c = this.categories.active();
+    return c ? this.covers.coverUrl(c.id, book, 0) : '';
+  }
+
+  protected coverFailed(bookId: string): void {
+    this.brokenCovers.update((s) => new Set(s).add(bookId));
   }
 
   protected rescan(): void {
