@@ -185,21 +185,23 @@ export class CoverGrid {
     }
     inject(DestroyRef).onDestroy(() => this.retries.dispose());
 
-    // books, size, width → the model (no new table)
+    // books, size, width → the model (no new table); the phase ends a pending restore
     effect(() => {
       const list = this.store.filtered();
       const layout = this.layout();
       const api = this.api();
+      this.scan.phase();
       untracked(() => this.applyModel(list, layout, api));
     });
-    // the cursor: repaint (frame), keep it visible
+    // the cursor: repaint (frame)
     effect(() => {
       this.store.focusId();
-      const i = this.store.cursor();
-      untracked(() => {
-        this.repaintSoon();
-        this.reveal(i);
-      });
+      untracked(() => this.repaintSoon());
+    });
+    // a move of the user keeps the cursor visible – new books never pull the view back (review 004 #3)
+    effect(() => {
+      this.store.revealTick();
+      untracked(() => this.reveal(this.store.cursor()));
     });
     // a new loaded size: other URLs
     effect(() => {
@@ -235,7 +237,8 @@ export class CoverGrid {
     const pending = this.store.restoreTopId();
     if (pending !== null && list.length) {
       const i = list.findIndex((b) => b.id === pending);
-      if (i >= 0 || this.scan.phase() === 'done') {
+      // found, or the scan is over and the book gone (review 004 #6)
+      if (i >= 0 || this.scan.phase() !== 'scanning') {
         this.store.restoreTopId.set(null);
         if (i >= 0) this.scrollTo(scrollForTop(i, layout.cols, layout.coverHeight));
       }
@@ -259,6 +262,8 @@ export class CoverGrid {
   }
 
   private reveal(index: number): void {
+    // not laid out yet: nothing to compute against (review 004 #7)
+    if (!this.api() || this.viewHeight() === 0) return;
     const l = this.layout();
     const top = scrollToShow(
       index,
@@ -272,8 +277,10 @@ export class CoverGrid {
   }
 
   private scrollTo(top: number): void {
+    const api = this.api();
+    if (!api) return;
     this.scrollTop = top;
-    this.api()?.scrollToPixel(0, top);
+    api.scrollToPixel(0, top);
   }
 
   protected onScroll(e: GeScrollEvent): void {
@@ -332,8 +339,9 @@ export class CoverGrid {
     let x: number;
     let y: number;
     if (at) {
-      x = at.clientX - rect.left;
-      y = at.clientY - rect.top;
+      // beside the pointer: the second click of a double click must reach the cover (review 004 #1)
+      x = at.clientX - rect.left + 12;
+      y = at.clientY - rect.top + 12;
     } else {
       // at the focused cover
       const l = this.layout();
@@ -387,7 +395,8 @@ export class CoverGrid {
       this.store.move(e.key === 'ArrowUp' ? 'home' : 'end', l.cols, rows);
     } else if (!mod && e.key === 'Enter') {
       const b = this.store.focused();
-      if (b) void this.act('read', b);
+      // held down: once (review 004 #9)
+      if (b && !e.repeat) void this.act('read', b);
     } else if (
       (!mod && !e.shiftKey && e.key === ' ') ||
       e.key === 'ContextMenu' ||
@@ -397,7 +406,7 @@ export class CoverGrid {
       if (b) this.openMenu(b);
     } else if (!mod && e.key === 'Escape') {
       this.escape.emit();
-    } else if (!mod && !e.altKey && e.key.length === 1 && e.key !== ' ') {
+    } else if (!mod && !e.altKey && !e.isComposing && e.key.length === 1 && e.key !== ' ') {
       this.typed.emit(e.key);
     } else {
       handled = false;

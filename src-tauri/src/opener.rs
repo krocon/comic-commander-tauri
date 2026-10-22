@@ -31,7 +31,47 @@ pub fn resolve_book(
             Some(&path),
         ));
     }
+    if is_program(&path, &meta) {
+        return Err(FsError::new(
+            FsErrorCode::UnsupportedFormat,
+            "the book is a program",
+            Some(&path),
+        ));
+    }
     Ok(path)
+}
+
+/// Executable with a shebang or ELF/Mach-O header – books never are (review 004 #10; the OS
+/// could run it instead of opening a viewer).
+#[cfg(unix)]
+fn is_program(path: &Path, meta: &std::fs::Metadata) -> bool {
+    use std::io::Read;
+    use std::os::unix::fs::PermissionsExt;
+    if meta.permissions().mode() & 0o111 == 0 {
+        return false;
+    }
+    let mut head = [0u8; 4];
+    let n = std::fs::File::open(path)
+        .and_then(|mut f| f.read(&mut head))
+        .unwrap_or(0);
+    let head = &head[..n];
+    head.starts_with(b"#!")
+        || head.starts_with(b"\x7fELF")
+        || [
+            [0xFE, 0xED, 0xFA, 0xCE],
+            [0xFE, 0xED, 0xFA, 0xCF],
+            [0xCE, 0xFA, 0xED, 0xFE],
+            [0xCF, 0xFA, 0xED, 0xFE],
+            [0xCA, 0xFE, 0xBA, 0xBE],
+        ]
+        .iter()
+        .any(|m| head == m)
+}
+
+/// Windows decides by extension; a book has the extension of its category.
+#[cfg(not(unix))]
+fn is_program(_path: &Path, _meta: &std::fs::Metadata) -> bool {
+    false
 }
 
 /// Opens with the system's default application, detached from this process.
@@ -97,5 +137,32 @@ mod tests {
             resolve_book(&registry, "c1", &id).unwrap_err().code,
             FsErrorCode::NotFound
         );
+    }
+
+    /// A listed „book“ that is a program (e.g. a link `x.cbz` to an executable) is never handed
+    /// to the OS (review 004 #10).
+    #[cfg(unix)]
+    #[test]
+    fn programs_are_not_opened() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        for (name, head) in [
+            ("elf.cbz", &b"\x7fELF\x02"[..]),
+            ("script.cbz", &b"#!/bin/sh"[..]),
+        ] {
+            let f = d.path().join(name);
+            std::fs::write(&f, head).unwrap();
+            std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
+            let registry = registry_with(&f);
+            let id = book_id(&f.to_string_lossy());
+            assert_eq!(
+                resolve_book(&registry, "c1", &id).unwrap_err().code,
+                FsErrorCode::UnsupportedFormat,
+                "{name}"
+            );
+            // the same bytes without the exec bit: a (broken) book, fine to open
+            std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o644)).unwrap();
+            resolve_book(&registry, "c1", &id).unwrap();
+        }
     }
 }

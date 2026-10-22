@@ -23,6 +23,11 @@ export class CategoryStore {
    * the order of Rust (natural, nearly the display order), sorted for display when complete.
    */
   private cacheParts: BookEntry[] = [];
+  /** A rescan of the shown category: its parts are collected silently (review 004 #2). */
+  private replacing = false;
+  /** Diff parts until `done` – applied and sorted once (review 004 #4). */
+  private pendingDiff: { added: BookEntry[]; removed: string[]; changed: BookEntry[] } | null =
+    null;
 
   readonly categoryId = signal<string | null>(null);
   readonly books = signal<BookEntry[]>([]);
@@ -42,6 +47,8 @@ export class CategoryStore {
   async open(id: string | null): Promise<void> {
     const seq = ++this.seq;
     this.cacheParts = [];
+    this.pendingDiff = null;
+    this.replacing = id === this.categoryId() && this.books().length > 0;
     if (id !== this.categoryId()) {
       this.books.set([]);
       this.scannedAt.set(null);
@@ -75,12 +82,25 @@ export class CategoryStore {
     if (id && this.scanning()) await this.api.cancel(id);
   }
 
+  /** The collected diff parts in one step (one sort). */
+  private applyDiff(): void {
+    const d = this.pendingDiff;
+    this.pendingDiff = null;
+    if (!d) return;
+    const removed = new Set(d.removed);
+    const changed = new Map(d.changed.map((b) => [b.path, b]));
+    const kept = this.books()
+      .filter((b) => !removed.has(b.path))
+      .map((b) => changed.get(b.path) ?? b);
+    this.books.set(sortBooks([...kept, ...d.added]));
+  }
+
   /** Shows the parts so far; the whole cache sorted once. */
   private takeCache(complete: boolean): void {
     if (complete) {
       this.books.set(sortBooks(this.cacheParts));
       this.cacheParts = [];
-    } else {
+    } else if (!this.replacing) {
       this.books.set([...this.cacheParts]);
     }
   }
@@ -106,22 +126,24 @@ export class CategoryStore {
         break;
       case 'batch': {
         const all = [...this.books(), ...e.books];
-        this.books.set(all.length <= SORT_WHILE_SCANNING ? sortBooks(all) : all);
+        // after `done` (a late opener's parts, review 004 #8) the list is always sorted
+        const sort = all.length <= SORT_WHILE_SCANNING || this.phase() === 'done';
+        this.books.set(sort ? sortBooks(all) : all);
         break;
       }
       case 'progress':
         this.progress.set({ books: e.books, dirs: e.dirs });
         break;
       case 'diff': {
-        const removed = new Set(e.removed);
-        const changed = new Map(e.changed.map((b) => [b.path, b]));
-        const kept = this.books()
-          .filter((b) => !removed.has(b.path))
-          .map((b) => changed.get(b.path) ?? b);
-        this.books.set(sortBooks([...kept, ...e.added]));
+        if (!e.added.length && !e.removed.length && !e.changed.length) break;
+        const d = (this.pendingDiff ??= { added: [], removed: [], changed: [] });
+        d.added.push(...e.added);
+        d.removed.push(...e.removed);
+        d.changed.push(...e.changed);
         break;
       }
       case 'done':
+        this.applyDiff();
         if (this.firstScan() && this.books().length > SORT_WHILE_SCANNING) {
           this.books.set(sortBooks(this.books()));
         }

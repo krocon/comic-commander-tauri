@@ -79,6 +79,8 @@ export class GridStore {
   readonly topId = signal<string | null>(null);
   /** Position to restore once the grid is laid out (consumed by the grid). */
   readonly restoreTopId = signal<string | null>(null);
+  /** Counts the cursor moves of the user – only they scroll the grid (review 004 #3). */
+  readonly revealTick = signal(0);
   /** Message of the last action (error or „copied“), for the status line. */
   readonly message = signal<{ text: string; error: boolean } | null>(null);
 
@@ -123,13 +125,7 @@ export class GridStore {
     });
     // every change is remembered (debounced)
     effect(() => {
-      const state = {
-        filter: this.filterText(),
-        dimIndex: this.dimIndex(),
-        sort: this.sort(),
-        focusId: this.focusId(),
-        topId: this.topId(),
-      };
+      const state = this.snapshot();
       const id = this.loadedFor;
       if (!id) return;
       clearTimeout(this.saveTimer);
@@ -137,11 +133,28 @@ export class GridStore {
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.filterTimer);
-      clearTimeout(this.saveTimer);
+      this.saveNow();
     });
   }
 
+  /** The state of the open category, written now (switch, close – review 004 #5). */
+  private saveNow(): void {
+    clearTimeout(this.saveTimer);
+    if (this.loadedFor) saveViewState(this.loadedFor, this.snapshot(), this.stateStore);
+  }
+
+  private snapshot() {
+    return {
+      filter: this.filterText(),
+      dimIndex: this.dimIndex(),
+      sort: this.sort(),
+      focusId: this.focusId(),
+      topId: this.topId(),
+    };
+  }
+
   private loadFor(id: string | null): void {
+    this.saveNow();
     this.loadedFor = id;
     clearTimeout(this.filterTimer);
     const c = this.category();
@@ -153,7 +166,8 @@ export class GridStore {
     this.dimIndex.set(saved?.dimIndex ?? c?.dimIndex ?? 0);
     this.focusId.set(saved?.focusId ?? null);
     this.topId.set(saved?.topId ?? null);
-    this.restoreTopId.set(saved?.topId ?? null);
+    // no top book saved: the cursor book (review 004 #7)
+    this.restoreTopId.set(saved?.topId ?? saved?.focusId ?? null);
     this.message.set(null);
   }
 
@@ -193,11 +207,15 @@ export class GridStore {
     const list = this.filtered();
     const i = moveCursor(this.cursor(), move, cols, list.length, pageRows);
     this.focusId.set(list[i]?.id ?? null);
+    this.revealTick.update((n) => n + 1);
   }
 
   focusIndex(index: number): void {
     const b = this.filtered()[index];
-    if (b) this.focusId.set(b.id);
+    if (b) {
+      this.focusId.set(b.id);
+      this.revealTick.update((n) => n + 1);
+    }
   }
 
   filterSeries(book: BookEntry): void {

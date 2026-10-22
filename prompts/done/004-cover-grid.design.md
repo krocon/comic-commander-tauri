@@ -164,11 +164,42 @@ Neuer Code `unknown_book` (Buch nicht in der Registry, z. B. nach Neu-Scan gelö
 - **Test-Setup:** `src/test-setup.ts` (ResizeObserver-Doppelgänger für jsdom, fnf G11), in `angular.json`
   `test.options.setupFiles`.
 
+## Review (separater Agent) und Fixes
+
+Alle zehn Befunde behoben, Store-/Rust-Befunde mit rotem Test zuerst:
+
+1. Doppelklick erreichte das Cover nicht (das Menü öffnete genau unter dem Zeiger) → Menü 12 px versetzt (E2E geprüft).
+2. `Mod+R` mit Cache schrumpfte die Liste auf das erste Teilstück → beim Neu-Scan derselben Kategorie werden die Teile
+   still gesammelt.
+3. Neue Bücher zogen die Ansicht zum Cursor zurück → gescrollt wird nur nach einer Bewegung des Nutzers
+   (`GridStore.revealTick`).
+4. Jedes Diff-Teil sortierte 50 000 Bücher, jedes Öffnen sortierte für ein leeres Diff → Diff-Teile werden bis
+   `done` gesammelt und einmal angewandt, leere übersprungen.
+5. Ansichtszustand ging beim schnellen Kategoriewechsel/Schließen verloren → wird beim Wechsel und beim Zerstören
+   sofort geschrieben.
+6. Ausstehende Wiederherstellung blieb hängen (Scan `failed`/`cancelled`) → endet, sobald der Scan nicht mehr läuft.
+7. Erstes `reveal` vor dem Layout verfälschte die Scrollposition; ohne `topId` kein Wiederherstellen → `reveal`
+   wartet aufs Layout, Fallback auf das Fokus-Buch.
+8. Teile eines späten Öffners nach `done` blieben unsortiert → Batches nach `done` werden sortiert.
+9. `Enter` gedrückt gehalten öffnete mehrfach; IME-Eingaben gingen in den Filter → `repeat`/`isComposing` beachtet.
+10. Linux sucht `dbus-send`/`xdg-open` im `PATH` (Kommentar korrigiert); ein gelistetes „Buch“, das ein Programm ist
+    (ausführbar + Shebang/ELF/Mach-O, z. B. ein Link `x.cbz`), wird nicht geöffnet (`unsupported_format`).
+
+## Akzeptanz (Ergebnis, 22.10.2026)
+
+- [x] Kategorie öffnen → Cover erscheinen beim Scrollen; nur sichtbare werden geladen (LIFO-Pool aus 003).
+- [x] Filter (`+`/`-`/ODER) mit Zähler „gefiltert / gesamt“, „Serie filtern“ wie die Vorlage (Katalog-Tests, E2E).
+- [x] Bedienung per Tastatur (Pfeile, Home/End, Bild, Enter, Leertaste, Tippen → Filter, `Mod +/−`, `Mod+F`),
+      Fokus sichtbar, hell und dunkel geprüft (Screenshots `004-screenshots/`, echte Cover verpixelt).
+- [x] Position und Ansicht nach Neustart/Kategoriewechsel wieder da (Rückkehr aus dem Leser: mit 005).
+- [x] 50 000 Bücher: flüssig, Filter < 50 ms, Neustart (Release) 2,6 s bis alle da sind.
+- [ ] Auf dem Mac (Marc): Standard-App öffnen, Finder zeigen, Retina lädt `_xl`, Sammlung „Comics“.
+
 ## Fortschritt
 
 - [x] Phase 1: Design – freigegeben 22.10.2026
 - [x] Phase 2: Rust (zwei Commands, `opener`, `reveal`; Scan-Ereignisse in Teilen)
 - [x] Phase 3: Frontend
-- [ ] Phase 4: Ende-zu-Ende
-- [ ] Phase 5: Doku
-- [ ] Phase 6: Abschlussprüfung
+- [x] Phase 4: Ende-zu-Ende
+- [x] Phase 5: Doku
+- [x] Phase 6: Abschlussprüfung (Review + Fixes)

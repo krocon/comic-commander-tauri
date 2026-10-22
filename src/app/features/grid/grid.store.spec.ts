@@ -71,6 +71,7 @@ describe('GridStore', () => {
     expect(grid.focused()?.relPath).toBe('Bessy 10.cbz');
     const api = TestBed.inject(ScanApi) as FakeScanApi;
     api.last.emit({ kind: 'diff', added: books('Asterix 1.cbz'), removed: [], changed: [] });
+    api.last.emit({ kind: 'done', scannedAt: 2, stats: stats() });
     expect(grid.cursor()).toBe(2);
     expect(grid.focused()?.relPath).toBe('Bessy 10.cbz');
     expect(categories.active()!.id).toBe('c1');
@@ -143,5 +144,42 @@ describe('GridStore', () => {
       text: 'The book is no longer in the list – scan the category again.',
       error: true,
     });
+  });
+
+  it('saves a change at once when the category is switched (review 004 #5)', async () => {
+    const { grid, emit, data, categories } = await setup();
+    emit();
+    grid.applyFilterNow('quick');
+    TestBed.tick();
+    await categories.select('c2');
+    TestBed.tick();
+    expect(JSON.parse(data.get('cc.view.c1')!)).toMatchObject({ filter: 'quick' });
+  });
+
+  it('asks the grid to scroll only for moves of the user (review 004 #3)', async () => {
+    const { grid, emit } = await setup();
+    emit();
+    grid.applyFilterNow('');
+    const t0 = grid.revealTick();
+    const api = TestBed.inject(ScanApi) as FakeScanApi;
+    grid.focusIndex(1);
+    expect(grid.revealTick()).toBe(t0 + 1);
+    api.last.emit({ kind: 'diff', added: books('0 first.cbz'), removed: [], changed: [] });
+    api.last.emit({ kind: 'done', scannedAt: 2, stats: stats() });
+    expect(grid.cursor()).toBe(2);
+    expect(grid.revealTick()).toBe(t0 + 1);
+    grid.move('left', 2, 1);
+    expect(grid.revealTick()).toBe(t0 + 2);
+  });
+
+  it('restores the cursor book when no top book was saved (review 004 #7)', async () => {
+    const { grid, data, categories } = await setup();
+    data.set(
+      'cc.view.c2',
+      JSON.stringify({ v: 1, filter: '', dimIndex: 0, sort: 'path', focusId: 'f1', topId: null }),
+    );
+    await categories.select('c2');
+    TestBed.tick();
+    expect(grid.restoreTopId()).toBe('f1');
   });
 });

@@ -1,7 +1,9 @@
 //! "Show in Finder/Explorer/file manager" (design 004 E5). One function per OS with the same
 //! signature; the path comes from the [`crate::book_registry::BookRegistry`]. Programs get
-//! argument arrays with absolute program paths – nothing goes to a shell. This is the narrow
-//! exception to "no external programs" (CLAUDE.md §4).
+//! argument arrays – nothing goes to a shell. macOS and Windows use absolute program paths; on
+//! Linux `dbus-send` (and `xdg-open` inside the `open` crate) are looked up in `PATH` – their
+//! place differs between distributions (NixOS …). This is the narrow exception to "no external
+//! programs" (CLAUDE.md §4).
 //!
 //! Übernommen aus files-and-folders-tauri `platform/desktop.rs` und `tools.rs` (Design 011 E2),
 //! gekürzt auf `reveal` (ohne Terminal).

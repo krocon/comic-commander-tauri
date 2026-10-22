@@ -63,7 +63,7 @@
 | A24 | Eigener Cursor im `GridStore` (Buch-Id), Tastatur im Capture-Listener des Grids, Table-Shortcuts aus; Screenreader über Live-Region | Cover-Grid der Table hat kein Fokusmodell und setzt `aria-activedescendant` zurück | 004 E7, E8 |
 | A25 | Filter/Sortierung/Größe im `GridStore` (rein: `filter-logic`, `series-filter`, `grid-math`, `sortBooksBy`); Ansichtszustand je Kategorie in `localStorage` (`cc.view.<id>`, v1), Position als Buch-Ids | Pixel stimmen nach Größenwechsel nicht; Einstellungen ziehen in 009 nach Rust | 004 E4, E9, E10 |
 | A26 | Bücher außerhalb der App nur über Kategorie-Id + Buch-Id (`open_book_external`, `reveal_book`); Pfad aus der `BookRegistry`; Dateimanager per Argument-Array (`/usr/bin/open -R`, `explorer.exe /select,`, D-Bus `ShowItems`) – enge Ausnahme von „keine externen Programme“ | kein Pfad aus der WebView | 004 E5 |
-| A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner) | 11 MB in einer Nachricht ~20 s im Container; Teile werden sofort angezeigt | 004 |
+| A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
 
