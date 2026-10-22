@@ -85,6 +85,16 @@ export class CategoryMenu {
     event.stopPropagation();
   }
 
+  /**
+   * Enter on an item: consumed here – otherwise WebKit activates the menu button, which has the
+   * focus again by then, and the menu opens a second time (found in the E2E test, design 002).
+   */
+  protected onItemEnter(event: Event, i: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.choose(i);
+  }
+
   protected itemId(i: number): string {
     return `category-menu-item-${i}`;
   }
@@ -121,6 +131,9 @@ export class CategoryMenu {
 
   private close(focusButton: boolean): void {
     this.open.set(false);
-    if (focusButton) this.host.nativeElement.querySelector<HTMLElement>('.menu-button')?.focus();
+    if (focusButton) {
+      // after the current key event – it must not reach the button
+      setTimeout(() => this.host.nativeElement.querySelector<HTMLElement>('.menu-button')?.focus());
+    }
   }
 }

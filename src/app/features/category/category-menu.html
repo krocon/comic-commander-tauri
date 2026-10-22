@@ -28,7 +28,7 @@
         [id]="itemId(i)"
         [attr.aria-checked]="c.id === store.config().activeId"
         (click)="choose(i)"
-        (keydown.enter)="choose(i)"
+        (keydown.enter)="onItemEnter($event, i)"
       >
         <span class="check" aria-hidden="true">{{
           c.id === store.config().activeId ? '✓' : ''
@@ -48,7 +48,7 @@
       tabindex="-1"
       [id]="itemId(store.categories().length)"
       (click)="choose(store.categories().length)"
-      (keydown.enter)="choose(store.categories().length)"
+      (keydown.enter)="onItemEnter($event, store.categories().length)"
     >
       <span class="check" aria-hidden="true"></span>
       <i class="fa fa-fw fa-cog" aria-hidden="true"></i>
@@ -59,7 +59,7 @@
       tabindex="-1"
       [id]="itemId(store.categories().length + 1)"
       (click)="choose(store.categories().length + 1)"
-      (keydown.enter)="choose(store.categories().length + 1)"
+      (keydown.enter)="onItemEnter($event, store.categories().length + 1)"
     >
       <span class="check" aria-hidden="true"></span>
       <i class="fa fa-fw fa-download" aria-hidden="true"></i>

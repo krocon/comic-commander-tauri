@@ -1,7 +1,7 @@
 # Prompt 002: Kategorien und Scan mit Cache
 
 > Braucht: 001 · Umfang: M · Branch `feat/kategorien-scan`
-> Gemeinsame Regeln: [`000-arbeitsweise.md`](000-arbeitsweise.md). Vorlage: legacy §2, §3, §9.
+> Gemeinsame Regeln: [`000-arbeitsweise.md`](../000-arbeitsweise.md). Vorlage: legacy §2, §3, §9.
 
 ## Ziel
 

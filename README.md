@@ -8,14 +8,30 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 [files-and-folders-tauri](https://github.com/krocon/files-and-folders-tauri). Das Cover-Raster ist eine
 [GuiExpert Table](https://github.com/guiexperttable/mono) im Cover-Grid-Modus.
 
-> **Stand:** Grundgerüst (Prompt 001). Die App scannt einen Ordner rekursiv nach Comics und listet sie.
-> Cover-Grid, Thumbnails und Leser folgen – Fahrplan in [`prompts/README.md`](prompts/README.md).
+> **Stand:** Kategorien und Scan (Prompt 002). Die App verwaltet Kategorien, scannt sie rekursiv und listet die
+> Bücher. Cover-Grid, Thumbnails und Leser folgen – Fahrplan in [`prompts/README.md`](prompts/README.md).
 
 ## Was funktioniert
 
-- Ordner eingeben (absolut oder mit `~`), **Scan** listet alle Comics darunter in natürlicher Reihenfolge
-  (`Band 2` vor `Band 10`); Symlinks, versteckte Dateien und `._*` werden übersprungen.
+- **Kategorien** wie im alten Comic Commander: je Kategorie ein Ordner (`baseDir`), die Dateitypen
+  (`.cbz .cbr .cb7 .cbt .pdf .zip .rar .7z .tar`), Titel, Icon, Thumbnail-Größen und Anfangsfilter – zur Laufzeit im
+  Dialog „Manage categories“ anlegen, ändern, sortieren, entfernen; Ordner über den nativen Dialog wählen.
+- **Import der alten `config.json`** mit Vorschau (fehlende Ordner, Duplikate, nicht unterstützte Typen werden
+  angezeigt).
+- **Scan** rekursiv in Rust; beim nächsten Öffnen erscheint die Liste sofort aus dem Cache und wird im Hintergrund
+  aktualisiert. Nichts wird in die Comic-Ordner geschrieben. Ist ein Ordner nicht erreichbar, bleibt der letzte
+  Stand sichtbar.
+- Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
+
+### Tastenkürzel
+
+| Taste | Funktion |
+|---|---|
+| `Ctrl/⌘ + R` | Kategorie neu scannen |
+| `Ctrl/⌘ + 1 … 9` | Kategorie 1 … 9 wählen |
+| Menü-Button, `↓`/`Enter` | Kategorie-Menü öffnen (`↑`/`↓`, `Enter`, `Esc`) |
+| Dialog: `Ctrl/⌘ + Enter`, `Esc` | Speichern, Abbrechen; Liste: `Alt + ↑/↓` verschiebt |
 
 ## Entwickeln
 

@@ -1,7 +1,7 @@
 # Design 002: Kategorien und Scan mit Cache
 
-> **Status: Entwurf, Rev. 2 – wartet auf Freigabe 🛑** · Datum: 22.10.2026 · Branch `feat/kategorien-scan`
-> Auftrag: [`002-kategorien-scan.md`](002-kategorien-scan.md) · Regeln: [`000-arbeitsweise.md`](000-arbeitsweise.md)
+> **Status: umgesetzt** (freigegeben 22.10.2026, Rev. 2) · Datum: 22.10.2026 · Branch `feat/kategorien-scan`
+> Auftrag: [`002-kategorien-scan.md`](002-kategorien-scan.md) · Regeln: [`000-arbeitsweise.md`](../000-arbeitsweise.md)
 > Vorlage: legacy §2, §3, §9 · Übernahme aus files-and-folders-tauri: `config_file.rs`, `fs_atomic.rs`,
 > Batch-Muster aus `jobs/search.rs` (≤ 500 / 50 ms), `shared/dialog/`, Font Awesome 4.5.0.
 >
@@ -300,9 +300,26 @@ dem Import seiner alten Konfiguration – Schritte im Abschlussbericht.
 
 ## Fortschritt
 
-- [x] Phase 1: Design (dieses Dokument, Rev. 2) – 🛑 wartet auf Freigabe
-- [ ] Phase 2: Rust
-- [ ] Phase 3: Frontend
-- [ ] Phase 4: Ende-zu-Ende
-- [ ] Phase 5: Doku
-- [ ] Phase 6: Abschlussprüfung
+- [x] Phase 1: Design (Rev. 2) – freigegeben von Marc („go“, 22.10.2026)
+- [x] Phase 2: Rust – `categories.rs`, `legacy_import.rs`, `scan.rs` (aus `library.rs`), `scan_cache.rs`, `scan_hub.rs`,
+      Commands; `config_file.rs`/`fs_atomic.rs` übernommen. 51 Tests + Messung (ignored).
+- [x] Phase 3: Frontend – Fassaden, Stores, Dialoge, Menü-Button, Erststart; 53 Specs.
+- [x] Phase 4: Ende-zu-Ende im Container (Xvfb, Debug-Build) mit der Spiegel-Sammlung (584 Namen aus `comics.nosync`,
+      leere Dateien) und einer Test-„Make“ (PDF): Erststart → Import der alten `config.json` über den GTK-Dialog →
+      Vorschau → 584 Bücher; Menü → „Make“; Dialog: Icon + `.cbz` dazu → neuer Cache-Schlüssel, alter Cache gelöscht;
+      Ordner umbenannt → „Folder not reachable – showing the state of …“; Neustart → letzte Kategorie, neue Datei per
+      Diff (585); Dark-Mode. Bilder: `002-screenshots/`.
+- [x] Phase 5: Doku – `docs/architecture.md` (A4–A16, DTOs, Commands, Messung), README, CLAUDE.md, Index.
+- [x] Phase 6: `pnpm check` grün, Debug-Build, Review durch separaten Agenten (Rust).
+
+**Abweichungen vom Entwurf**
+- `ImportNote.index` ist `number | null` (statt immer gesetzt) und es gibt zwei Codes mehr – `invalid_dir`,
+  `no_extension` –, für Kategorien, die beim Import ausgelassen werden.
+- `pick_folder` liefert nur existierende Ordner (sonst `not_found`) – im E2E-Test gab GTK nach Autovervollständigung
+  einen nicht vorhandenen Pfad zurück.
+- Kategorie-Menü: `Enter` auf einem Eintrag wird verbraucht (`preventDefault`), der Fokus geht danach an den Button –
+  sonst öffnete WebKit das Menü sofort wieder (E2E-Befund, Spec ergänzt).
+- Batches werden bis 5 000 Bücher bei jedem Eintreffen sortiert, darüber einmal bei `done` (`SORT_WHILE_SCANNING`).
+
+**Nicht im Container prüfbar** (Abnahme auf dem Mac): echte Sammlung `comics.nosync` und „ct Make“, macOS-Ordnerdialog,
+Cache-Ort `~/Library/Caches/io.github.krocon.comiccommander`, Netzlaufwerk-Verhalten.

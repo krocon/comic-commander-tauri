@@ -72,6 +72,16 @@ describe('CategoryMenu', () => {
     expect(TestBed.inject(DialogService).open()).toBe('categories');
   });
 
+  it('Enter on an item is consumed (no second activation of the button)', async () => {
+    const { el, update } = await render();
+    (el.querySelector('.menu-button') as HTMLButtonElement).click();
+    await update();
+    const item = el.querySelectorAll('[role=menuitemradio]')[1];
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    item.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(true);
+  });
+
   it('marks the active category', async () => {
     const { el, update } = await render();
     (el.querySelector('.menu-button') as HTMLButtonElement).click();

@@ -14,10 +14,12 @@
 
 ## 1. Stand
 
-- **Prompt 001 (Grundgerüst, Walking Skeleton) ist fertig:** Ordnerfeld → Command `scan_library` (rekursiver Scan in
-  Rust) → einfache Liste der Bücher. Fassaden, Fakes, Fehler-Mapping, `pnpm check`, Debug-Build, App-Icon.
-- Als Nächstes: Prompt **002** (Kategorien + Scan-Cache), dann 003 (Cover) → 004 (Cover-Grid) → 005 (Leser).
-  Reihenfolge und Status: `prompts/README.md`.
+- **Prompt 001 (Grundgerüst)** und **Prompt 002 (Kategorien + Scan-Cache)** sind fertig: Kategorien wie in der alten
+  `config.json` (`baseDir`, `bookExtensions`, `thumbsDims`, …) zur Laufzeit verwalten, alte Konfiguration importieren,
+  Scan in Rust mit Cache im App-Cache (stale-while-revalidate), Kategorie-Menü, Liste der Bücher (Platzhalter für das
+  Cover-Grid). Design: `prompts/done/002-kategorien-scan.design.md`.
+- Als Nächstes: **003** (Cover/Thumbnails) → 004 (Cover-Grid) → 005 (Leser). Reihenfolge und Status:
+  `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -50,34 +52,48 @@ Container-Sitzung ohne Display: Debug-Build und die Binary unter `Xvfb` starten 
 ```
 src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   main.ts, index.html
-  styles.css                  Design-Tokens light/dark (einzige Stelle für Farben/Größen), .btn/.input
-  app/app.ts, app.config.ts   Root-Komponente; Bindung Fassade → Tauri-Implementierung
+  styles.css                  Design-Tokens light/dark (einzige Stelle für Farben/Größen), .btn/.input, FA-Import
+  assets/font-awesome-4.5.0/  Font Awesome 4.5.0 (nur woff2), wie files-and-folders
+  app/app.ts, app.config.ts   Root: Kategorie-Ansicht + Dialoge (@switch DialogService.open); Fassaden-Bindung
   app/core/backend/call.ts    einzige Stelle mit invoke() (+ isTauri-Prüfung, Fehler → FsError)
   app/core/errors/            FsError, toFsError, describeFsError (Codes = Rust error.rs)
-  app/core/library/           DTOs (library.models.ts = Rust model.rs), LibraryApi + TauriLibraryApi
+  app/core/categories/        DTOs (= Rust categories.rs/legacy_import.rs), CategoriesApi
+  app/core/scan/              DTOs (= Rust model.rs/scan_hub.rs: BookEntry, ScanStats, ScanEvent), ScanApi (Channel)
   app/core/about/             AppInfo, AboutApi
-  app/features/library/       LibraryStore (je Ansicht), LibraryView (Skelett-Liste → Cover-Grid in 004), Texte
-  testing/                    Fakes (FakeLibraryApi), Fixtures – nie im Produktivcode importieren
+  app/features/categories/    CategoriesStore (Root: Konfig, aktive Kategorie, Import), category-form.ts (rein: Listen
+                              = Rust, Prüfung), Dialog „Manage categories“, ImportDialog, Texte
+  app/features/category/      CategoryStore (je Ansicht, ereignisgetrieben), CategoryView (Toolbar, Status, Liste →
+                              Cover-Grid in 004, Erststart), CategoryMenu (Menü-Button nach APG), book-order.ts
+                              (Intl.Collator, NFC-Filterschlüssel), Texte
+  app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
+  testing/                    Fakes (FakeCategoriesApi, FakeScanApi), Fixtures – nie im Produktivcode importieren
 public/                       favicon.png
 src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib `cc_lib`
-  src/lib.rs                  Modulübersicht, Builder, Command-Registrierung
-  src/commands.rs             dünne Command-Schicht (validieren, spawn_blocking), Test command_rules
-  src/library.rs              Scan (rein, std): Endungen, natürliche Sortierung, Limits, Tests mit tempfile
+  src/lib.rs                  Modulübersicht, Builder (Dialog-Plugin, AppState), Command-Registrierung
+  src/commands.rs             dünne Command-Schicht (AppState: Kategorien + ScanHub), Test command_rules
+  src/categories.rs           categories.json: sanitize (streng beim Speichern, nachsichtig beim Laden), Ids, Icons,
+                              Endungen, fnv64
+  src/legacy_import.rs        alte config.json → Vorschau mit Hinweisen (feindliche Eingabe, ≤ 1 MiB)
+  src/scan.rs                 Walk (rein, std): Endungen je Kategorie, Abbruch, Datei-Symlinks, natural_cmp
+  src/scan_cache.rs           <app cache>/scans/<key>.json, Diff, Aufräumen
+  src/scan_hub.rs             ein Scan je Ziel (Thread, max. 4), Ereignisse an Abonnenten, Messung (ignored-Test)
+  src/config_file.rs, fs_atomic.rs  Lader mit .bad / atomar schreiben (aus files-and-folders)
   src/paths.rs                Eingabepfade prüfen (~, absolut, NUL, Länge), rel_display
   src/model.rs, error.rs      DTOs (serde camelCase), FsError { code, message, path }
   src/about.rs                AppInfo (Version aus tauri.conf.json → package.json)
+  testdata/legacy-config.json alte config.json (Marcs Struktur, Pfade neutralisiert)
   capabilities/default.json   nur core:default
   icons/source/app-icon.svg   Quelle des App-Icons
-docs/                         architecture.md (Entscheidungen, DTOs, Commands, Abhängigkeiten),
+docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),
                               legacy-analysis.md (Vorlage comiccommander)
 prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbeitsweise.md), done/
 ```
 
 ## 4. Architekturregeln (verbindlich)
 
-- **Frontend ruft das Backend nur über typisierte Fassaden** (`LibraryApi`, `AboutApi` und künftige `*Api` in
-  `app/core/`); `invoke()` steht nur in `core/backend/call.ts`. Komponenten und Stores rufen nie `invoke()`. Tests
-  ersetzen die Fassade (`FakeLibraryApi`).
+- **Frontend ruft das Backend nur über typisierte Fassaden** (`CategoriesApi`, `ScanApi`, `AboutApi` und künftige
+  `*Api` in `app/core/`); `invoke()` steht nur in `core/backend/call.ts`, `Channel`s entstehen in der Fassade.
+  Komponenten und Stores rufen nie `invoke()`. Tests ersetzen die Fassade (`FakeCategoriesApi`, `FakeScanApi`).
 - **DTO-Vertrag**: Rust `model.rs` ↔ TS `*.models.ts` von Hand synchron; jede Änderung auf beiden Seiten + Test.
   Fehler immer als `FsError { code: snake_case, message, path }`; neue Codes in `error.rs`, `fs-error.ts` und
   `describeFsError()`. Im UI nie Rusts `message` zeigen.
@@ -86,7 +102,7 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
   Navigation.
 - **Zustand**: Signals; Stores je Ansicht `@Injectable()` ohne `providedIn: 'root'` im Komponenten-Provider;
   Globales (Einstellungen, Jobs, Kategorien) in Root-Services. `OnPush` überall, kein zone.js.
-- **Veraltete Antworten verwerfen** (Request-Sequenz wie in `LibraryStore.load`) – bei Scan, Cover, Seiten.
+- **Veraltete Antworten verwerfen** (Request-Sequenz wie in `CategoryStore.open`) – bei Scan, Cover, Seiten.
 - **Commands nie synchron**: `async fn` + `spawn_blocking` für blockierende I/O; der Test
   `commands::command_rules` prüft das. Logik in reinen Modulen ohne Tauri, Command-Schicht dünn.
 - **Lange Operationen sind Jobs** (ab Prompt 007): Fortschritt über `tauri::ipc::Channel`, Abbruch-Token, nie auf dem
@@ -106,6 +122,10 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
 - **Plattformcode** hinter `cfg`-Funktionen bzw. einem Modul `platform/` mit gleicher Signatur je OS.
 - **Neue Abhängigkeiten** (npm oder crates) nur mit kurzer Begründung in `docs/architecture.md` („Abhängigkeiten“).
   Keine UI-Frameworks (Material o. ä.); Styling mit CSS (natives Nesting) + Tokens aus `src/styles.css` – kein SCSS.
+- **Unicode**: Dateinamen kommen in NFC und NFD vor (macOS, Marcs Sammlung gemischt). Pfade nie normalisieren;
+  Anzeige-Reihenfolge mit `book-order.ts` (`Intl.Collator`), Filter über `filterKey()` (NFC, klein).
+- **Modale Dialoge** über `DialogService` (ein Dialog zur Zeit) + `Modal`; Tastaturkürzel der Ansicht ruhen, solange
+  ein Dialog offen ist.
 - **Texte** nur aus Katalogen (`*-texts.ts`, Englisch = Quelle; Deutsch + Umschalten zur Laufzeit in Prompt 009).
 - **Barrierefreiheit**: sichtbarer Fokus, alles per Tastatur, Dialoge mit `role="dialog"`/`aria-modal` und
   Fokusfalle, Live-Region für Statusmeldungen, Kontraste in light und dark.
