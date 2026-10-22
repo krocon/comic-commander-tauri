@@ -16,7 +16,7 @@
 
 - **Prompt 001 (Grundgerüst, Walking Skeleton) ist fertig:** Ordnerfeld → Command `scan_library` (rekursiver Scan in
   Rust) → einfache Liste der Bücher. Fassaden, Fakes, Fehler-Mapping, `pnpm check`, Debug-Build, App-Icon.
-- Als Nächstes: Prompt **002** (Bibliotheken + Scan-Cache), dann 003 (Cover) → 004 (Cover-Grid) → 005 (Leser).
+- Als Nächstes: Prompt **002** (Kategorien + Scan-Cache), dann 003 (Cover) → 004 (Cover-Grid) → 005 (Leser).
   Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -85,7 +85,7 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
   Zielpfade rechnet Rust (`std::path`). `relPath` ist nur Anzeige/Filter/Sortierung. Kein `canonicalize` für
   Navigation.
 - **Zustand**: Signals; Stores je Ansicht `@Injectable()` ohne `providedIn: 'root'` im Komponenten-Provider;
-  Globales (Einstellungen, Jobs, Bibliotheken) in Root-Services. `OnPush` überall, kein zone.js.
+  Globales (Einstellungen, Jobs, Kategorien) in Root-Services. `OnPush` überall, kein zone.js.
 - **Veraltete Antworten verwerfen** (Request-Sequenz wie in `LibraryStore.load`) – bei Scan, Cover, Seiten.
 - **Commands nie synchron**: `async fn` + `spawn_blocking` für blockierende I/O; der Test
   `commands::command_rules` prüft das. Logik in reinen Modulen ohne Tauri, Command-Schicht dünn.

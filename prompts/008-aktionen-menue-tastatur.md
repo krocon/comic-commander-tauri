@@ -16,11 +16,11 @@ verstreuter `keydown`-Handler (bis hierhin erlaubt, ab hier Regel wie in files-a
 
 1. **Aktionskatalog** (`action-catalog.ts`): Grid (Cursor, Lesen, Öffnen, Im Finder zeigen, Serie filtern, Filter
    fokussieren/leeren, Größe ±, Sortierung, nach oben/unten), Leser (weiter/zurück/Anfang/Ende, Modus, Breite,
-   Vollbild, nächstes Buch, schließen), App (Bibliothek wechseln 1–9, Bibliotheken verwalten, Thumbnails erzeugen,
+   Vollbild, nächstes Buch, schließen), App (Kategorie wechseln 1–9, Kategorien verwalten, Thumbnails erzeugen,
    Einstellungen, About, Beenden).
 2. **Keymaps je OS** als JSON (`Mod` = Cmd/Ctrl), Kontext Grid/Leser/Dialog; Override-Datei des Nutzers im
    App-Config-Ordner (Editor optional – E2).
-3. **Menüleiste** nativ auf macOS (App-Menü, Ablage, Ansicht, Bibliothek, Fenster, Hilfe), HTML auf Windows/Linux –
+3. **Menüleiste** nativ auf macOS (App-Menü, Ablage, Ansicht, Kategorie, Fenster, Hilfe), HTML auf Windows/Linux –
    ein Modell, Kürzel aus den Keymaps; Zustände (aktiviert/abgehakt) live.
 4. **Kontextmenü** am Cover (ersetzt/ergänzt das Overlay aus 004) nach APG-Muster.
 5. **Befehlspalette** (`Mod+Shift+P`) mit Suche über alle Aktionen – E1.

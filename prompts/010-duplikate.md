@@ -8,7 +8,7 @@
 
 ## Ziel
 
-Doppelte Comics einer Bibliothek finden – **identische Dateien** und **dasselbe Buch in anderem Format/Namen**
+Doppelte Comics einer Kategorie finden – **identische Dateien** und **dasselbe Buch in anderem Format/Namen**
 (`Band 01.cbr` vs. `Band 1.cbz`) –, Gruppen nebeneinander mit Cover vergleichen und überzählige Exemplare sicher in den
 Papierkorb legen.
 

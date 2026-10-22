@@ -14,7 +14,7 @@
 
 | Bereich | Vorlage | Neuauflage |
 |---|---|---|
-| Bibliothek | „Kategorien“ aus `config.json` (je `baseDir`, Endungen, Titel, Icon, Thumb-Größen) | Bibliotheken in der App konfiguriert (Prompt 002) |
+| Kategorien | aus `config.json` (je `baseDir`, Endungen, Titel, Icon, Thumb-Größen), nur beim Serverstart gelesen | dasselbe Modell, **zur Laufzeit** in der App verwaltet, alte `config.json` importierbar (Prompt 002) |
 | Liste | rekursiver Scan, Cache `files.json` **im Comic-Ordner** | Scan in Rust, Cache im App-Cache-Ordner (002) |
 | Cover | Thumbnail-JPGs **neben** dem Buch (`Band.jpg`, `Band_xl.jpg`), erzeugt per `sharp` | Cover-Cache in Rust, alte Sidecars werden gelesen (003) |
 | Übersicht | GuiExpert `CoverGrid` mit Angular-Renderer, Filter, Thumb-Größe, Scrollposition | GuiExpert Cover-Grid, Signals, Renderer ohne Angular (004) |
@@ -51,8 +51,13 @@
   (`""` → `Band.jpg`, `"_xl"` → `Band_xl.jpg`).
 - `ConfigIf` zusätzlich (nur Client): `selectedCategoryIndex`, `scrollOffset`.
 - Konfigurationspfad über `CONFIG_PATH`/`CONFIG_URL`, Varianten für macOS, Windows, Unraid.
+- Marcs produktive Konfiguration (macOS, Stand 22.10.2026) hat **zwei** Kategorien: „Comics“
+  (`…/_done/comics.nosync`, `.cbz`/`.cbr`, 584 Bücher) und „Make“ (`…/_done/ct Make`, nur `.pdf` – Zeitschriften).
+  Beide mit `thumbsDims` 200×300 (`""`) und 800×1200 (`"_xl"`), `dimIndex` 1, Icon `stars`. Endungen sind also
+  **je Kategorie** verschieden; PDF ist ein echter Anwendungsfall (die Vorlage konnte davon aber keine Cover
+  erzeugen, legacy §10.6).
 
-## §3 Bibliothek scannen (`file-util.service.ts`, `file-controller.ts`)
+## §3 Kategorie scannen (`file-util.service.ts`, `file-controller.ts`)
 
 - `GET /api/files/:catIndex` → `readDirsCached(baseDir, bookExtensions)` → `string[]` relativer Pfade, beginnend
   mit `/`, Separator `/`, **sortiert** (`.sort()`, also Code-Point-Reihenfolge, nicht natürlich).

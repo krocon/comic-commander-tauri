@@ -34,7 +34,7 @@ die Vorlage, aber **ohne das ganze Archiv zu entpacken** und mit allen Bildforma
   großem CBR (RAR ist nicht wahlfrei lesbar).
 - **E2** Originalbild vs. auf Bildschirmgröße skaliert (Speicher bei 6000-px-Scans, HiDPI).
 - **E3** Doppelseiten (Titelseite einzeln, Querformat-Seiten als Doppelseite erkennen)?
-- **E4** Leserichtung rechts → links je Buch/Bibliothek?
+- **E4** Leserichtung rechts → links je Buch/Kategorie?
 - **E5** Lesefortschritt: Speicherort (`reading-state.json` im App-Config-Ordner), Anzeige im Grid?
 - **E6** Routing: Angular-Router (Vorlage `/view/:id`) vs. Zustand im Root-Store (Desktop-App ohne URL-Leiste).
 

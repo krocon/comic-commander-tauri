@@ -5,7 +5,7 @@
 
 ## Ziel
 
-Die Hauptansicht: alle Bücher der aktiven Bibliothek als **virtualisiertes Raster aus Covern** (GuiExpert
+Die Hauptansicht: alle Bücher der aktiven Kategorie als **virtualisiertes Raster aus Covern** (GuiExpert
 `CoverGridTableModel`), flüssig bei 50 000 Büchern, mit Filter, Größenwahl und Tastaturbedienung. Ersetzt die
 Skelett-Liste aus 001.
 
@@ -18,12 +18,12 @@ Skelett-Liste aus 001.
 2. **Renderer ohne Angular** (`CellRendererIf`): `<img loading="lazy">` mit URL aus 003, Platzhalter mit Format-Kürzel
    während des Ladens und bei Fehler, Titel (Name ohne Endung) unter oder über dem Cover (E1), `title`/`alt` mit
    `relPath`. Kein `innerHTML` mit Nutzerdaten.
-3. **Cover-Größen** 200×300, 400×600, 800×1200 (Vorlage `thumbsDims`), Wahl je Bibliothek gemerkt; zusätzlich
-   stufenlos mit `Ctrl/Cmd +/-` (E2).
+3. **Cover-Größen** aus der Kategorie (`thumbsDims` + Vorgabe `dimIndex`, 002 – wie die Vorlage), Auswahl im Grid
+   wie die Vorlage (Select „Thumb size“), Wahl je Kategorie gemerkt; zusätzlich stufenlos mit `Ctrl/Cmd +/-` (E2).
 4. **Filter** unten oder in der Toolbar (Vorlage: unten): Syntax der Vorlage – Wörter = ODER, `+wort` = muss,
    `-wort` = darf nicht, ohne Groß-/Kleinschreibung auf `relPath` – als **reine Funktion** mit Testkatalog
    (`filter-logic.ts` + `.cases.json`, Fälle aus `cc-overview-filter.service.spec.ts` der Vorlage übernehmen).
-   Entprellt, je Bibliothek gemerkt, `initialFilter` der Bibliothek. Zähler „gefiltert / gesamt“. `Esc` leert.
+   Entprellt, je Kategorie gemerkt, `initialFilter` der Kategorie. Zähler „gefiltert / gesamt“. `Esc` leert.
 5. **Serie filtern** (`extractSeriesFilter` der Vorlage, legacy §6) als reine Funktion mit Testfällen.
 6. **Cursor & Tastatur**: ein Fokus-Cover (sichtbar), Pfeiltasten im Raster, `Home`/`End`, `PgUp`/`PgDn`, `Enter` =
    lesen (005), `Space` = Aktions-Overlay, Tippen = in den Filter springen (E3). ARIA: `role="grid"` oder Listbox –
@@ -31,7 +31,7 @@ Skelett-Liste aus 001.
 7. **Aktionen je Buch** (Overlay wie Vorlage „View / Download / Filter Series / Cancel“ bzw. Kontextmenü):
    Lesen, Mit Standard-App öffnen, Im Finder/Explorer zeigen, Serie filtern, Pfad kopieren. Öffnen/Zeigen über
    schmale Commands (`opener.rs`, `platform/desktop.rs` aus files-and-folders übernehmen).
-8. **Scrollposition** je Bibliothek merken und nach Rückkehr aus dem Leser/Neustart wiederherstellen (Vorlage:
+8. **Scrollposition** je Kategorie merken und nach Rückkehr aus dem Leser/Neustart wiederherstellen (Vorlage:
    `autoRestoreOptions` + `?scroll=`). Knöpfe „nach oben/unten“ (Vorlage) bzw. `Ctrl+Home/End`.
 9. Sortierung (E4): Name natürlich (Default), Ordner, Datum, Größe.
 
@@ -50,7 +50,7 @@ Skelett-Liste aus 001.
 
 ## Akzeptanzkriterien
 
-- [ ] Bibliothek öffnen → Cover erscheinen beim Scrollen; schnelles Scrollen lädt nur sichtbare Cover.
+- [ ] Kategorie öffnen → Cover erscheinen beim Scrollen; schnelles Scrollen lädt nur sichtbare Cover.
 - [ ] Filter `+asterix -album` zeigt die erwarteten Bücher, Zähler stimmt; „Serie filtern“ auf einem Cover setzt den
       Filter wie die Vorlage.
 - [ ] Ganze Bedienung per Tastatur möglich, Fokus sichtbar, light und dark geprüft.

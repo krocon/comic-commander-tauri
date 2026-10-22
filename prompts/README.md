@@ -5,7 +5,7 @@ Phasen vom Design über Rust- und Frontend-Tests bis zur Ende-zu-Ende-Prüfung u
 (Freigabe). Gemeinsame Regeln: [000-arbeitsweise.md](000-arbeitsweise.md).
 
 **So startet man einen Prompt:** neue Sitzung im Repo, dann z. B.
-„Lies `prompts/000-arbeitsweise.md` und führe `prompts/002-bibliotheken-scan.md` aus.“
+„Lies `prompts/000-arbeitsweise.md` und führe `prompts/002-kategorien-scan.md` aus.“
 
 **Erledigte Prompts** liegen unter [`done/`](done/) (Auftrag + `*.design.md`); Kürzel wie „003 E4“ in Code und Doku
 verweisen auf ihre Entscheidungen.
@@ -22,7 +22,7 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 |---|---|---|---|---|---|
 | 000 | [000-arbeitsweise.md](000-arbeitsweise.md) | gemeinsamer Ablauf, Phasen, Regeln | – | – | – |
 | 001 | [001-grundgeruest.md](done/001-grundgeruest.md) | Walking Skeleton: Tauri 2 + Angular 22 + Rust, Fassade, `scan_library`, Liste, Tests, Icon | – | M | ✅ 22.10.2026 |
-| 002 | [002-bibliotheken-scan.md](002-bibliotheken-scan.md) | Bibliotheken verwalten, Ordnerdialog, Scan gestreamt + abbrechbar, Cache im App-Cache (stale-while-revalidate) | 001 | M | offen |
+| 002 | [002-kategorien-scan.md](002-kategorien-scan.md) | Kategorien zur Laufzeit verwalten (Titel, `baseDir`, `bookExtensions`, Icon, Thumb-Größen, Anfangsfilter), Import der alten `config.json`, Ordnerdialog, Scan gestreamt + abbrechbar, Cache im App-Cache | 001 | M | offen |
 | 003 | [003-cover-thumbnails.md](003-cover-thumbnails.md) | Archive lesen (ZIP/RAR/7z/TAR nach Inhalt), Cover-Wahl, Thumbnails + Cache, alte Sidecars, URI-Schema | 001, 002 | L | offen |
 | 004 | [004-cover-grid.md](004-cover-grid.md) | GuiExpert Cover-Grid, Renderer, Größen, Filter `+/-`, Serie filtern, Tastatur, Aktionen je Buch, Scrollposition | 002, 003 | L | offen |
 | 005 | [005-leser.md](005-leser.md) | Leser: Einzelseite/fortlaufend, Blättern wie Vorlage, Seiten direkt aus dem Archiv, Vorausladen, Position merken | 003, 004 | L | offen |
@@ -37,6 +37,5 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 
 ## Folge-Ideen (noch ohne Prompt)
 
-- Ordner-Überwachung der offenen Bibliothek (falls nicht in 002).
-- Lesefortschritt synchronisieren (z. B. über eine Datei in der Bibliothek) – nur nach Entscheidung zu legacy §10.2.
-- Import der alten `config.json` (Kategorien → Bibliotheken, `thumbsDims`, `initialFilter`).
+- Ordner-Überwachung der offenen Kategorie (in 002 verschoben, E8).
+- Lesefortschritt synchronisieren (z. B. über eine Datei im Kategorie-Ordner) – nur nach Entscheidung zu legacy §10.2.

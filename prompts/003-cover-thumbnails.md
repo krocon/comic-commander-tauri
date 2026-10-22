@@ -8,7 +8,7 @@
 
 ## Ziel
 
-Für jedes Buch einer Bibliothek liefert Rust ein **Cover-Thumbnail** in der gewünschten Größe – schnell, begrenzt,
+Für jedes Buch einer Kategorie liefert Rust ein **Cover-Thumbnail** in der gewünschten Größe – schnell, begrenzt,
 sicher und ohne externe Programme. Das Frontend lädt es per `<img src>` über ein eigenes URI-Schema. Grundlage für das
 Cover-Grid (004) und die Stapel-Erzeugung (007). PDF folgt in 006 (hier nur die Schnittstelle vorsehen).
 
@@ -22,13 +22,14 @@ Cover-Grid (004) und die Stapel-Erzeugung (007). PDF folgt in 006 (hier nur die 
    versteckten Einträge/`__MACOSX`; Reihenfolge: `cover.` im Namen → weniger Ordnerebenen → **natürliche** Sortierung.
    Optional `ComicInfo.xml` mit `FrontCover`-Seite (E3).
 3. **Bild verkleinern**: Decoder mit Grenzen (Pixel, Bytes, `catch_unwind`), Skalierung `fit inside` ohne Vergrößern
-   (wie `sharp` der Vorlage), JPEG Qualität 80 (E2: oder WebP). Größen kommen aus dem Frontend (Standard 200×300,
-   400×600, 800×1200 wie die Vorlage) – Rust akzeptiert nur eine feste Liste.
+   (wie `sharp` der Vorlage), JPEG Qualität 80 (E2: oder WebP). Die Größen kommen aus der **Kategorie**
+   (`thumbsDims`, 002 – Feldname wie in der Vorlage, z. B. 200×300 und 800×1200); Rust prüft Breite/Höhe gegen
+   Grenzen (32–2000 px), statt beliebige Werte anzunehmen.
 4. **Thumb-Cache** im App-Cache: Schlüssel = Hash(Pfad, Größe, mtime, Thumb-Größe); bei Änderung des Buchs neu. Größe
    begrenzen (LRU nach Zugriff, Grenze aus den Einstellungen, Default 1 GiB) – E4.
 5. **Alte Sidecars lesen** (Kompatibilität mit der Vorlage und der App „Panels“): vor dem Erzeugen prüfen, ob
    `Band<suffix>.jpg`, `Band.cbz<suffix>.jpg`, `.Panels/thumbnails/Band<suffix>.jpg` … existiert (Reihenfolge legacy
-   §4) und passt. Schreiben neben das Buch nur, wenn der Nutzer es einschaltet (E5) – Standard aus.
+   §4) und passt. `<suffix>` ist die `nameExtension` der jeweiligen Größe in der Kategorie (`""`, `"_xl"`). Schreiben neben das Buch nur, wenn der Nutzer es einschaltet (E5) – Standard aus.
 6. **URI-Schema** `ccimg` (Name im Design festlegen), asynchron registriert, Tokens statt Pfade in der URL (der
    WebView darf keine beliebigen Pfade anfordern), Parallelität begrenzt (Semaphor, sonst 503 + Retry im Frontend),
    `Cache-Control` für den WebView-Cache. CSP `img-src` ergänzen.

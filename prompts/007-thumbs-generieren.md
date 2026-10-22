@@ -7,7 +7,7 @@
 
 ## Ziel
 
-Auf Wunsch alle fehlenden Cover-Thumbnails einer oder aller Bibliotheken im Hintergrund erzeugen, damit das Grid danach
+Auf Wunsch alle fehlenden Cover-Thumbnails einer oder aller Kategorien im Hintergrund erzeugen, damit das Grid danach
 ohne Wartezeit scrollt – mit Fortschritt, Restzeit, Pause und Abbruch, während die App bedienbar bleibt.
 
 ## Anforderungen
@@ -16,11 +16,11 @@ ohne Wartezeit scrollt – mit Fortschritt, Restzeit, Pause und Abbruch, währen
    Abbruch-Token, Pause, höchstens ein Lauf dieser Art gleichzeitig (Vorlage: `isProcessing`). Weitere Job-Arten
    (Duplikate 010, Cache leeren) sollen später dazukommen können.
 2. **Ablauf** wie legacy §5: zuerst zählen (unbestimmter Fortschritt), dann erzeugen; Parallelität = min(4, Kerne−1)
-   (Vorlage: 4), alle Größen der Bibliothek; vorhandene Thumbs (Cache oder Sidecar) überspringen.
+   (Vorlage: 4), alle Größen der Kategorie; vorhandene Thumbs (Cache oder Sidecar) überspringen.
 3. **Fortschritt** (`GenerateThumbsProgress` der Vorlage übernehmen): `total`, `processed`, `currentFile`,
    `errorCount`, `skippedCount` (kein Bild im Archiv), `generated`, verstrichene/geschätzte Restzeit; gedrosselt
    (≤ 10 Ereignisse/s). Fehlerliste (Name + Code) am Ende abrufbar.
-4. **UI**: Dialog/Seite „Thumbnails erzeugen“ (Bibliothek wählen oder alle, Start, Fortschrittsbalken, Zahlen,
+4. **UI**: Dialog/Seite „Thumbnails erzeugen“ (Kategorie wählen oder alle, Start, Fortschrittsbalken, Zahlen,
    aktuelle Datei, Pause/Abbrechen, Abschlussmeldung „N Thumbnails erzeugt“), zusätzlich kleine Fortschrittsanzeige in
    der Toolbar, solange der Job läuft. Das Grid zeigt neue Cover sofort (Ereignis „thumb ready“ → Zelle neu zeichnen).
 5. Optional (E2): automatisch nach jedem Scan im Hintergrund mit niedriger Priorität.

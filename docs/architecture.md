@@ -37,6 +37,7 @@
 | A6 | Skelett-Liste rendert höchstens 500 Zeilen | Platzhalter bis zum virtualisierten Cover-Grid (004) | 001 |
 | A7 | Dev-Server auf Port **1430** (files-and-folders: 1420) | beide Apps parallel entwickeln | 001 |
 | A8 | Formate über die Endung: `cbz cbr cb7 cbt pdf`; Inhalt wird beim Lesen geprüft (003) | wie Vorlage, erweitert; „falsche“ Endungen (CBR = ZIP) erkennt erst der Leser | 001 |
+| A9 | Kategorien wie die Vorlage (`baseDir`, `bookExtensions` je Kategorie, `thumbsDims`, …), zur Laufzeit verwaltet; Details Design 002 | Marcs Konfiguration: „Comics“ (`.cbz/.cbr`) und „Make“ (`.pdf`) | 002 (geplant) |
 
 Offene Entscheidungen stehen in den Prompts (Abschnitt „Entscheidungsfragen“) und wandern nach der Freigabe hierher.
 
