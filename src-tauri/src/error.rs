@@ -21,6 +21,22 @@ pub enum FsErrorCode {
     InvalidLegacyConfig,
     /// `open_category`/`cancel_scan` with an id that is not configured.
     UnknownCategory,
+    /// A comic book (archive) is broken or uses something we cannot read (design 003).
+    ArchiveError,
+    /// An archive or image exceeds the safety limits (entries, size, pixels, dictionary).
+    ArchiveTooLarge,
+    /// The book (or its cover entry) is encrypted – covers are never asked for a password.
+    ArchiveEncrypted,
+    /// The container format is not supported (yet) – e.g. PDF until prompt 006.
+    UnsupportedFormat,
+    /// The image cannot be decoded (broken, unknown format).
+    UnsupportedImage,
+    /// The book contains no image.
+    NoImage,
+    /// Reading took longer than allowed (design 003 E9).
+    Timeout,
+    /// Too much work waiting (cover pool full) – ask again later.
+    Busy,
 }
 
 /// The one error type every command returns.

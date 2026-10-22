@@ -26,6 +26,8 @@ pub enum BookFormat {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookEntry {
+    /// `fnv64(path)` as 16 hex digits – addresses the book in cover URLs (design 003 E1).
+    pub id: String,
     /// Full path – opaque for the frontend (never split or joined there).
     pub path: String,
     /// Path below the category's `baseDir`, segments joined with `/`. For display, filter and sort
