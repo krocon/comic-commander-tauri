@@ -127,11 +127,17 @@ denselben Namen): Erstscan und Anzeige < 1 s im Debug-Build. Netzlaufwerke: noch
 Cover 200×300 ≈ 10–25 KB, `_xl` ≈ 200–300 KB (mehr als die geschätzten 120 KB; 2 GiB reichen trotzdem für > 7 000
 `_xl`-Cover). Im Debug-Build dauert ein RAR-Cover 1–3 s – im Fenster zuerst das Format-Kürzel, dann das Cover.
 
-**Cover-Grid (Design 004, 22.10.2026)** – Container, Debug-Build, Xvfb, 50 000 leere `.cbz` in 2 500 Ordnern:
+**Cover-Grid (Design 004, 22.10.2026)** – Container, Xvfb, 50 000 leere `.cbz` in 2 500 Ordnern:
+
+| Schritt | Debug-Build | Release-Build |
+|---|---|---|
+| Neustart mit Cache: erste 2 000 Bücher sichtbar | ~2 s | 2,3 s (Fenster nach 1,7 s) |
+| alle 50 000 Bücher (25 Teile) | ~21 s | 2,6 s |
+| Hintergrund-Scan fertig | ~22 s | 2,9 s |
+
 Filter über 50 000 Bücher (Vitest, `filter-logic.perf.spec.ts`) deutlich < 50 ms; 30 × Bild-ab in 1,3 s inkl.
-`xdotool`; `Ctrl+End` sofort. Neustart mit Cache: erste 2 000 Bücher nach ~2 s, alle 50 000 nach ~21 s – Rust braucht
-0,7 s (Cache lesen 0,26 s, JSON 0,44 s), das Frontend 40–60 ms je Ereignis; der Rest ist der IPC-Transport im
-Container (~0,5 MB/s, Release: siehe unten). Auf dem Mac nachmessen.
+`xdotool` (Debug); `Ctrl+End` sofort. Im Debug-Build ist der IPC-Transport der Engpass (~0,5 MB/s; Rust 0,7 s,
+Frontend 40–60 ms je Ereignis). Auf dem Mac nachmessen.
 
 ## Abhängigkeiten
 

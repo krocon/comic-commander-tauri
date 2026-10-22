@@ -23,6 +23,9 @@
   --ge-table-focus-border: transparent;
   --ge-table-focus-outline-color: transparent;
   --ge-table-border: transparent;
+  --ge-table-body-center-horizontal-border: transparent;
+  --ge-table-body-center-vertical-border: transparent;
+  --ge-table-footer-center-horizontal-border: transparent;
 
   /* the focus is shown on the cover */
   &:focus-visible {

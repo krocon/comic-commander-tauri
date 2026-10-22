@@ -154,7 +154,8 @@ Neuer Code `unknown_book` (Buch nicht in der Registry, z. B. nach Neu-Scan gelö
   bekommen sonst wieder das Komponenten-Attribut.
 - **Nach Größen-/Breitenwechsel** bleibt das Fokus-Buch (sonst das oberste) im Blick (E10 erweitert).
 - **Scan-Ereignisse in Teilen (Fund im E2E-Test):** Bei 50 000 Büchern brauchte das eine `cached`-Ereignis (11 MB)
-  im Container rund 20 s durch die IPC (Debug-Build: Rust 0,7 s, Frontend 40 ms – der Rest ist Transport, ~0,5 MB/s).
+  im Container rund 20 s durch die IPC (Debug-Build: Rust 0,7 s, Frontend 40 ms – der Rest ist Transport, ~0,5 MB/s;
+  im Release-Build sind alle 50 000 nach 2,6 s da).
   Jetzt `cached` + `cachedMore` mit je ≤ 2000 Büchern (`complete` am letzten), große `diff` und späte Öffner ebenso
   in Teilen; das Frontend zeigt die Teile sofort (Reihenfolge von Rust) und sortiert einmal am Ende → erste Cover
   nach ~2 s. DTO geändert (Rust + TS + Tests). Zunächst hielt ich die eine große Nachricht für „hängengeblieben“ –
