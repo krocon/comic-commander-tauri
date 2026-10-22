@@ -10,12 +10,13 @@
 //!
 //! Pure Rust (no Tauri): events go to a [`Sink`]; the command layer wraps a `Channel`.
 
-use crate::error::FsError;
+use crate::error::{FsError, FsErrorCode};
 use crate::model::{BookEntry, ScanStats};
 use crate::scan::{self, WalkEvent, WalkOptions};
 use crate::scan_cache::{self, ScanCache};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -82,6 +83,9 @@ struct Running {
     first_scan: bool,
     /// Books already sent in batches (first scan) – a late opener gets them at once.
     sent: Vec<BookEntry>,
+    /// Openers that came after a cancel, while the cancelled walk was still finishing: they
+    /// get a new scan when it is gone (review 002 #2).
+    queued: Vec<(String, Sink)>,
 }
 
 struct Inner {
@@ -91,6 +95,8 @@ struct Inner {
     max_parallel: usize,
     dir_delay: Duration,
     walks: AtomicUsize,
+    /// Scan threads alive (also while they deliver their last events).
+    threads: AtomicUsize,
 }
 
 #[derive(Clone)]
@@ -114,6 +120,11 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Calls a sink; a panicking sink never takes the scan thread down.
+fn deliver(sink: &Sink, event: ScanEvent) {
+    let _ = catch_unwind(AssertUnwindSafe(|| sink(event)));
+}
+
 impl ScanHub {
     /// `dir_delay` slows every folder down – only for tests of concurrent scans.
     pub fn with_options(max_parallel: usize, dir_delay: Duration) -> Self {
@@ -125,6 +136,7 @@ impl ScanHub {
                 max_parallel: max_parallel.max(1),
                 dir_delay,
                 walks: AtomicUsize::new(0),
+                threads: AtomicUsize::new(0),
             }),
         }
     }
@@ -135,46 +147,64 @@ impl ScanHub {
         let key = scan_cache::cache_key(&target.base_dir, &target.extensions);
         let cached = scan_cache::read(cache_dir, &target.base_dir, &target.extensions);
         if let Some(c) = &cached {
-            sink(ScanEvent::Cached {
-                books: c.books.clone(),
-                scanned_at: c.scanned_at,
-                stats: c.stats.clone(),
-            });
+            deliver(
+                &sink,
+                ScanEvent::Cached {
+                    books: c.books.clone(),
+                    scanned_at: c.scanned_at,
+                    stats: c.stats.clone(),
+                },
+            );
         }
         let mut map = lock(&self.inner.running);
         if let Some(r) = map.get_mut(&key) {
-            r.ids.insert(category_id.to_owned());
-            sink(ScanEvent::Started {
-                first_scan: r.first_scan,
-            });
-            if r.first_scan && !r.sent.is_empty() {
-                sink(ScanEvent::Batch {
-                    books: r.sent.clone(),
-                });
+            if r.cancel.load(Ordering::Relaxed) {
+                // the walk is cancelled but not gone yet: a new scan follows it
+                deliver(
+                    &sink,
+                    ScanEvent::Started {
+                        first_scan: cached.is_none(),
+                    },
+                );
+                r.queued.push((category_id.to_owned(), sink));
+                return;
             }
-            r.sinks.push(sink);
+            r.ids.insert(category_id.to_owned());
+            // `started` before the sink can receive batches (the store clears on a first scan)
+            deliver(
+                &sink,
+                ScanEvent::Started {
+                    first_scan: r.first_scan,
+                },
+            );
+            let sent = (r.first_scan && !r.sent.is_empty()).then(|| r.sent.clone());
+            r.sinks.push(sink.clone());
+            drop(map);
+            // the books so far – outside the lock (up to 500 000, review 002 #10)
+            if let Some(books) = sent {
+                deliver(&sink, ScanEvent::Batch { books });
+            }
             return;
         }
-        let first_scan = cached.is_none();
-        sink(ScanEvent::Started { first_scan });
-        let cancel = Arc::new(AtomicBool::new(false));
-        map.insert(
-            key.clone(),
-            Running {
-                cancel: cancel.clone(),
-                sinks: vec![sink],
-                ids: HashSet::from([category_id.to_owned()]),
-                first_scan,
-                sent: Vec::new(),
+        deliver(
+            &sink,
+            ScanEvent::Started {
+                first_scan: cached.is_none(),
             },
         );
-        drop(map);
-        let inner = self.inner.clone();
-        let cache_dir = cache_dir.to_path_buf();
-        std::thread::spawn(move || run(&inner, &key, &cache_dir, &target, cached, &cancel));
+        start(
+            &self.inner,
+            &mut map,
+            key,
+            cache_dir,
+            target,
+            cached,
+            vec![(category_id.to_owned(), sink)],
+        );
     }
 
-    /// Cancels the scan that `category_id` opened (no-op if none runs).
+    /// Cancels the scan that `category_id` opened (no-op if none runs). Two categories with
+    /// the same folder and file types share one scan – cancelling stops it for both.
     pub fn cancel(&self, category_id: &str) {
         for r in lock(&self.inner.running).values() {
             if r.ids.contains(category_id) {
@@ -183,14 +213,51 @@ impl ScanHub {
         }
     }
 
+    /// No scan registered and no scan thread still delivering events.
     pub fn is_idle(&self) -> bool {
-        lock(&self.inner.running).is_empty()
+        lock(&self.inner.running).is_empty() && self.inner.threads.load(Ordering::SeqCst) == 0
+    }
+
+    /// Cache keys of the scans that run now – `save_categories` keeps their caches.
+    pub fn running_keys(&self) -> HashSet<String> {
+        lock(&self.inner.running).keys().cloned().collect()
     }
 
     /// Number of walks started so far (tests).
     pub fn walks(&self) -> usize {
         self.inner.walks.load(Ordering::Relaxed)
     }
+}
+
+/// Registers a new scan under `key` (the map lock is held by the caller) and starts its thread.
+fn start(
+    inner: &Arc<Inner>,
+    map: &mut HashMap<String, Running>,
+    key: String,
+    cache_dir: &Path,
+    target: Target,
+    cached: Option<ScanCache>,
+    openers: Vec<(String, Sink)>,
+) {
+    let cancel = Arc::new(AtomicBool::new(false));
+    map.insert(
+        key.clone(),
+        Running {
+            cancel: cancel.clone(),
+            ids: openers.iter().map(|(id, _)| id.clone()).collect(),
+            sinks: openers.into_iter().map(|(_, s)| s).collect(),
+            first_scan: cached.is_none(),
+            sent: Vec::new(),
+            queued: Vec::new(),
+        },
+    );
+    let inner = inner.clone();
+    let cache_dir = cache_dir.to_path_buf();
+    inner.threads.fetch_add(1, Ordering::SeqCst);
+    std::thread::spawn(move || {
+        run(&inner, &key, &cache_dir, &target, cached, &cancel);
+        inner.threads.fetch_sub(1, Ordering::SeqCst);
+    });
 }
 
 /// Sends `event` to every current subscriber of `key` (outside the lock).
@@ -209,7 +276,7 @@ fn broadcast(inner: &Inner, key: &str, event: ScanEvent, remember: Option<&[Book
 }
 
 fn run(
-    inner: &Inner,
+    inner: &Arc<Inner>,
     key: &str,
     cache_dir: &Path,
     target: &Target,
@@ -227,6 +294,79 @@ fn run(
         *active += 1;
     }
     inner.walks.fetch_add(1, Ordering::Relaxed);
+    // a panic (walk, sink) must not keep the slot and the entry forever (review 002 #3)
+    let (finals, new_cache) = catch_unwind(AssertUnwindSafe(|| {
+        scan_once(inner, key, target, cached.as_ref(), cancel)
+    }))
+    .unwrap_or_else(|_| {
+        (
+            vec![ScanEvent::Failed {
+                error: FsError::new(FsErrorCode::Io, "scan failed", None),
+                cache_kept: cached.is_some(),
+            }],
+            None,
+        )
+    });
+    {
+        let mut active = lock(&inner.active);
+        *active -= 1;
+        inner.slot_free.notify_one();
+    }
+    // leave the map first, then write the cache: a late opener either joined before (and gets
+    // the diff against the old cache) or starts a scan of its own (review 002 #4)
+    let (sinks, queued) = lock(&inner.running)
+        .remove(key)
+        .map(|r| (r.sinks, r.queued))
+        .unwrap_or_default();
+    if let Some(cache) = &new_cache {
+        // a cache that cannot be written only costs speed next time
+        let _ = scan_cache::write(cache_dir, cache);
+    }
+    for e in finals {
+        for s in &sinks {
+            deliver(s, e.clone());
+        }
+    }
+    if queued.is_empty() {
+        return;
+    }
+    // openers that came after a cancel: a new scan – or join one that started meanwhile
+    let cached = scan_cache::read(cache_dir, &target.base_dir, &target.extensions);
+    let mut map = lock(&inner.running);
+    if let Some(r) = map.get_mut(key) {
+        for (id, sink) in queued {
+            r.ids.insert(id);
+            if r.first_scan && !r.sent.is_empty() {
+                deliver(
+                    &sink,
+                    ScanEvent::Batch {
+                        books: r.sent.clone(),
+                    },
+                );
+            }
+            r.sinks.push(sink);
+        }
+    } else {
+        start(
+            inner,
+            &mut map,
+            key.to_owned(),
+            cache_dir,
+            target.clone(),
+            cached,
+            queued,
+        );
+    }
+}
+
+/// One walk with batches and progress; returns the final events and the cache to write.
+fn scan_once(
+    inner: &Inner,
+    key: &str,
+    target: &Target,
+    cached: Option<&ScanCache>,
+    cancel: &AtomicBool,
+) -> (Vec<ScanEvent>, Option<ScanCache>) {
     let first_scan = cached.is_none();
     let mut all: Vec<BookEntry> = Vec::new();
     let mut pending: Vec<BookEntry> = Vec::new();
@@ -287,12 +427,15 @@ fn run(
             Some(&books),
         );
     }
-    let finals: Vec<ScanEvent> = match result {
-        Err(error) => vec![ScanEvent::Failed {
-            error,
-            cache_kept: cached.is_some(),
-        }],
-        Ok(outcome) if outcome.cancelled => vec![ScanEvent::Cancelled],
+    match result {
+        Err(error) => (
+            vec![ScanEvent::Failed {
+                error,
+                cache_kept: cached.is_some(),
+            }],
+            None,
+        ),
+        Ok(outcome) if outcome.cancelled => (vec![ScanEvent::Cancelled], None),
         Ok(outcome) => {
             scan::sort_books(&mut all);
             let scanned_at = now_ms();
@@ -309,10 +452,8 @@ fn run(
                 books: all,
                 stats: outcome.stats.clone(),
             };
-            // a cache that cannot be written only costs speed next time
-            let _ = scan_cache::write(cache_dir, &cache);
             let mut events = Vec::new();
-            if let Some(old) = &cached {
+            if let Some(old) = cached {
                 let d = scan_cache::diff(&old.books, &cache.books);
                 events.push(ScanEvent::Diff {
                     added: d.added,
@@ -324,21 +465,7 @@ fn run(
                 scanned_at,
                 stats: outcome.stats,
             });
-            events
-        }
-    };
-    {
-        let mut active = lock(&inner.active);
-        *active -= 1;
-        inner.slot_free.notify_one();
-    }
-    let sinks = lock(&inner.running)
-        .remove(key)
-        .map(|r| r.sinks)
-        .unwrap_or_default();
-    for e in finals {
-        for s in &sinks {
-            s(e.clone());
+            (events, Some(cache))
         }
     }
 }
@@ -482,6 +609,48 @@ mod tests {
         assert_eq!(kinds(&log).last(), Some(&"cancelled"));
         let t = target(lib.path());
         assert!(scan_cache::read(cache.path(), &t.base_dir, &t.extensions).is_none());
+    }
+
+    #[test]
+    fn reopen_right_after_cancel_scans_again() {
+        // review 002 #2: the new opener joined the cancelled scan and got `cancelled`
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        for i in 0..30 {
+            touch(lib.path(), &format!("d{i}/b.cbz"));
+        }
+        let hub = ScanHub::with_options(4, Duration::from_millis(20));
+        let (s1, l1) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s1);
+        std::thread::sleep(Duration::from_millis(60));
+        hub.cancel("c1");
+        let (s2, l2) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s2);
+        wait_idle(&hub);
+        assert_eq!(kinds(&l1).last(), Some(&"cancelled"));
+        assert_eq!(kinds(&l2).last(), Some(&"done"));
+        assert_eq!(batched(&l2), 30);
+        assert_eq!(hub.walks(), 2);
+    }
+
+    #[test]
+    fn a_panic_in_a_scan_does_not_block_the_target() {
+        // review 002 #3: slot and map entry were never released
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        touch(lib.path(), "b.cbz");
+        let hub = ScanHub::with_options(1, Duration::ZERO);
+        let boom: Sink = Arc::new(|e| {
+            if matches!(e, ScanEvent::Batch { .. }) {
+                panic!("sink failed");
+            }
+        });
+        hub.open(cache.path(), "c1", target(lib.path()), boom);
+        wait_idle(&hub);
+        let (sink, log) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink);
+        wait_idle(&hub);
+        assert_eq!(kinds(&log).last(), Some(&"done"));
     }
 
     #[test]

@@ -15,6 +15,10 @@ use std::io::Read;
 use std::path::Path;
 
 pub const MAX_BYTES: u64 = 1 << 20;
+/// Notes per category (review 002 #1) – the rest is summarised by the last one.
+pub const MAX_NOTES_PER_CATEGORY: usize = 10;
+/// Longest `detail` of a note.
+pub const MAX_DETAIL_CHARS: usize = 40;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -31,6 +35,8 @@ pub enum NoteCode {
     InvalidDir,
     /// No supported extension left – category left out.
     NoExtension,
+    /// The limit of categories is reached – category left out (review 002 #8).
+    TooMany,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -118,19 +124,31 @@ pub fn parse(
         categories: Vec::new(),
         notes: Vec::new(),
     };
+    // room left next to the existing categories (review 002 #8)
+    let room = categories::MAX_CATEGORIES.saturating_sub(existing.len());
     for raw in list.iter().take(categories::MAX_CATEGORIES) {
-        let title = str_field(raw, "title")
+        // cut before it is copied into notes (review 002 #1: a long title × many notes)
+        let title: String = str_field(raw, "title")
             .unwrap_or_default()
             .trim()
-            .to_owned();
+            .chars()
+            .take(categories::MAX_TITLE_CHARS)
+            .collect();
+        let first_note = out.notes.len();
         let note = |out: &mut LegacyImport, index, code, detail: Option<String>| {
-            out.notes.push(ImportNote {
-                index,
-                title: title.clone(),
-                code,
-                detail,
-            });
+            if out.notes.len() - first_note < MAX_NOTES_PER_CATEGORY {
+                out.notes.push(ImportNote {
+                    index,
+                    title: title.clone(),
+                    code,
+                    detail: detail.map(|d| d.chars().take(MAX_DETAIL_CHARS).collect()),
+                });
+            }
         };
+        if out.categories.len() >= room {
+            note(&mut out, None, NoteCode::TooMany, None);
+            continue;
+        }
         let Some(base_dir) = str_field(raw, "baseDir")
             .and_then(|d| crate::paths::validate_input_path(d).ok())
             .map(|p| p.to_string_lossy().into_owned())
@@ -219,7 +237,11 @@ pub fn parse(
         if !dir_exists(&category.base_dir) {
             note(&mut out, Some(index), NoteCode::MissingDir, None);
         }
-        if existing.iter().any(|e| same_target(e, &category)) {
+        if existing
+            .iter()
+            .chain(out.categories.iter())
+            .any(|e| same_target(e, &category))
+        {
             note(&mut out, Some(index), NoteCode::Duplicate, None);
         }
         out.categories.push(category);
@@ -334,6 +356,65 @@ mod tests {
             codes
                 .iter()
                 .filter(|c| **c == NoteCode::InvalidDims)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn hostile_file_cannot_blow_up_the_notes() {
+        // review 002 #1: a long title cloned into one note per bad extension
+        let exts = vec!["\"\""; 150_000].join(",");
+        let title = "T".repeat(400_000);
+        let text = format!(
+            r#"{{ "categories": [ {{ "title": "{title}", "baseDir": "/a", "bookExtensions": [".cbz", {exts}] }} ] }}"#
+        );
+        assert!(text.len() < MAX_BYTES as usize);
+        let r = parse(&text, "c", &[], &|_| true).unwrap();
+        assert_eq!(r.categories.len(), 1);
+        assert!(r.notes.len() <= MAX_NOTES_PER_CATEGORY);
+        let bytes: usize = r
+            .notes
+            .iter()
+            .map(|n| n.title.len() + n.detail.as_ref().map_or(0, String::len))
+            .sum();
+        assert!(bytes < 10_000, "{bytes}");
+        assert!(r.categories[0].title.chars().count() <= categories::MAX_TITLE_CHARS);
+    }
+
+    #[test]
+    fn respects_the_category_limit_and_duplicates_in_the_file() {
+        // review 002 #8
+        let one = r#"{ "title": "x", "baseDir": "/a", "bookExtensions": [".cbz"] }"#;
+        let text = format!(r#"{{ "categories": [ {one}, {one} ] }}"#);
+        let r = parse(&text, "c", &[], &|_| true).unwrap();
+        let codes: Vec<_> = r.notes.iter().map(|n| (n.index, n.code)).collect();
+        assert_eq!(codes, [(Some(1), NoteCode::Duplicate)]);
+
+        let existing: Vec<Category> = (0..categories::MAX_CATEGORIES - 1)
+            .map(|i| Category {
+                base_dir: format!("/e{i}"),
+                ..r.categories[0].clone()
+            })
+            .collect();
+        let many = (0..3)
+            .map(|i| {
+                format!(r#"{{ "title": "m{i}", "baseDir": "/m{i}", "bookExtensions": [".cbz"] }}"#)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let r = parse(
+            &format!(r#"{{ "categories": [ {many} ] }}"#),
+            "c",
+            &existing,
+            &|_| true,
+        )
+        .unwrap();
+        assert_eq!(r.categories.len(), 1);
+        assert_eq!(
+            r.notes
+                .iter()
+                .filter(|n| n.code == NoteCode::TooMany)
                 .count(),
             2
         );

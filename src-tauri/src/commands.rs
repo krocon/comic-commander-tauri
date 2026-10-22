@@ -22,6 +22,8 @@ use tauri_plugin_dialog::DialogExt;
 #[derive(Default)]
 pub struct AppState {
     categories: Mutex<Option<CategoriesConfig>>,
+    /// One `save_categories` at a time: file and memory stay alike (review 002 #5).
+    save_lock: Mutex<()>,
     hub: ScanHub,
 }
 
@@ -108,14 +110,18 @@ pub async fn save_categories(
     config: CategoriesConfig,
 ) -> Result<CategoriesConfig, FsError> {
     blocking(move || {
-        let saved = categories::save(&config_dir(&app)?, &config)?;
         let state = app.state::<AppState>();
+        let _saving = state.save_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let saved = categories::save(&config_dir(&app)?, &config)?;
         *state.categories.lock().unwrap_or_else(|e| e.into_inner()) = Some(saved.clone());
-        let keep: HashSet<String> = saved
-            .categories
-            .iter()
-            .map(|c| scan_cache::cache_key(&c.base_dir, &c.book_extensions))
-            .collect();
+        // caches of running scans stay – their walk is about to write them (review 002 #6)
+        let mut keep: HashSet<String> = state.hub.running_keys();
+        keep.extend(
+            saved
+                .categories
+                .iter()
+                .map(|c| scan_cache::cache_key(&c.base_dir, &c.book_extensions)),
+        );
         if let Ok(dir) = cache_dir(&app) {
             scan_cache::cleanup(&dir, &keep);
         }
@@ -143,6 +149,14 @@ pub async fn pick_folder(app: AppHandle, start: Option<String>) -> Result<Option
             .into_path()
             .map_err(|_| FsError::new(FsErrorCode::InvalidPath, "not a local folder", None))?;
         let path = paths::validate_input_path(&path.to_string_lossy())?;
+        // only an existing folder (E2E: GTK returned a half-typed path, design 002)
+        if !path.is_dir() {
+            return Err(FsError::new(
+                FsErrorCode::NotFound,
+                "folder not found",
+                Some(&path),
+            ));
+        }
         Ok(Some(path.to_string_lossy().into_owned()))
     })
     .await
@@ -196,8 +210,12 @@ pub async fn open_category(
 
 #[tauri::command]
 pub async fn cancel_scan(app: AppHandle, id: String) -> Result<(), FsError> {
-    app.state::<AppState>().hub.cancel(&id);
-    Ok(())
+    // takes the hub lock – never on the async runtime (review 002 #10)
+    blocking(move || {
+        app.state::<AppState>().hub.cancel(&id);
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(test)]

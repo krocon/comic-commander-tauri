@@ -76,6 +76,8 @@ export const CATEGORIES_TEXTS = {
         return 'No absolute folder.';
       case 'no_extension':
         return 'No supported file type.';
+      case 'too_many':
+        return 'The limit of 50 categories is reached.';
     }
   },
 };

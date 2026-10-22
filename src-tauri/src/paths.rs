@@ -29,6 +29,10 @@ pub fn validate_input_path(raw: &str) -> Result<PathBuf, FsError> {
         return Err(invalid("path contains NUL"));
     }
     let path = expand_tilde(trimmed)?;
+    // again after `~` expansion (review 002 #7)
+    if path.as_os_str().len() > MAX_PATH_LEN {
+        return Err(invalid("path too long"));
+    }
     if !path.is_absolute() {
         return Err(FsError::new(
             FsErrorCode::InvalidPath,
@@ -85,6 +89,16 @@ mod tests {
     #[test]
     fn rejects_overlong_paths() {
         let raw = format!("/{}", "a".repeat(MAX_PATH_LEN));
+        assert_eq!(
+            validate_input_path(&raw).unwrap_err().code,
+            FsErrorCode::InvalidPath
+        );
+    }
+
+    #[test]
+    fn length_is_checked_after_expanding_tilde() {
+        // review 002 #7: `~/` + 4090 characters is longer than MAX_PATH_LEN once expanded
+        let raw = format!("~/{}", "a".repeat(MAX_PATH_LEN - 3));
         assert_eq!(
             validate_input_path(&raw).unwrap_err().code,
             FsErrorCode::InvalidPath

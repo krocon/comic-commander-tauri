@@ -48,7 +48,8 @@ export type ImportNoteCode =
   | 'duplicate'
   | 'invalid_dims'
   | 'invalid_dir'
-  | 'no_extension';
+  | 'no_extension'
+  | 'too_many';
 
 export interface ImportNote {
   /** Index into `LegacyImport.categories`; `null` = the category was left out. */

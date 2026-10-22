@@ -310,7 +310,8 @@ dem Import seiner alten Konfiguration – Schritte im Abschlussbericht.
       Ordner umbenannt → „Folder not reachable – showing the state of …“; Neustart → letzte Kategorie, neue Datei per
       Diff (585); Dark-Mode. Bilder: `002-screenshots/`.
 - [x] Phase 5: Doku – `docs/architecture.md` (A4–A16, DTOs, Commands, Messung), README, CLAUDE.md, Index.
-- [x] Phase 6: `pnpm check` grün, Debug-Build, Review durch separaten Agenten (Rust).
+- [x] Phase 6: `pnpm check` grün (57 Rust-, 53 Frontend-Tests), Debug-Build, Review durch separaten Agenten (Rust) –
+      Befunde unten, alle behoben bzw. dokumentiert.
 
 **Abweichungen vom Entwurf**
 - `ImportNote.index` ist `number | null` (statt immer gesetzt) und es gibt zwei Codes mehr – `invalid_dir`,
@@ -320,6 +321,21 @@ dem Import seiner alten Konfiguration – Schritte im Abschlussbericht.
 - Kategorie-Menü: `Enter` auf einem Eintrag wird verbraucht (`preventDefault`), der Fokus geht danach an den Button –
   sonst öffnete WebKit das Menü sofort wieder (E2E-Befund, Spec ergänzt).
 - Batches werden bis 5 000 Bücher bei jedem Eintreffen sortiert, darüber einmal bei `done` (`SORT_WHILE_SCANNING`).
+
+**Review (separater Agent, Rust) – Befunde und Umgang**, je mit rotem Test zuerst:
+1. *hoch* – präparierte `config.json` (langer Titel × viele ungültige Endungen) ließ die Hinweise auf GB anwachsen
+   (Test lief in SIGKILL): Titel vor dem Kopieren gekürzt, ≤ 10 Hinweise je Kategorie, `detail` ≤ 40 Zeichen.
+2. Neu öffnen direkt nach „Cancel“ hängte sich an den abgebrochenen Scan: wartet jetzt in `queued` und bekommt
+   danach einen eigenen Scan.
+3. Panik im Scan-Thread hielt Slot und Eintrag fest: `catch_unwind` um den Walk, Sinks über `deliver` abgesichert.
+4. Späte Öffner konnten Bücher doppelt bekommen: der Scan trägt sich erst aus, dann schreibt er den Cache.
+5. Gleichzeitiges Speichern: Temp-Name je Aufruf eindeutig (`fs_atomic`, auch für files-and-folders relevant) +
+   Sperre in `save_categories`.
+6. Aufräumen löschte ggf. den Cache eines laufenden Scans: laufende Schlüssel bleiben.
+7. Pfadlänge erst nach `~`-Expansion geprüft.
+8. Import beachtet das Limit von 50 Kategorien (Hinweis `too_many`) und Duplikate innerhalb der Datei.
+9. Abbruch trifft alle Kategorien mit demselben Ziel – bewusst so gelassen und dokumentiert (geteilter Scan).
+10. Große Batches für späte Öffner außerhalb der Sperre senden; `cancel_scan` per `spawn_blocking`.
 
 **Nicht im Container prüfbar** (Abnahme auf dem Mac): echte Sammlung `comics.nosync` und „ct Make“, macOS-Ordnerdialog,
 Cache-Ort `~/Library/Caches/io.github.krocon.comiccommander`, Netzlaufwerk-Verhalten.
