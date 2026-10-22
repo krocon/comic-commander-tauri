@@ -185,6 +185,11 @@ Alle zehn Befunde behoben, Store-/Rust-Befunde mit rotem Test zuerst:
 10. Linux sucht `dbus-send`/`xdg-open` im `PATH` (Kommentar korrigiert); ein gelistetes „Buch“, das ein Programm ist
     (ausführbar + Shebang/ELF/Mach-O, z. B. ein Link `x.cbz`), wird nicht geöffnet (`unsupported_format`).
 
+## Nachtrag: dunkel als Standard (Marc, 22.10.2026)
+
+Die App startet dunkel wie der alte Comic Commander: `index.html` setzt `data-theme="dark"`, das Fenster
+`theme: "Dark"` und `backgroundColor` (kein heller Blitz beim Start). Umschalten hell/dunkel/System: Prompt 009.
+
 ## Akzeptanz (Ergebnis, 22.10.2026)
 
 - [x] Kategorie öffnen → Cover erscheinen beim Scrollen; nur sichtbare werden geladen (LIFO-Pool aus 003).

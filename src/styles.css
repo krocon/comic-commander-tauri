@@ -2,8 +2,10 @@
 
 /*
  * Design tokens – the only place for colours, sizes and fonts.
- * Light is the default; dark follows the system (`prefers-color-scheme`) unless
- * `html[data-theme]` forces one (theme switch: prompt 009). New tokens go into BOTH blocks.
+ * Without `html[data-theme]` light is the default and dark follows the system
+ * (`prefers-color-scheme`). The app starts dark (`index.html`: `data-theme="dark"`, like the old
+ * Comic Commander, Marc 22.10.2026); the switch light/dark/system follows in prompt 009.
+ * New tokens go into BOTH blocks.
  */
 :root {
   color-scheme: light;
