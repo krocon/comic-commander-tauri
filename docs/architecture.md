@@ -71,7 +71,7 @@
 | A29 | Schema **`ccpage`** `/<token>.<seite>.<breite>`; Token aus `open_book`, gilt bis `close_book` (≤ 4 offene Bücher); nur erkannte Bildtypen (Magic), `nosniff`; ≤ 4 Seiten in Arbeit, > 16 wartend → 503; LRU 64 MiB | kein Pfad aus der WebView, kein HTML/SVG aus feindlichen Büchern | 005 E7, E8 |
 | A30 | Original-Bytes, solange das Bild ≤ 1,25 × Zielbreite (Stufen 1024…4096 aus `max(B, H) × dpr`); sonst Rust skaliert (JPEG q90, gleiche Decoder-Plätze wie Cover); > 64 MP → 422 | Speicher bei 6000-px-Scans, HiDPI | 005 E2 |
 | A31 | Lesestand in `reading-state.json` (App-Config, ≤ 5 000 Bücher, Schlüssel Buch-Id), nur für Bücher der Registry; Balken am Cover | nichts in die Comic-Ordner | 005 E5 |
-| A32 | Leser als Ebene über der montierten Kategorie-Ansicht (`inert`), Zustand im Root-`ReaderService` statt Router; Tasten am `document`, solange der Leser offen ist | Zurück ohne Wiederherstellen; Desktop ohne URL | 005 E6 |
+| A32 | Leser als Ebene über der montierten Kategorie-Ansicht (`inert`), Zustand im Root-`ReaderService` statt Router; Tasten über den Kontext `reader` des Dispatchers (seit 008, A41) | Zurück ohne Wiederherstellen; Desktop ohne URL | 005 E6 |
 | A33 | Vollbild über den Command `toggle_fullscreen` statt einer Window-Capability | keine neue Berechtigung der WebView | 005 E11 |
 | A34 | **PDF mit `hayro`** (reines Rust, kein FFI, Apache-2.0/MIT): Cover = Seite 1, Leser = Seiten in Zielbreite; das geparste PDF bleibt in der Sitzung | MuPDF AGPL, PDFium bräuchte je OS eine C++-Bibliothek + Isolierung; Probe: 72 ms je Scan-Seite, 26 ms Vektor (Release) | 006 E1, E5 |
 | A35 | **Schnellweg Scan-PDF**: Seite = genau ein `DCTDecode`-Bild (RGB/Grau/ICC 1–3, ohne Maske/Drehung, ≥ 90 % der Seite) → die JPEG-Bytes selbst | volle Qualität, kein Rendern; CMYK-JPEGs zeigen Browser falsch | 006 E2 |
@@ -79,6 +79,10 @@
 | A37 | **PDF-Vorprüfung** (`pdf/guard.rs`): vor hayro wird jeder Stream durch seine erweiternden Filter (Flate, LZW, RunLength, Hex, A85) mit ≤ 256 MiB je Schicht entpackt; Bild-XObjects ≤ 64 MP (auch der JPEG-Kopf); sonst `archive_too_large`. Ergebnis je Datei (Pfad, Größe, mtime) gemerkt | hayro entpackt ohne Grenze, OOM bricht den Prozess ab | 006 Review #1 |
 | A38 | **Job-Engine schlank** (`jobs/`): ein Lauf je Art (`JobHub`, `job_running`), `Control` (Abbruch, Pause, Zeit ohne Pausen), `Reporter` ≤ 10 Ereignisse/s; Fortschritt über `Channel<JobEvent>` | Duplikate (010), Cache leeren folgen; keine Warteschlange nötig | 007 E1 |
 | A39 | **Thumbnails im Stapel** nur auf Knopfdruck: Bücher aus dem Scan-Cache (sonst Walk), alle Größen, vorhanden = Cache oder Sidecar, gemerkte Fehler ohne erneutes Öffnen; eigene Threads min(4, Kerne − 1) mit **niedriger Decoder-Priorität** (ein Platz bleibt für sichtbare Cover) | Akku/NAS; Grid bleibt flüssig; Abbruch lässt nur ganze Dateien (`write_atomic`) | 007 E2–E5 |
+| A40 | **Aktionen statt Tasten-Handler**: Katalog `action-catalog.ts` (Id, Kontext, `repeat`, `palette`), Handler je Aktion beim `ActionService` (Stapel, `DestroyRef`, `enabled`/`checked` als Signals); Menü, Palette, Kontextmenü und Kürzel zeigen dieselben Aktionen | ein Ort für Kürzel, Zustände, Texte | 008 E1, E9 |
+| A41 | **Ein `keydown`-Listener** (`KeyboardDispatcher`): Akkord (`Mod` = ⌘/Ctrl, Shift zählt bei Satzzeichen nicht) → erste Aktion der Kontexte (`reader` › `grid` › `global`); Dialog offen → nichts; Textfelder nur `Mod`-Kürzel; Menüs/Listen/Fokusfalle behalten Element-Handler; Rückfall „Tippen → Filter“. Das WebView-Kontextmenü (Zurück, Neu laden, Untersuchen) ist außer in Textfeldern unterdrückt | keine verstreuten `document:keydown`; WebKitGTK zeigt es sonst bei Shift+F10 über dem Buchmenü | 008 E4–E6 |
+| A42 | **Keymaps als JSON** je Kontext (`keymap.base.json` + `keymap.mac.json`/`keymap.other.json`), Override `<app config>/keymap.json` (Rust prüft ≤ 64 KiB, ≤ 500 Aktionen, ≤ 8 Akkorde, Syntax) ersetzt die Kürzel einer Aktion | Kürzel-Editor erst mit 009 | 008 E2, E7 |
+| A43 | **Ein Menümodell** (`menu-model.ts`, rein): macOS nativ über `set_app_menu` (Rust baut `tauri::menu` auf dem Main-Thread; App-, Bearbeiten-, Fenster-Menü vordefiniert; Klick → Ereignis `menu-action`; Zustände durch entprellten Neuaufbau), Windows/Linux HTML-Menüleiste nach APG (`F10`). Native Kürzel nur mit Modifier oder F-Taste | Menü-Kürzel fingen sonst Pfeile/Leertaste ab; Spec ist feindliche Eingabe (Größe, Tiefe, Ids, Texte) | 008 E8 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -95,6 +99,8 @@
 | `model::AppInfo` | `AppInfo` in `about.models.ts` | |
 | `reader::model::{OpenedBook, PageInfo, PageDims, ReaderEvent}` | `core/reader/reader.models.ts` | `ReaderEvent` `tag = "kind"`: `dims`, `done`, `failed` |
 | `reading_state::ReadingPosition` | `ReadingPosition` | `{ page, pages, updatedMs }` |
+| `app_menu::{MenuSpec, TopMenu, MenuItemSpec}` (`tag = "kind"`) | `MenuSpec` in `core/menu/menu-api.ts` | Eintrag `action` (`id`, `label`, `accelerator?`, `enabled`, `checked?`), `separator`, `submenu` |
+| `keymap_file::KeymapOverrides` | `KeymapOverrides` in `core/menu/menu-api.ts` | `{ bindings: Record<actionId, chord[]>, warning }` |
 | `jobs::thumbs::{JobEvent, ThumbsProgress, ThumbError, ReadyBook}` | `core/jobs/jobs.models.ts` | `JobEvent` `tag = "kind"`: `counting`, `progress`, `done` (`cancelled`, `errorList` ≤ 1 000), `failed` |
 | `FsError { code, message, path }` | `FsError` in `fs-error.ts` | Codes `snake_case`; UI-Text nur aus `describeFsError()` |
 
@@ -123,6 +129,12 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `start_generate_thumbs` | `categoryIds` (leer = alle), `onEvent: Channel<JobEvent>` | `string` (Job-Id) | `job_running`, `unknown_category` |
 | `pause_job` | `jobId`, `paused` | `void` | – |
 | `cancel_job` | `jobId` | `void` | – |
+| `set_app_menu` | `spec: MenuSpec` | `void` (nur macOS wirksam) | `invalid_menu` |
+| `load_keymap_overrides` | – | `KeymapOverrides` | – (Probleme als `warning`) |
+| `quit_app` | – | `void` | – |
+
+**Ereignis `menu-action`** (`{ id }`, 008): Klick im nativen Menü → `MenuApi.onAction` (einzige Stelle mit `listen`)
+→ `ActionService.run(id)`.
 
 **URI-Schema `cccover`** (kein Command, A17): `convertFileSrc('<cat>.<book>.<dim>', 'cccover')` + `?v=<mtime>` →
 `cccover://localhost/…` (macOS/Linux) bzw. `http://cccover.localhost/…` (Windows). Antwort `image/jpeg`/`image/png`

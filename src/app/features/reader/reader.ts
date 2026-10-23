@@ -371,6 +371,15 @@ export class Reader {
           run: () => this.run(this.store.rtl() ? 'next' : 'prev'),
           enabled: ready,
         },
+        // Mod+←/→: the end on that side (manga: left = last page)
+        'reader.rightEnd': {
+          run: () => this.run(this.store.rtl() ? 'first' : 'last'),
+          enabled: ready,
+        },
+        'reader.leftEnd': {
+          run: () => this.run(this.store.rtl() ? 'last' : 'first'),
+          enabled: ready,
+        },
         'reader.first': page('first'),
         'reader.last': page('last'),
         'reader.toggleMode': {

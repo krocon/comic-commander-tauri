@@ -80,6 +80,19 @@ describe('KeyboardDispatcher', () => {
     expect(ran).toEqual([]);
   });
 
+  it('keeps the webview menu (Back, Reload, Inspect) away except in text fields', () => {
+    const { dispatcher } = setup();
+    const menu = (target: Element) => {
+      const e = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+      target.dispatchEvent(e);
+      dispatcher.contextMenu(e);
+      return e.defaultPrevented;
+    };
+    expect(menu(el('g'))).toBe(true);
+    expect(menu(el('m'))).toBe(true);
+    expect(menu(el('t'))).toBe(false);
+  });
+
   it('a held key repeats only repeatable actions; typing falls back', () => {
     const { dispatcher, ran, reg } = setup();
     dispatcher.setContextProvider(() => ['grid', 'global']);

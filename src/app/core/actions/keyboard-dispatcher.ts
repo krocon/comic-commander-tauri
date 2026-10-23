@@ -55,6 +55,16 @@ export class KeyboardDispatcher {
     if (this.attached) return;
     this.attached = doc;
     doc.addEventListener('keydown', (e) => this.handle(e));
+    doc.addEventListener('contextmenu', (e) => this.contextMenu(e));
+  }
+
+  /**
+   * The webview's own menu (Back, Reload, Inspect Element) has no place in the app – WebKitGTK
+   * shows it on Shift+F10 even after our book menu opened. Text fields keep it (copy, paste).
+   */
+  contextMenu(e: MouseEvent): void {
+    const target = e.target instanceof Element ? e.target : null;
+    if (!isTextField(target)) e.preventDefault();
   }
 
   handle(e: KeyboardEvent): void {

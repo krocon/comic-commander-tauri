@@ -101,6 +101,11 @@ describe('Reader', () => {
     await press('m');
     await press('ArrowLeft');
     expect(page()).toBe('Page 2 of 10');
+    // Mod+arrows are mirrored too (as in 005): left = the end of a manga
+    await press('ArrowLeft', { ctrlKey: true });
+    expect(page()).toBe('Page 10 of 10');
+    await press('ArrowRight', { ctrlKey: true });
+    expect(page()).toBe('Page 1 of 10');
     expect(
       el.querySelector('[aria-pressed="true"][aria-label="Right to left (M)"]'),
     ).not.toBeNull();

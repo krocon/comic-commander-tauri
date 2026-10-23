@@ -32,7 +32,10 @@
 - **Prompt 007 (Thumbnails im Stapel)** ist fertig: schlanke Job-Engine `jobs/` (ein Lauf je Art, Pause, Abbruch,
   Drosselung), fehlende Cover aller Größen mit niedriger Decoder-Priorität, Dialog + Toolbar-Anzeige. Design:
   `prompts/done/007-thumbs-generieren.design.md`.
-- Als Nächstes: **008** (Aktionen/Menü/Tastatur). Reihenfolge und Status: `prompts/README.md`.
+- **Prompt 008 (Aktionen, Menü, Tastatur)** ist fertig: Aktionskatalog + `ActionService`, ein `KeyboardDispatcher`,
+  Keymaps je OS (JSON) + Override `keymap.json`, ein Menümodell (macOS nativ über `set_app_menu`, sonst HTML-Menüleiste
+  nach APG), Befehlspalette, About. Design: `prompts/done/008-aktionen-menue-tastatur.design.md`.
+- Als Nächstes: **009** (Einstellungen, i18n). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -86,12 +89,19 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
                               CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
                               in styles.css), BookMenu, rein: filter-logic (+ .cases.json), series-filter, grid-math,
                               view-state, cover-retries
+  app/core/actions/           Aktionen (008): action-catalog (Ids, Kontexte, Texte), keymap.{base,mac,other}.json +
+                              keymap.ts (Override), shortcut.ts (Akkord/Anzeige je OS), ActionService (Handler,
+                              enabled/checked), KeyboardDispatcher (der eine keydown-Listener), platform.ts (OS-Token)
+  app/core/menu/              MenuApi (set_app_menu, Ereignis menu-action, quit_app), KeymapApi (load_keymap_overrides)
+  app/features/menus/         menu-model (rein: Menüs je OS), MenuService (nativ entprellt / HTML), MenuBar (APG),
+                              CommandPalette (APG-Combobox), AboutDialog, AppActions (globale Aktionen), Texte
   app/core/jobs/              JobsApi (Channel JobEvent), DTOs = Rust jobs/thumbs.rs
   app/features/jobs/          ThumbsJobStore (Root), GenerateThumbsDialog, job-time (rein), Texte
   app/features/reader/        Leser (005): ReaderService (Root: Sitzung = Buchliste + Index, Lesestände, closedOn),
                               ReaderStore (je Leser: Buch, Seite, Größen, Einstellungen, Position speichern), Reader
-                              (Ebene über der Kategorie-Ansicht, Tasten am document), rein: reader-logic, reader-settings
+                              (Ebene über der Kategorie-Ansicht, Aktionen im Kontext `reader`), rein: reader-logic, reader-settings
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
+  testing/keyboard.ts         wireKeyboard(): Dispatcher wie in app.ts für Komponenten-Tests
   testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi, FakeJobsApi), Fixtures – nie im
                               Produktivcode importieren
   test-setup.ts               Vitest-Setup (ResizeObserver für jsdom, fnf G11)
@@ -109,6 +119,9 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               FFI, fnf); Budget (Zeit/Abbruch), Grenzen; tests.rs mit Generatoren (cbz/cbt/cb7/cbr4)
   src/cover/                  choose (Titelseite), image (Decoder mit Limits, JPEG), sidecar (alte Thumbs lesen),
                               cache (App-Cache, 2 GiB), pool (LIFO), mod.rs (URL parsen, CoverService, Status)
+  src/app_menu.rs             MenuSpec prüfen (feindlich: Größe, Tiefe, Ids, Texte), Kürzel → Accelerator, natives Menü
+                              (macOS, Main-Thread), Ereignis menu-action (008)
+  src/keymap_file.rs          <app config>/keymap.json laden (≤ 64 KiB, Syntax geprüft, 008)
   src/jobs/                   Jobs (007): mod.rs (JobHub, Control, Reporter), thumbs.rs (fehlende Cover im Stapel)
   src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
                               Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
@@ -171,8 +184,13 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
   Keine UI-Frameworks (Material o. ä.); Styling mit CSS (natives Nesting) + Tokens aus `src/styles.css` – kein SCSS.
 - **Unicode**: Dateinamen kommen in NFC und NFD vor (macOS, Marcs Sammlung gemischt). Pfade nie normalisieren;
   Anzeige-Reihenfolge mit `book-order.ts` (`Intl.Collator`), Filter über `filterKey()` (NFC, klein).
+- **Tastatur nur über Aktionen** (008): jede Funktion ist eine Aktion im `action-catalog.ts`; Komponenten registrieren
+  Handler beim `ActionService` (mit `DestroyRef`), Kürzel stehen in `keymap.*.json`. Einziger globaler
+  `keydown`-Listener ist der `KeyboardDispatcher` – kein `document:keydown`/`window:keydown` anderswo. Widgets mit
+  eigener Tastatur nach APG (Menüs, Listen, Fokusfalle) behalten Element-Handler und rufen `preventDefault`.
+  Native Menü-Kürzel nur mit Modifier oder F-Taste.
 - **Modale Dialoge** über `DialogService` (ein Dialog zur Zeit) + `Modal`; Tastaturkürzel der Ansicht ruhen, solange
-  ein Dialog offen ist.
+  ein Dialog offen ist (der Dispatcher tut dann nichts).
 - **Texte** nur aus Katalogen (`*-texts.ts`, Englisch = Quelle; Deutsch + Umschalten zur Laufzeit in Prompt 009).
 - **Barrierefreiheit**: sichtbarer Fokus, alles per Tastatur, Dialoge mit `role="dialog"`/`aria-modal` und
   Fokusfalle, Live-Region für Statusmeldungen, Kontraste in light und dark.

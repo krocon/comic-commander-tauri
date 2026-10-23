@@ -85,6 +85,8 @@ export const ACTIONS: readonly ActionDef[] = [
   reader('reader.left', 'Page to the left', move),
   reader('reader.first', 'First page'),
   reader('reader.last', 'Last page'),
+  reader('reader.rightEnd', 'Last page to the right', { palette: false }),
+  reader('reader.leftEnd', 'Last page to the left', { palette: false }),
   reader('reader.toggleMode', 'Single page / continuous'),
   reader('reader.toggleFit', 'Fit width / height'),
   reader('reader.toggleRtl', 'Right to left (manga)'),
