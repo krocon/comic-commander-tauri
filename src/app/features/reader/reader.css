@@ -99,7 +99,20 @@
 @container bar (width < 680px) {
   .zoom-range,
   .percent,
-  .title {
+  .title,
+  .count {
+    display: none;
+  }
+
+  .slider {
+    min-width: 4rem;
+  }
+}
+
+/* very narrow: book and view switches only by key and menu */
+@container bar (width < 520px) {
+  .books,
+  .modes {
     display: none;
   }
 }

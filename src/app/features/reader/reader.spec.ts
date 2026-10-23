@@ -291,4 +291,23 @@ describe('Reader', () => {
     expect(root.classList.contains('idle')).toBe(false);
     expect(root.classList.contains('cursor-idle')).toBe(true);
   });
+
+  it('keeps the page when switching to the continuous mode (found in the 014 E2E test)', async () => {
+    const { el, press, sized, fixture } = await setup();
+    await sized();
+    await press('ArrowRight');
+    await press('ArrowRight');
+    expect(el.querySelector('.count')!.textContent!.trim()).toBe('3 / 10');
+    await press('s');
+    const view = el.querySelector('.view.continuous') as HTMLElement;
+    const tops: number[] = [];
+    Object.defineProperty(view, 'scrollTop', {
+      get: () => tops.at(-1) ?? 0,
+      set: (v: number) => void tops.push(v),
+    });
+    await wait(40);
+    fixture.detectChanges();
+    // fit width 800: every page 1200 high + gap → page 3 starts at 2 × 1204
+    expect(tops).toEqual([2408]);
+  });
 });

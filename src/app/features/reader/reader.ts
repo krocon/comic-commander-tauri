@@ -314,13 +314,13 @@ export class Reader {
       untracked(() => setTimeout(() => this.focusView()));
     });
     effect(() => {
-      // leaving continuous: the next switch jumps to the page shown
-      if (this.store.mode() === 'single') {
-        untracked(() => {
-          this.anchor = null;
-          this.pendingJump = this.store.page();
-        });
-      }
+      // switching to continuous: start at the page shown then (not the one shown when the
+      // single mode began – found in the 014 E2E test); leaving it: forget its anchor
+      const mode = this.store.mode();
+      untracked(() => {
+        this.anchor = null;
+        if (mode === 'continuous') this.pendingJump = this.store.page();
+      });
     });
     // load ahead
     effect(() => {
@@ -370,7 +370,8 @@ export class Reader {
 
   private placeSingle(): void {
     const v = this.view()?.nativeElement;
-    if (!v) return;
+    // a late frame after switching to continuous must not move the strip
+    if (!v || this.store.mode() !== 'single') return;
     // start of the first row (manga: right); after turning back the end of the last row
     const right = this.store.rtl() !== this.enterAtEnd;
     v.scrollLeft = right ? v.scrollWidth : 0;
