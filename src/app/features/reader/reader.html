@@ -5,8 +5,7 @@
   aria-modal="true"
   tabindex="-1"
   [attr.aria-label]="t.readerLabel(bookName())"
-  [class.idle]="idle()"
-  (keydown)="onKeydown($event)"
+  [class.idle]="idle() && store.phase() === 'ready'"
   (pointermove)="wake()"
 >
   <header

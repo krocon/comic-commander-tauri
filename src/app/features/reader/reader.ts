@@ -54,6 +54,8 @@ const MAX_RETRIES = 2;
   styleUrl: './reader.css',
   providers: [ReaderStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // on the document: a re-rendered view (mode switch) must not lose the keys (E2E 005)
+  host: { '(document:keydown)': 'onKeydown($event)' },
 })
 export class Reader {
   protected readonly store = inject(ReaderStore);
@@ -170,9 +172,7 @@ export class Reader {
         this.anchor = null;
         this.pendingJump = this.store.page();
         this.enterAtEnd = false;
-        if (this.store.phase() === 'ready') {
-          setTimeout(() => this.view()?.nativeElement.focus({ preventScroll: true }));
-        }
+        if (this.store.phase() === 'ready') setTimeout(() => this.focusView());
       });
     });
     // single mode: a new page starts at its top (or its end after turning back)
@@ -187,6 +187,11 @@ export class Reader {
       const l = this.layout();
       if (mode !== 'continuous' || l.boxes.length === 0) return;
       untracked(() => requestAnimationFrame(() => this.placeContinuous()));
+    });
+    // a new view element (mode switch): the focus goes into it
+    effect(() => {
+      this.store.mode();
+      untracked(() => setTimeout(() => this.focusView()));
     });
     effect(() => {
       // leaving continuous: the next switch jumps to the page shown
@@ -230,6 +235,14 @@ export class Reader {
       img.src = url;
       return [img];
     });
+  }
+
+  /** Focus into the page – unless the user works in the bar. */
+  private focusView(): void {
+    const root = this.root()?.nativeElement;
+    const active = root?.ownerDocument.activeElement;
+    if (root?.querySelector('.bar')?.contains(active ?? null)) return;
+    this.view()?.nativeElement.focus({ preventScroll: true });
   }
 
   // ---- position ---------------------------------------------------------------------------

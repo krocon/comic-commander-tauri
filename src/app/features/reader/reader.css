@@ -89,26 +89,29 @@
   }
 }
 
-/* single page: fit width (scroll down a high page) or fit height (centred) */
+/* single page: fit width (scroll down a high page) or fit height (centred); auto margins centre
+   without making an overflowing side unreachable */
 .single {
-  display: grid;
-  justify-items: center;
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
 
   img {
     display: block;
+    flex: none;
     width: 100%;
     height: auto;
+    margin: 0 auto;
   }
 
-  &.fit-height {
-    align-items: center;
+  &.fit-height img {
+    width: auto;
+    height: 100%;
+    max-width: none;
+    margin: auto;
+  }
 
-    img {
-      width: auto;
-      height: 100%;
-      max-width: none;
-    }
+  .page-failed {
+    flex: 1;
   }
 }
 
