@@ -38,7 +38,7 @@
     "publisher": "Marc Kronberg",
     "copyright": "© 2026 Marc Kronberg",
     "homepage": "https://github.com/krocon/comic-commander-tauri",
-    "category": "Graphics",
+    "category": "GraphicsAndDesign",
     "shortDescription": "Comic browser with cover thumbnails",
     "longDescription": "Comic Commander shows your comic library (CBZ, CBR, CB7, CBT, PDF) as a grid of cover thumbnails and opens the books in a built-in reader – for macOS, Windows and Linux.",
     "icon": [
