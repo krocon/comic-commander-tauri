@@ -49,4 +49,19 @@ describe('CoverRetries (review 003 #4)', () => {
     r.dispose();
     expect(timers.count()).toBe(0);
   });
+
+  it('forgets a failed cover that exists now (design 007 E6)', () => {
+    const changes: number[] = [];
+    const r = new CoverRetries(10, () => changes.push(1), {
+      set: () => 1,
+      clear: () => undefined,
+    });
+    for (let i = 0; i < 4; i++) {
+      r.failed('u');
+    }
+    expect(r.src('u')).toBeNull();
+    expect(r.forget('u')).toBe(true);
+    expect(r.src('u')).toBe('u');
+    expect(r.forget('other')).toBe(false);
+  });
 });

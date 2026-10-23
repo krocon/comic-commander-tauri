@@ -72,6 +72,17 @@
     <button type="button" class="btn" (click)="store.cancel()">{{ t.cancel }}</button>
   }
   <span class="status" role="status" aria-live="polite" [class.warn]="warn()">{{ status() }}</span>
+  @if (job.running()) {
+    <button type="button" class="btn job" [title]="jt.thumbsTitle" (click)="openThumbs()">
+      <i class="fa fa-picture-o" aria-hidden="true"></i>
+      @if (job.phase() === 'running') {
+        <span>{{ jt.toolbar(job.percent()) }}</span>
+        <span class="bar" aria-hidden="true"><span [style.width.%]="job.percent()"></span></span>
+      } @else {
+        <span>{{ jt.toolbarCounting }}</span>
+      }
+    </button>
+  }
   @if (showGrid()) {
     <button
       type="button"

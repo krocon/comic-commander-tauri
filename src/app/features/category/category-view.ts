@@ -20,6 +20,8 @@ import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
 import { ReaderService } from '../reader/reader.service';
+import { ThumbsJobStore } from '../jobs/thumbs-job.store';
+import { JOBS_TEXTS } from '../jobs/jobs-texts';
 import { CATEGORY_TEXTS } from './category-texts';
 
 /**
@@ -44,6 +46,8 @@ export class CategoryView {
   protected readonly grid = inject(GridStore);
   private readonly dialogs = inject(DialogService);
   private readonly reader = inject(ReaderService);
+  protected readonly job = inject(ThumbsJobStore);
+  protected readonly jt = JOBS_TEXTS;
   protected readonly t = CATEGORY_TEXTS;
   protected readonly g = GRID_TEXTS;
   protected readonly gridTop = GRID_TOP;
@@ -161,6 +165,10 @@ export class CategoryView {
 
   protected toBottom(): void {
     this.coverGrid()?.scrollToEnd();
+  }
+
+  protected openThumbs(): void {
+    this.dialogs.show('thumbs');
   }
 
   protected rescan(): void {

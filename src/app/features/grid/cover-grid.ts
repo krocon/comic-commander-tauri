@@ -39,6 +39,7 @@ import {
 import { GRID_TEXTS } from './grid-texts';
 import { GridStore } from './grid.store';
 import { ReaderService } from '../reader/reader.service';
+import { ThumbsJobStore } from '../jobs/thumbs-job.store';
 
 /** Height of the floating toolbar = padding above the first row (design 004 „Zielbild“). */
 export const GRID_TOP = 56;
@@ -92,6 +93,7 @@ export class CoverGrid {
   private readonly scan = inject(CategoryStore);
   private readonly covers = inject(CoversApi);
   private readonly reader = inject(ReaderService);
+  private readonly job = inject(ThumbsJobStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly t = GRID_TEXTS;
 
@@ -208,6 +210,11 @@ export class CoverGrid {
       this.store.revealTick();
       untracked(() => this.reveal(this.store.cursor()));
     });
+    // covers made by the batch job (design 007 E6): failed ones get a fresh chance
+    effect(() => {
+      const ready = this.job.ready();
+      untracked(() => this.onCoversReady(ready));
+    });
     // reading positions (design 005 E5): the bars
     effect(() => {
       this.reader.positions();
@@ -228,6 +235,20 @@ export class CoverGrid {
   private coverUrl(book: BookEntry): string | null {
     const c = untracked(this.store.category);
     return c ? this.covers.coverUrl(c.id, book, untracked(this.loadDim)) : null;
+  }
+
+  private onCoversReady(ready: readonly { categoryId: string; bookId: string }[]): void {
+    const c = this.store.category();
+    if (!c || ready.length === 0) return;
+    const ids = new Set(ready.filter((r) => r.categoryId === c.id).map((r) => r.bookId));
+    if (ids.size === 0) return;
+    let changed = false;
+    for (const b of this.store.filtered()) {
+      if (!ids.has(b.id)) continue;
+      const url = this.coverUrl(b);
+      if (url !== null && this.retries.forget(url)) changed = true;
+    }
+    if (changed) this.repaintSoon();
   }
 
   private applyModel(
