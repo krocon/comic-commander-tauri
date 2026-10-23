@@ -164,9 +164,9 @@
       <button
         type="button"
         class="btn quiet"
-        [attr.aria-label]="t.manga"
+        [attr.aria-label]="store.bookRtl() ? t.mangaFromInfo : t.manga"
         [attr.aria-pressed]="store.rtl()"
-        [title]="t.manga"
+        [title]="store.bookRtl() ? t.mangaFromInfo : t.manga"
         (click)="store.toggleRtl()"
       >
         <i class="fa fa-exchange" aria-hidden="true"></i>

@@ -15,6 +15,9 @@
     "Mod++": "view.sizeUp",
     "Mod+=": "view.sizeUp",
     "Mod+-": "view.sizeDown",
+    "Mod+Shift+l": "view.mode.flat",
+    "Mod+Shift+s": "view.mode.series",
+    "Mod+Shift+d": "view.mode.folders",
     "Mod+q": "app.quit"
   },
   "grid": {
@@ -41,6 +44,8 @@
     "Shift+F10": "grid.menu",
     "ContextMenu": "grid.menu",
     "Escape": "grid.escape",
+    "Backspace": "grid.levelUp",
+    "Alt+ArrowUp": "grid.levelUp",
     "Mod+o": "book.openExternal",
     "Mod+Shift+r": "book.reveal",
     "Mod+Shift+c": "book.copyPath"

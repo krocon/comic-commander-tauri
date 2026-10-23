@@ -74,6 +74,75 @@
   }
 }
 
+/* the views (design 011 E12): a segmented radio group */
+.views {
+  display: inline-flex;
+
+  .btn {
+    border-radius: 0;
+  }
+
+  .btn:first-child {
+    border-radius: var(--radius) 0 0 var(--radius);
+  }
+
+  .btn:last-child {
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  .btn + .btn {
+    margin-left: -1px;
+  }
+
+  .btn.on {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-text);
+  }
+}
+
+/* the level (design 011): below the toolbar */
+.crumbs {
+  padding: var(--space-1) var(--space-4);
+  background: var(--color-toolbar-overlay);
+  backdrop-filter: blur(10px);
+
+  ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li + li::before {
+    content: '›';
+    margin-right: var(--space-1);
+    color: var(--color-text-muted);
+  }
+
+  [aria-current] {
+    font-weight: 600;
+  }
+
+  .link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--color-accent);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
 .select select {
   max-width: 11rem;
 }

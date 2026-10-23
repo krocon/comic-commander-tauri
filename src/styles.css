@@ -34,6 +34,12 @@
   --color-icon-quiet: color-mix(in srgb, var(--color-text) 72%, transparent);
   --color-icon-quiet-hover: color-mix(in srgb, var(--color-text) 10%, transparent);
   --color-progress: #60a5fa;
+  /* group tiles (design 011) */
+  --color-badge-bg: rgb(15 18 25 / 78%);
+  --color-badge-text: #ffffff;
+  --color-group-edge: rgb(255 255 255 / 55%);
+  --color-group-edge-2: rgb(255 255 255 / 28%);
+  --color-group-shade: rgb(0 0 0 / 78%);
 
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
   --font-size: 14px;
@@ -71,6 +77,11 @@
     --color-reader-bg: #08090b;
     --color-reader-text: #d6d9df;
     --color-progress: #60a5fa;
+    --color-badge-bg: rgb(96 165 250 / 92%);
+    --color-badge-text: #0b1220;
+    --color-group-edge: rgb(255 255 255 / 30%);
+    --color-group-edge-2: rgb(255 255 255 / 14%);
+    --color-group-shade: rgb(0 0 0 / 85%);
   }
 }
 
@@ -96,6 +107,11 @@
   --color-reader-bg: #08090b;
   --color-reader-text: #d6d9df;
   --color-progress: #60a5fa;
+  --color-badge-bg: rgb(96 165 250 / 92%);
+  --color-badge-text: #0b1220;
+  --color-group-edge: rgb(255 255 255 / 30%);
+  --color-group-edge-2: rgb(255 255 255 / 14%);
+  --color-group-shade: rgb(0 0 0 / 85%);
 }
 
 *,
@@ -258,6 +274,58 @@ input[type='radio'] {
       height: 100%;
       background: var(--color-progress);
     }
+  }
+
+  /* a group (design 011): a stack, the count and the name over a gradient */
+  &.cc-group::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    box-shadow:
+      inset -5px 5px 0 var(--color-group-edge),
+      inset -10px 10px 0 var(--color-group-edge-2);
+    pointer-events: none;
+  }
+
+  .cc-count {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    min-width: 1.6em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--color-badge-bg);
+    color: var(--color-badge-text);
+    font-size: var(--font-size-small);
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .cc-name {
+    position: absolute;
+    inset: auto 0 0;
+    z-index: 2;
+    display: -webkit-box;
+    overflow: hidden;
+    padding: 24px var(--space-2) 10px;
+    background: linear-gradient(transparent, var(--color-group-shade) 55%);
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.25;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
+
+    .fa {
+      margin-right: var(--space-1);
+    }
+  }
+
+  &.cc-group .cc-progress {
+    z-index: 3;
   }
 
   &.cc-focus::after {

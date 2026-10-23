@@ -25,6 +25,8 @@ import { CoversApi } from '../../core/covers/covers-api';
 import { BookEntry } from '../../core/scan/scan.models';
 import { CategoryStore } from '../category/category.store';
 import { BookAction, BookMenu } from './book-menu';
+import { bookInfo } from './book-info';
+import { GridItem } from './grouping';
 import { CoverRenderer } from './cover-renderer';
 import { CoverRetries } from './cover-retries';
 import {
@@ -120,15 +122,17 @@ export class CoverGrid {
       const url = this.coverUrl(b);
       if (url !== null) this.retries.failed(url);
     },
-    isFocused: (b) => b.id === untracked(this.store.focusId),
-    progress: (b) => {
-      const p = untracked(this.reader.positions)[b.id];
+    isFocused: (i) => i.id === untracked(this.store.focusId),
+    progress: (i) => {
+      if (i.kind === 'group') return i.progress;
+      const p = untracked(this.reader.positions)[i.book.id];
       return p && p.pages > 0 ? (p.page + 1) / p.pages : null;
     },
     coverHeight: () => untracked(this.layout).coverHeight,
+    title: (i) => this.tileTitle(i),
   });
 
-  protected readonly model: CoverGridTableModel<BookEntry> = CoverGridFactory.createCoverGridModel(
+  protected readonly model: CoverGridTableModel<GridItem> = CoverGridFactory.createCoverGridModel(
     [],
     this.renderer,
     200,
@@ -157,12 +161,17 @@ export class CoverGrid {
     ariaLabel: GRID_TEXTS.gridLabel,
   };
 
-  /** The actions menu: book and position in the grid. */
-  protected readonly menu = signal<{ book: BookEntry; x: number; y: number } | null>(null);
+  /** The actions menu: tile and position in the grid. */
+  protected readonly menu = signal<{ item: GridItem; x: number; y: number } | null>(null);
 
   protected readonly announcement = computed(() => {
-    const b = this.store.focused();
-    return b ? this.t.focused(b.name, this.store.cursor() + 1, this.store.filtered().length) : '';
+    const i = this.store.focusedItem();
+    if (!i) return '';
+    const name =
+      i.kind === 'book'
+        ? i.book.name
+        : this.t.groupLabel(i.group, i.label, i.count, i.total, i.read);
+    return this.t.focused(name, this.store.cursor() + 1, this.store.items().length);
   });
 
   private repaintPending = false;
@@ -187,7 +196,7 @@ export class CoverGrid {
 
     // books, size, width → the model (no new table); the phase ends a pending restore
     effect(() => {
-      const list = this.store.filtered();
+      const list = this.store.items();
       const layout = this.layout();
       const api = this.api();
       this.scan.phase();
@@ -225,6 +234,23 @@ export class CoverGrid {
     });
   }
 
+  /** Tooltip: the path, and what is known about series and number (design 011). */
+  private tileTitle(item: GridItem): string {
+    if (item.kind === 'group') {
+      return this.t.groupLabel(item.group, item.label, item.count, item.total, item.read);
+    }
+    const info = bookInfo(item.book);
+    const parts: string[] = [];
+    if (info.series) {
+      const n = info.number ? ` #${info.number}` : '';
+      parts.push(`${info.series}${n} (${this.t.sourceOf[info.seriesSource ?? 'name']})`);
+    }
+    if (info.title) parts.push(info.title);
+    if (info.year) parts.push(String(info.year));
+    if (info.writer) parts.push(info.writer);
+    return this.t.bookTitle(item.book.relPath, parts.length ? parts.join(' · ') : null);
+  }
+
   private coverUrl(book: BookEntry): string | null {
     const c = untracked(this.store.category);
     return c ? this.covers.coverUrl(c.id, book, untracked(this.loadDim)) : null;
@@ -236,7 +262,8 @@ export class CoverGrid {
     const ids = new Set(ready.filter((r) => r.categoryId === c.id).map((r) => r.bookId));
     if (ids.size === 0) return;
     let changed = false;
-    for (const b of this.store.filtered()) {
+    for (const item of this.store.items()) {
+      const b = item.kind === 'book' ? item.book : item.cover;
       if (!ids.has(b.id)) continue;
       const url = this.coverUrl(b);
       if (url !== null && this.retries.forget(url)) changed = true;
@@ -245,7 +272,7 @@ export class CoverGrid {
   }
 
   private applyModel(
-    list: BookEntry[],
+    list: GridItem[],
     layout: { cols: number; coverWidth: number; coverHeight: number },
     api: TableApi | undefined,
   ): void {
@@ -316,7 +343,7 @@ export class CoverGrid {
     this.scrollTop = e.scrollTop;
     if (e.clientHeight) this.viewHeight.set(e.clientHeight);
     const l = this.layout();
-    const list = this.store.filtered();
+    const list = this.store.items();
     const id = list[Math.min(list.length - 1, topIndex(e.scrollTop, l.cols, l.coverHeight))]?.id;
     if (id && id !== this.store.topId()) this.store.topId.set(id);
   }
@@ -339,19 +366,23 @@ export class CoverGrid {
   private bookAt(e: GeMouseEvent): number {
     if (e.areaIdent !== 'body' || e.rowIndex < 0 || e.columnIndex < 0) return -1;
     const i = e.rowIndex * this.layout().cols + e.columnIndex;
-    return i < this.store.filtered().length ? i : -1;
+    return i < this.store.items().length ? i : -1;
   }
 
   protected onClick(e: GeMouseEvent): void {
     const i = this.bookAt(e);
     if (i < 0) return;
     this.store.focusIndex(i);
-    const book = this.store.filtered()[i];
-    if (e.clickCount >= 2) {
+    const item = this.store.items()[i];
+    if (item.kind === 'group') {
+      // a click opens a group (design 011 E2)
       this.menu.set(null);
-      void this.act('read', book);
+      this.store.open(item);
+    } else if (e.clickCount >= 2) {
+      this.menu.set(null);
+      void this.act('read', item);
     } else {
-      this.openMenu(book, e.originalEvent);
+      this.openMenu(item, e.originalEvent);
     }
   }
 
@@ -360,10 +391,10 @@ export class CoverGrid {
     const i = this.bookAt(e);
     if (i < 0) return;
     this.store.focusIndex(i);
-    this.openMenu(this.store.filtered()[i], e.originalEvent);
+    this.openMenu(this.store.items()[i], e.originalEvent);
   }
 
-  private openMenu(book: BookEntry, at?: MouseEvent): void {
+  private openMenu(item: GridItem, at?: MouseEvent): void {
     const rect = this.host.nativeElement.getBoundingClientRect();
     let x: number;
     let y: number;
@@ -381,7 +412,7 @@ export class CoverGrid {
     // inside the grid (menu ≈ 16 × 12 rem)
     x = Math.max(4, Math.min(x, rect.width - 260));
     y = Math.max(GRID_TOP, Math.min(y, rect.height - 200));
-    this.menu.set({ book, x, y });
+    this.menu.set({ item, x, y });
   }
 
   protected closeMenu(): void {
@@ -393,13 +424,31 @@ export class CoverGrid {
     const m = this.menu();
     if (!m) return;
     this.closeMenu();
-    await this.act(action, m.book);
+    await this.act(action, m.item);
   }
 
-  private async act(action: BookAction, book: BookEntry): Promise<void> {
+  private async act(action: BookAction, item: GridItem): Promise<void> {
+    if (item.kind === 'group') {
+      switch (action) {
+        case 'read':
+          this.store.open(item);
+          return;
+        case 'readGroup':
+          this.store.readGroup(item);
+          return;
+        case 'series':
+          this.store.filterSeries(item.cover);
+          return;
+        default:
+          return; // no file actions on a group
+      }
+    }
+    const book = item.book;
     switch (action) {
       case 'read':
         this.store.read(book);
+        return;
+      case 'readGroup':
         return;
       case 'open':
         return this.store.openExternal(book);
@@ -425,7 +474,7 @@ export class CoverGrid {
     const onBook = (action: BookAction) => ({
       run: () => {
         const b = this.store.focused();
-        if (b) void this.act(action, b);
+        if (b) void this.act(action, { kind: 'book', id: b.id, book: b });
       },
       enabled: () => this.store.focused() !== null,
     });
@@ -439,18 +488,40 @@ export class CoverGrid {
         'grid.pageDown': move('pageDown'),
         'grid.home': move('home'),
         'grid.end': move('end'),
-        'grid.read': onBook('read'),
+        // Enter: a book is read, a group opens (design 011)
+        'grid.read': {
+          run: () => {
+            const i = this.store.focusedItem();
+            if (i) void this.act('read', i);
+          },
+          enabled: () => this.store.focusedItem() !== null,
+        },
+        'grid.levelUp': {
+          run: () => this.store.up(),
+          enabled: () => this.store.level() !== null,
+        },
         'grid.menu': {
           run: () => {
-            const b = this.store.focused();
-            if (b) this.openMenu(b);
+            const i = this.store.focusedItem();
+            if (i) this.openMenu(i);
           },
-          enabled: () => this.store.focused() !== null,
+          enabled: () => this.store.focusedItem() !== null,
         },
         'grid.escape': { run: () => this.escape.emit() },
         'book.openExternal': onBook('open'),
         'book.reveal': onBook('reveal'),
-        'book.filterSeries': onBook('series'),
+        'book.filterSeries': {
+          run: () => {
+            const i = this.store.focusedItem();
+            if (i) void this.act('series', i);
+          },
+          enabled: () => {
+            const i = this.store.focusedItem();
+            if (!i) return false;
+            if (i.kind === 'group') return i.group === 'series';
+            return bookInfo(i.book).series !== null;
+          },
+        },
         'book.copyPath': onBook('copy'),
       },
       destroyRef,

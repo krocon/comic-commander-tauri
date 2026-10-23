@@ -72,7 +72,14 @@ export class ReaderStore {
   private readonly initial = loadReaderSettings(this.settingsStore);
   readonly mode = signal<ReaderMode>(this.initial.mode);
   readonly zoom = signal<Zoom>(this.initial.zoom);
-  readonly rtl = signal(this.initial.rtl);
+  /** The setting „right to left“ (all books). */
+  readonly rtlSetting = signal(this.initial.rtl);
+  /** The book says it reads right to left (ComicInfo `YesAndRightToLeft`, design 011 E11). */
+  readonly bookRtl = computed(() => this.book()?.meta?.manga === 'rtl');
+  /** `M` on such a book: for this book only, not saved. */
+  private readonly rtlOverride = signal<boolean | null>(null);
+  /** The reading direction in force. */
+  readonly rtl = computed(() => this.rtlOverride() ?? (this.bookRtl() || this.rtlSetting()));
   readonly zoomSlider = signal(this.initial.zoomSlider);
   readonly toolbarPinned = signal(this.initial.toolbarPinned);
   /** Rotation of the open book (design 014 E5/E8: per book, in the reading state). */
@@ -103,13 +110,16 @@ export class ReaderStore {
     effect(() => {
       const book = this.book();
       const categoryId = untracked(this.service.session)?.categoryId ?? '';
-      untracked(() => void this.load(categoryId, book));
+      untracked(() => {
+        this.rtlOverride.set(null);
+        void this.load(categoryId, book);
+      });
     });
     effect(() => {
       const s = {
         mode: this.mode(),
         zoom: this.zoom(),
-        rtl: this.rtl(),
+        rtl: this.rtlSetting(),
         zoomSlider: this.zoomSlider(),
         toolbarPinned: this.toolbarPinned(),
       };
@@ -318,8 +328,10 @@ export class ReaderStore {
     this.announce(text);
   }
 
+  /** A book that reads right to left by its ComicInfo is switched alone; else the setting. */
   toggleRtl(): void {
-    this.rtl.update((r) => !r);
+    if (this.bookRtl()) this.rtlOverride.set(!this.rtl());
+    else this.rtlSetting.update((r) => !r);
   }
 
   async toggleFullscreen(): Promise<void> {

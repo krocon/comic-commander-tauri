@@ -9,7 +9,7 @@
 />
 @if (menu(); as m) {
   <app-book-menu
-    [book]="m.book"
+    [item]="m.item"
     [x]="m.x"
     [y]="m.y"
     (chosen)="onAction($event)"

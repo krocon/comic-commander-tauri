@@ -116,7 +116,7 @@ describe('GridStore', () => {
     TestBed.tick();
     await wait(350);
     expect(JSON.parse(data.get('cc.view.c1')!)).toMatchObject({
-      v: 1,
+      v: 2,
       filter: 'bessy',
       sort: 'name',
     });
@@ -137,7 +137,7 @@ describe('GridStore', () => {
     emit();
     const b = grid.filtered()[1];
     grid.filterSeries(book('x/Hägar 01 – Wikinger.cbz'));
-    expect(grid.filterText()).toBe('+Hägar');
+    expect(grid.filterText()).toBe('series:"Hägar"');
     expect(names(grid)).toEqual(['Hägar 1.cbz']);
     await grid.openExternal(b);
     await grid.reveal(b);
@@ -201,5 +201,119 @@ describe('GridStore', () => {
     TestBed.tick();
     expect(grid.focused()?.relPath).toBe('Bessy 2.cbz');
     expect(grid.revealTick()).toBe(t0 + 1);
+  });
+
+  describe('views and levels (design 011)', () => {
+    const library = () => [
+      book('A/Asterix/Asterix 10.cbz'),
+      book('A/Asterix/Asterix 02.cbz'),
+      book('A/Asterix/Asterix 01.cbz'),
+      book('X/abc.cbz', { meta: { series: 'Saga', number: '2' } }),
+      book('X/def.cbz', { meta: { series: 'Saga', number: '1' } }),
+      book('B/Bessy/001_Bessy_ _Eins.cbr'),
+      book('B/Bessy/002_Bessy_ _Zwei.cbr'),
+      book('Watchmen.cbz'),
+    ];
+    const tiles = (g: GridStore) =>
+      g
+        .items()
+        .map((i) =>
+          i.id.startsWith('s:') || i.id.startsWith('d:')
+            ? i.id
+            : (i as { book: { name: string } }).book.name,
+        );
+
+    async function ready() {
+      const s = await setup([category('c1'), category('c2')]);
+      s.emit(library());
+      s.grid.applyFilterNow('');
+      return s;
+    }
+
+    it('series: 3 tiles, a click opens the volumes in number order, read follows them', async () => {
+      const { grid } = await ready();
+      grid.setView('series');
+      expect(tiles(grid)).toEqual(['s:asterix', 's:bessy', 's:saga', 'Watchmen.cbz']);
+      const asterix = grid.items()[0];
+      grid.open(asterix);
+      expect(grid.level()).toBe('asterix');
+      expect(tiles(grid)).toEqual(['Asterix 01.cbz', 'Asterix 02.cbz', 'Asterix 10.cbz']);
+      expect(grid.focused()?.name).toBe('Asterix 01.cbz');
+      expect(grid.crumbs().map((c) => c.label)).toEqual(['All series', 'Asterix']);
+      const reader = TestBed.inject(ReaderService);
+      grid.read(grid.levelBooks()[1]);
+      expect(reader.session()!.books.map((b) => b.name)).toEqual([
+        'Asterix 01.cbz',
+        'Asterix 02.cbz',
+        'Asterix 10.cbz',
+      ]);
+      expect(reader.session()!.index).toBe(1);
+      expect(grid.up()).toBe(true);
+      expect(grid.level()).toBeNull();
+      expect(grid.focusId()).toBe('s:asterix');
+      expect(grid.up()).toBe(false);
+    });
+
+    it('series via ComicInfo even when the names differ', async () => {
+      const { grid } = await ready();
+      grid.setView('series');
+      grid.open(grid.items().find((i) => i.id === 's:saga')!);
+      expect(tiles(grid)).toEqual(['def.cbz', 'abc.cbz']);
+    });
+
+    it('folders: breadcrumb, way back puts the cursor on the folder left', async () => {
+      const { grid } = await ready();
+      grid.setView('folders');
+      expect(tiles(grid)).toEqual(['d:A', 'd:B', 'd:X', 'Watchmen.cbz']);
+      grid.open(grid.items()[0]);
+      grid.open(grid.items()[0]);
+      expect(grid.level()).toBe('A/Asterix');
+      expect(grid.crumbs().map((c) => c.label)).toEqual(['All folders', 'A', 'Asterix']);
+      grid.goTo(null);
+      expect(grid.focusId()).toBe('d:A');
+      grid.open(grid.items()[0]);
+      grid.open(grid.items()[0]);
+      grid.up();
+      expect(grid.level()).toBe('A');
+      expect(grid.focusId()).toBe('d:A/Asterix');
+    });
+
+    it('switching the view keeps the cursor on the tile of the book', async () => {
+      const { grid } = await ready();
+      grid.focusIndex(grid.filtered().findIndex((b) => b.name === 'abc.cbz'));
+      grid.setView('series');
+      expect(grid.focusId()).toBe('s:saga');
+    });
+
+    it('the filter works inside the views; series: filter', async () => {
+      const { grid } = await ready();
+      grid.setView('series');
+      grid.applyFilterNow('series:asterix');
+      expect(tiles(grid)).toEqual(['s:asterix']);
+      grid.applyFilterNow('-02');
+      const a = grid.items().find((i) => i.id === 's:asterix');
+      expect(a && a.kind === 'group' && `${a.count}/${a.total}`).toBe('2/3');
+    });
+
+    it('remembers view and level, leaves a level that is gone', async () => {
+      const { grid, categories, data } = await ready();
+      grid.setView('series');
+      grid.open(grid.items()[0]);
+      await categories.select('c2');
+      TestBed.tick();
+      const saved = JSON.parse(data.get('cc.view.c1')!);
+      expect(saved).toMatchObject({ v: 2, view: 'series', level: 'asterix' });
+      await categories.select('c1');
+      TestBed.tick();
+      expect(grid.view()).toBe('series');
+      expect(grid.level()).toBe('asterix');
+      // the scan says: no Asterix any more
+      const api = TestBed.inject(ScanApi) as FakeScanApi;
+      const gone = grid.levelBooks().map((b) => b.path);
+      api.last.emit({ kind: 'diff', added: [], removed: gone, changed: [] });
+      api.last.emit({ kind: 'done', scannedAt: 3, stats: stats() });
+      TestBed.tick();
+      expect(grid.level()).toBeNull();
+    });
   });
 });

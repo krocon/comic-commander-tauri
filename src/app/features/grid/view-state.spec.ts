@@ -15,6 +15,8 @@ const state: ViewState = {
   sort: 'date',
   focusId: 'a',
   topId: 'b',
+  view: 'series',
+  level: 'asterix',
 };
 
 describe('view-state (E9)', () => {
@@ -38,7 +40,12 @@ describe('view-state (E9)', () => {
       sort: 'path',
       focusId: null,
       topId: null,
+      view: 'flat',
+      level: null,
     });
+    s.data.set('cc.view.c1', JSON.stringify({ v: 2, view: 'evil', level: 'x' }));
+    expect(loadViewState('c1', s)?.view).toBe('flat');
+    expect(loadViewState('c1', s)?.level).toBeNull();
     const throwing: KeyValueStore = {
       getItem: () => {
         throw new Error('blocked');
@@ -50,5 +57,22 @@ describe('view-state (E9)', () => {
     expect(loadViewState('c1', throwing)).toBeNull();
     expect(() => saveViewState('c1', state, throwing)).not.toThrow();
     expect(loadViewState('c1', null)).toBeNull();
+  });
+
+  it('reads a v1 state with the flat view (design 011)', () => {
+    const s = memory();
+    s.data.set(
+      'cc.view.c1',
+      JSON.stringify({ v: 1, filter: 'x', dimIndex: 1, sort: 'name', focusId: 'f', topId: 't' }),
+    );
+    expect(loadViewState('c1', s)).toEqual({
+      filter: 'x',
+      dimIndex: 1,
+      sort: 'name',
+      focusId: 'f',
+      topId: 't',
+      view: 'flat',
+      level: null,
+    });
   });
 });

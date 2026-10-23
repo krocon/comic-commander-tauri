@@ -15,6 +15,15 @@ describe('keymap', () => {
     expect(buildKeymap('mac').byContext.global.get('F10')).toBeUndefined();
   });
 
+  it('views and levels (design 011 E12)', () => {
+    for (const os of ['mac', 'other'] as const) {
+      const k = buildKeymap(os);
+      expect(k.byContext.global.get('Mod+Shift+s')).toBe('view.mode.series');
+      expect(k.chords.get('grid.levelUp')).toEqual(['Backspace', 'Alt+ArrowUp']);
+      expect(k.byContext.grid.get('Mod+ArrowUp')).toBe('grid.home');
+    }
+  });
+
   it('lists the chords of an action', () => {
     const k = buildKeymap('other');
     expect(k.chords.get('reader.next')).toEqual(['ArrowDown', 'n', 'Shift+n', 'Space', 'PageDown']);

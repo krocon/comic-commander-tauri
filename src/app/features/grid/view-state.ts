@@ -1,9 +1,13 @@
 import { SORT_MODES, SortMode } from '../category/book-order';
+import { VIEW_MODES, ViewMode } from './grouping';
 
 /**
  * What the grid remembers per category (design 004 E9, E10): filter, size, order and position
  * (book ids, not pixels). In `localStorage` – a per-viewer convenience, nothing is lost when it
  * is empty or broken; moves into the settings (Rust) with prompt 009.
+ *
+ * v2 (design 011): view (flat / series / folders) and level; `focusId`/`topId` are tile ids
+ * (book id or group id). A v1 state is read with the flat view.
  */
 export interface ViewState {
   filter: string;
@@ -13,9 +17,12 @@ export interface ViewState {
   focusId: string | null;
   /** First book of the top visible row. */
   topId: string | null;
+  view: ViewMode;
+  /** Opened series (key) or folder; `null` = the top. */
+  level: string | null;
 }
 
-const VERSION = 1;
+const VERSION = 2;
 const PREFIX = 'cc.view.';
 
 /** Storage of the view states (tests pass their own). */
@@ -38,8 +45,9 @@ export function loadViewState(
     const raw = store?.getItem(PREFIX + categoryId);
     if (!raw) return null;
     const v = JSON.parse(raw) as Record<string, unknown>;
-    if (v['v'] !== VERSION) return null;
+    if (v['v'] !== VERSION && v['v'] !== 1) return null;
     const str = (x: unknown) => (typeof x === 'string' ? x : null);
+    const view = VIEW_MODES.includes(v['view'] as ViewMode) ? (v['view'] as ViewMode) : 'flat';
     return {
       filter: str(v['filter']) ?? '',
       dimIndex:
@@ -49,6 +57,8 @@ export function loadViewState(
       sort: SORT_MODES.includes(v['sort'] as SortMode) ? (v['sort'] as SortMode) : 'path',
       focusId: str(v['focusId']),
       topId: str(v['topId']),
+      view,
+      level: view === 'flat' ? null : str(v['level']),
     };
   } catch {
     return null;

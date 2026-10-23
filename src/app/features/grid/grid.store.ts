@@ -16,10 +16,23 @@ import { CategoriesStore } from '../categories/categories.store';
 import { filterKey, SortMode, sortBooksBy } from '../category/book-order';
 import { CategoryStore } from '../category/category.store';
 import { ReaderService } from '../reader/reader.service';
-import { isEmptyFilter, matchesFilter, parseFilter } from './filter-logic';
+import { bookInfo } from './book-info';
+import { hasFieldTerms, isEmptyFilter, matchesFilter, parseFilter } from './filter-logic';
 import { CursorMove, moveCursor } from './grid-math';
 import { GRID_TEXTS } from './grid-texts';
-import { extractSeriesFilter } from './series-filter';
+import {
+  bookItems,
+  breadcrumb,
+  folderLevel,
+  GridItem,
+  GroupItem,
+  groupBySeries,
+  levelExists,
+  levelTileId,
+  parentLevel,
+  seriesBooks,
+  ViewMode,
+} from './grouping';
 import { KeyValueStore, loadViewState, saveViewState } from './view-state';
 
 /** Pause between typing and filtering (the template: 333 ms; local data is fast). */
@@ -54,6 +67,9 @@ function keyOf(b: BookEntry): string {
  * State of the cover grid (design 004): order, filter, size, cursor and the actions on a book.
  * Next to the `CategoryStore` of the view (not `providedIn: 'root'`). Remembers its state per
  * category (E9) and restores it when the category is opened again.
+ *
+ * Design 011: a view (flat, series, folders) and a level in it; the grid shows `items()` –
+ * books and groups. The cursor and the top position are tile ids.
  */
 @Injectable()
 export class GridStore {
@@ -73,6 +89,9 @@ export class GridStore {
   /** The filter in force (debounced). */
   readonly appliedFilter = signal('');
   readonly sort = signal<SortMode>('path');
+  readonly view = signal<ViewMode>('flat');
+  /** Opened series (key) or folder (NFC, `/`); `null` = the top of the view. */
+  readonly level = signal<string | null>(null);
   /** Chosen size step (index into `dims()`). */
   readonly dimIndex = signal(0);
   /** Book with the keyboard cursor. */
@@ -100,22 +119,61 @@ export class GridStore {
     // the scan delivers path order already
     return this.sort() === 'path' ? all : sortBooksBy(all, this.sort());
   });
+  /** The books that pass the filter, in the chosen order (all levels). */
   readonly filtered = computed(() => {
     const f = parseFilter(this.appliedFilter());
     const all = this.sorted();
-    return isEmptyFilter(f) ? all : all.filter((b) => matchesFilter(keyOf(b), f));
+    if (isEmptyFilter(f)) return all;
+    const fields = hasFieldTerms(f);
+    return all.filter((b) => matchesFilter(keyOf(b), f, fields ? () => bookInfo(b) : undefined));
   });
+  private readonly progressOf = (b: BookEntry): number | null => {
+    const p = this.reader.positions()[b.id];
+    return p && p.pages > 0 ? (p.page + 1) / p.pages : null;
+  };
+  /** The tiles of the shown level (design 011). */
+  readonly items = computed<GridItem[]>(() => {
+    const shown = this.filtered();
+    const level = this.level();
+    switch (this.view()) {
+      case 'flat':
+        return bookItems(shown);
+      case 'series':
+        return level === null
+          ? groupBySeries(this.scan.books(), shown, this.sort(), this.progressOf)
+          : bookItems(seriesBooks(shown, level));
+      case 'folders':
+        return folderLevel(this.scan.books(), shown, level ?? '', this.progressOf);
+    }
+  });
+  /** The books of the level in display order – what the reader goes through. */
+  readonly levelBooks = computed(() =>
+    this.items()
+      .filter((i) => i.kind === 'book')
+      .map((i) => i.book),
+  );
+  readonly crumbs = computed(() =>
+    breadcrumb(this.view(), this.level(), GRID_TEXTS.topOf[this.view()], (key) => {
+      const b = this.scan.books().find((x) => bookInfo(x).seriesKey === key);
+      return (b && bookInfo(b).series) ?? key;
+    }),
+  );
   readonly total = computed(() => this.scan.books().length);
   readonly filtering = computed(() => this.filterText().trim() !== '');
   private readonly indexById = computed(
-    () => new Map(this.filtered().map((b, i) => [b.id, i] as const)),
+    () => new Map(this.items().map((b, i) => [b.id, i] as const)),
   );
-  /** Index of the cursor in `filtered()`, -1 = none. */
+  /** Index of the cursor in `items()`, -1 = none. */
   readonly cursor = computed(() => {
     const id = this.focusId();
     return id === null ? -1 : (this.indexById().get(id) ?? -1);
   });
-  readonly focused = computed(() => this.filtered()[this.cursor()] ?? null);
+  readonly focusedItem = computed<GridItem | null>(() => this.items()[this.cursor()] ?? null);
+  /** The book with the cursor (`null` on a group). */
+  readonly focused = computed(() => {
+    const i = this.focusedItem();
+    return i?.kind === 'book' ? i.book : null;
+  });
 
   constructor() {
     // a category opened: its remembered state (E9) or the defaults of the category
@@ -132,6 +190,15 @@ export class GridStore {
       if (!id) return;
       clearTimeout(this.saveTimer);
       this.saveTimer = setTimeout(() => saveViewState(id, state, this.stateStore), 300);
+    });
+    // a level whose books are all gone (scan, restored state): back to the top (design 011)
+    effect(() => {
+      const level = this.level();
+      if (level === null || this.scan.phase() !== 'done') return;
+      const all = this.scan.books();
+      untracked(() => {
+        if (!levelExists(all, this.view(), level)) this.level.set(null);
+      });
     });
     // back from the reader: the cursor on the book read last (design 005 E6)
     effect(() => {
@@ -163,6 +230,8 @@ export class GridStore {
       sort: this.sort(),
       focusId: this.focusId(),
       topId: this.topId(),
+      view: this.view(),
+      level: this.level(),
     };
   }
 
@@ -176,6 +245,8 @@ export class GridStore {
     this.filterText.set(filter);
     this.appliedFilter.set(filter);
     this.sort.set(saved?.sort ?? 'path');
+    this.view.set(saved?.view ?? 'flat');
+    this.level.set(saved?.level ?? null);
     this.dimIndex.set(saved?.dimIndex ?? c?.dimIndex ?? 0);
     this.focusId.set(saved?.focusId ?? null);
     this.topId.set(saved?.topId ?? null);
@@ -216,30 +287,120 @@ export class GridStore {
     this.dimIndex.set(next.i);
   }
 
+  /** Another view: its top level, the cursor on the tile of the book that had it. */
+  setView(view: ViewMode): void {
+    if (view === this.view()) return;
+    const book = this.focused();
+    this.view.set(view);
+    this.level.set(null);
+    this.focusOn(book ? this.tileOf(book) : null);
+  }
+
+  /** The tile that holds `book` at the shown level (a group or the book itself). */
+  private tileOf(book: BookEntry): string | null {
+    const items = this.items();
+    if (items.some((i) => i.id === book.id)) return book.id;
+    const group = items.find(
+      (i): i is GroupItem =>
+        i.kind === 'group' &&
+        (i.group === 'series'
+          ? bookInfo(book).seriesKey === i.key
+          : book.relPath.normalize('NFC').startsWith(i.key + '/')),
+    );
+    return group?.id ?? null;
+  }
+
+  private focusOn(id: string | null): void {
+    this.focusId.set(id ?? this.items()[0]?.id ?? null);
+    this.restoreTopId.set(this.focusId());
+    this.revealTick.update((n) => n + 1);
+  }
+
+  /** A group opens its level; a book is read. */
+  open(item: GridItem): void {
+    if (item.kind === 'book') {
+      this.read(item.book);
+      return;
+    }
+    this.level.set(item.key);
+    this.focusOn(null);
+  }
+
+  /** One level up (the cursor on the tile of the level left); `false` at the top. */
+  up(): boolean {
+    const level = this.level();
+    if (level === null || this.view() === 'flat') return false;
+    this.goTo(parentLevel(this.view(), level));
+    return true;
+  }
+
+  /** A level of the breadcrumb (`null` = the top); the cursor on the way back. */
+  goTo(level: string | null): void {
+    const from = this.level();
+    if (level === from) return;
+    this.level.set(level);
+    let tile: string | null = null;
+    if (from !== null && (level === null || from.startsWith(level + '/'))) {
+      // the tile on the way down from `level` to where we came from
+      const view = this.view();
+      let next = from;
+      if (view === 'folders') {
+        const start = level === null ? 0 : level.length + 1;
+        const slash = from.indexOf('/', start);
+        next = slash < 0 ? from : from.substring(0, slash);
+      }
+      tile = levelTileId(view, next);
+    }
+    this.focusOn(tile);
+  }
+
   move(move: CursorMove, cols: number, pageRows: number): void {
-    const list = this.filtered();
+    const list = this.items();
     const i = moveCursor(this.cursor(), move, cols, list.length, pageRows);
     this.focusId.set(list[i]?.id ?? null);
     this.revealTick.update((n) => n + 1);
   }
 
   focusIndex(index: number): void {
-    const b = this.filtered()[index];
+    const b = this.items()[index];
     if (b) {
       this.focusId.set(b.id);
       this.revealTick.update((n) => n + 1);
     }
   }
 
+  /** `series:"…"` (design 011 E8); the cursor stays on the book (or its group). */
   filterSeries(book: BookEntry): void {
-    this.applyFilterNow(extractSeriesFilter(book.name));
-    this.focusId.set(book.id);
+    const series = bookInfo(book).series;
+    if (!series) return;
+    this.applyFilterNow(`series:"${series.replace(/"/gu, '')}"`);
+    this.focusOn(this.tileOf(book));
   }
 
-  /** Opens the reader on `book` within the filtered list (`]` / `[` follow this order). */
+  /** Opens the reader on `book` within the books of the level (`]` / `[` follow this order). */
   read(book: BookEntry): void {
-    const list = this.filtered();
-    this.reader.open(this.categoryId(), list, list.indexOf(book));
+    const list = this.levelBooks();
+    const i = list.indexOf(book);
+    if (i >= 0) this.reader.open(this.categoryId(), list, i);
+  }
+
+  /** The books of a group in reading order (series: by number; folder: by path, the subtree). */
+  groupBooks(group: GroupItem): BookEntry[] {
+    const shown = this.filtered();
+    if (group.group === 'series') return seriesBooks(shown, group.key);
+    const prefix = group.key + '/';
+    const visible = new Set(shown);
+    return this.scan
+      .books()
+      .filter((b) => visible.has(b) && b.relPath.normalize('NFC').startsWith(prefix));
+  }
+
+  /** The first book of a group that is not read to the end (else the first). */
+  readGroup(group: GroupItem): void {
+    const list = this.groupBooks(group);
+    if (!list.length) return;
+    const i = list.findIndex((b) => (this.progressOf(b) ?? 0) < 1);
+    this.reader.open(this.categoryId(), list, Math.max(0, i));
   }
 
   async openExternal(book: BookEntry): Promise<void> {

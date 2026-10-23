@@ -54,10 +54,15 @@ export const ACTIONS: readonly ActionDef[] = [
   G('app.focusMenu', 'Menu bar', { palette: false }),
   // view (grid toolbar)
   G('view.focusFilter', 'Filter'),
+  // views (design 011)
+  G('view.mode.flat', 'View: all books'),
+  G('view.mode.series', 'View: series'),
+  G('view.mode.folders', 'View: folders'),
   G('view.sizeUp', 'Bigger covers', { repeat: true }),
   G('view.sizeDown', 'Smaller covers', { repeat: true }),
   G('view.sort.path', 'Order: folder and name'),
   G('view.sort.name', 'Order: file name'),
+  G('view.sort.series', 'Order: series and number'),
   G('view.sort.date', 'Order: newest first'),
   G('view.sort.size', 'Order: largest first'),
   G('view.toTop', 'To the top'),
@@ -74,6 +79,7 @@ export const ACTIONS: readonly ActionDef[] = [
   grid('grid.read', 'Read'),
   grid('grid.menu', 'Actions for the book…', { palette: false }),
   grid('grid.escape', 'Clear filter', { palette: false }),
+  grid('grid.levelUp', 'Up one level'),
   grid('book.openExternal', 'Open with default app'),
   grid('book.reveal', revealText()),
   grid('book.filterSeries', 'Filter series'),
