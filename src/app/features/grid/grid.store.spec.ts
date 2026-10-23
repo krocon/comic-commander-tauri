@@ -10,6 +10,9 @@ import { CategoriesStore } from '../categories/categories.store';
 import { CategoryStore } from '../category/category.store';
 import { FILTER_DEBOUNCE_MS, GridStore, VIEW_STATE_STORE } from './grid.store';
 import { KeyValueStore } from './view-state';
+import { ReaderApi } from '../../core/reader/reader-api';
+import { ReaderService } from '../reader/reader.service';
+import { FakeReaderApi } from '../../../testing/fake-reader-api';
 
 const wait = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -26,6 +29,7 @@ async function setup(cats = [category('c1', { initialFilter: '+bessy' }), catego
       { provide: CategoriesApi, useClass: FakeCategoriesApi },
       { provide: ScanApi, useClass: FakeScanApi },
       { provide: BooksApi, useClass: FakeBooksApi },
+      { provide: ReaderApi, useClass: FakeReaderApi },
       { provide: FILTER_DEBOUNCE_MS, useValue: 1 },
       { provide: VIEW_STATE_STORE, useValue: store },
     ],
@@ -181,5 +185,21 @@ describe('GridStore', () => {
     await categories.select('c2');
     TestBed.tick();
     expect(grid.restoreTopId()).toBe('f1');
+  });
+
+  it('reads a book within the filtered list and gets the cursor back (design 005 E6)', async () => {
+    const { grid, emit } = await setup();
+    emit();
+    const reader = TestBed.inject(ReaderService);
+    const bessy10 = grid.filtered()[1];
+    grid.read(bessy10);
+    expect(reader.session()).toMatchObject({ categoryId: 'c1', index: 1 });
+    expect(reader.session()!.books.map((b) => b.relPath)).toEqual(['Bessy 2.cbz', 'Bessy 10.cbz']);
+    reader.move(-1);
+    const t0 = grid.revealTick();
+    reader.close();
+    TestBed.tick();
+    expect(grid.focused()?.relPath).toBe('Bessy 2.cbz');
+    expect(grid.revealTick()).toBe(t0 + 1);
   });
 });

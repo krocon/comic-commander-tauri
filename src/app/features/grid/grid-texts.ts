@@ -25,7 +25,7 @@ export const GRID_TEXTS = {
     `${name}, ${pos.toLocaleString('en')} of ${count.toLocaleString('en')}`,
   bookMenu: (name: string) => `Actions for ${name}`,
   read: 'Read',
-  readLater: 'Read (follows with the reader)',
+  readPdfLater: 'Read (PDF follows)',
   openExternal: 'Open with default app',
   reveal: revealText(),
   filterSeries: 'Filter series',

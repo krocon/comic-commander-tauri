@@ -4,6 +4,7 @@ import { CategoriesApi, TauriCategoriesApi } from './core/categories/categories-
 import { ScanApi, TauriScanApi } from './core/scan/scan-api';
 import { CoversApi, TauriCoversApi } from './core/covers/covers-api';
 import { BooksApi, TauriBooksApi } from './core/books/books-api';
+import { ReaderApi, TauriReaderApi } from './core/reader/reader-api';
 
 /**
  * Zoneless (Angular 22 default, no zone.js). Every backend facade is bound here; tests
@@ -16,6 +17,7 @@ export const appConfig: ApplicationConfig = {
     { provide: ScanApi, useClass: TauriScanApi },
     { provide: CoversApi, useClass: TauriCoversApi },
     { provide: BooksApi, useClass: TauriBooksApi },
+    { provide: ReaderApi, useClass: TauriReaderApi },
     { provide: AboutApi, useClass: TauriAboutApi },
   ],
 };

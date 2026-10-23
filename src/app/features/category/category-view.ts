@@ -19,6 +19,7 @@ import { GridStore } from '../grid/grid.store';
 import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
+import { ReaderService } from '../reader/reader.service';
 import { CATEGORY_TEXTS } from './category-texts';
 
 /**
@@ -42,6 +43,7 @@ export class CategoryView {
   protected readonly store = inject(CategoryStore);
   protected readonly grid = inject(GridStore);
   private readonly dialogs = inject(DialogService);
+  private readonly reader = inject(ReaderService);
   protected readonly t = CATEGORY_TEXTS;
   protected readonly g = GRID_TEXTS;
   protected readonly gridTop = GRID_TOP;
@@ -166,7 +168,8 @@ export class CategoryView {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
-    if (this.dialogs.open() !== null || event.altKey) return;
+    // the reader has its own keys (design 005)
+    if (this.dialogs.open() !== null || this.reader.session() !== null || event.altKey) return;
     if (!(event.metaKey || event.ctrlKey)) return;
     if (event.key === '+' || event.key === '=' || event.key === '-') {
       event.preventDefault();

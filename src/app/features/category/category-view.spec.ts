@@ -13,6 +13,8 @@ import { Provider } from '@angular/core';
 import { BooksApi } from '../../core/books/books-api';
 import { FakeBooksApi } from '../../../testing/fake-books-api';
 import { FILTER_DEBOUNCE_MS, GridStore, VIEW_STATE_STORE } from '../grid/grid.store';
+import { ReaderApi } from '../../core/reader/reader-api';
+import { FakeReaderApi } from '../../../testing/fake-reader-api';
 
 const flush = () => new Promise((r) => setTimeout(r));
 
@@ -24,6 +26,7 @@ async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provi
       { provide: ScanApi, useClass: FakeScanApi },
       { provide: CoversApi, useClass: FakeCoversApi },
       { provide: BooksApi, useClass: FakeBooksApi },
+      { provide: ReaderApi, useClass: FakeReaderApi },
       { provide: VIEW_STATE_STORE, useValue: null },
       { provide: FILTER_DEBOUNCE_MS, useValue: 1 },
       ...providers,

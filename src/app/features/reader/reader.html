@@ -1,0 +1,222 @@
+<div
+  #root
+  class="reader"
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  [attr.aria-label]="t.readerLabel(bookName())"
+  [class.idle]="idle()"
+  (keydown)="onKeydown($event)"
+  (pointermove)="wake()"
+>
+  <header
+    class="bar"
+    (pointerenter)="setOverBar(true)"
+    (pointerleave)="setOverBar(false)"
+    (focusin)="wake()"
+  >
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.back"
+      [title]="t.back + ' (' + t.backKey + ')'"
+      (click)="store.close()"
+    >
+      <i class="fa fa-arrow-left" aria-hidden="true"></i>
+    </button>
+    <span class="title" [title]="store.book()?.relPath ?? ''">{{ bookName() }}</span>
+    @if (store.phase() === 'ready' && store.pageCount() > 1) {
+      <input
+        class="slider"
+        type="range"
+        min="1"
+        [max]="store.pageCount()"
+        [value]="store.page() + 1"
+        [attr.aria-label]="t.slider"
+        [attr.aria-valuetext]="pageLabel()"
+        (input)="onSlider($event)"
+      />
+    }
+    @if (store.phase() === 'ready') {
+      <span class="count" aria-hidden="true">{{
+        t.pageCount(store.page() + 1, store.pageCount())
+      }}</span>
+    }
+    <span class="spacer"></span>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.prevBook"
+      [title]="t.prevBook"
+      (click)="store.prevBook()"
+    >
+      <i class="fa fa-step-backward" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.nextBook"
+      [title]="t.nextBook"
+      (click)="store.nextBook()"
+    >
+      <i class="fa fa-step-forward" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.modeContinuous"
+      [attr.aria-pressed]="store.mode() === 'continuous'"
+      [title]="store.mode() === 'continuous' ? t.modeSingle : t.modeContinuous"
+      (click)="store.toggleMode()"
+    >
+      <i
+        class="fa"
+        [class.fa-file-image-o]="store.mode() === 'single'"
+        [class.fa-bars]="store.mode() === 'continuous'"
+        aria-hidden="true"
+      ></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.fitHeight"
+      [attr.aria-pressed]="store.fit() === 'height'"
+      [title]="store.fit() === 'height' ? t.fitWidth : t.fitHeight"
+      (click)="store.toggleFit()"
+    >
+      <i
+        class="fa"
+        [class.fa-arrows-h]="store.fit() === 'width'"
+        [class.fa-arrows-v]="store.fit() === 'height'"
+        aria-hidden="true"
+      ></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.manga"
+      [attr.aria-pressed]="store.rtl()"
+      [title]="t.manga"
+      (click)="store.toggleRtl()"
+    >
+      <i class="fa fa-exchange" aria-hidden="true"></i>
+    </button>
+    <button
+      type="button"
+      class="btn icon"
+      [attr.aria-label]="t.fullscreen"
+      [attr.aria-pressed]="store.fullscreen()"
+      [title]="t.fullscreen"
+      (click)="store.toggleFullscreen()"
+    >
+      <i
+        class="fa"
+        [class.fa-expand]="!store.fullscreen()"
+        [class.fa-compress]="store.fullscreen()"
+        aria-hidden="true"
+      ></i>
+    </button>
+  </header>
+
+  @switch (store.phase()) {
+    @case ('loading') {
+      <p class="state">{{ t.loading }}</p>
+    }
+    @case ('failed') {
+      <div class="state" role="alert">
+        <p>{{ t.bookFailed }}</p>
+        <p class="detail">{{ errorText() }}</p>
+        <div class="actions">
+          <button type="button" class="btn" (click)="openExternal()">{{ t.openExternal }}</button>
+          <button type="button" class="btn primary" (click)="store.close()">{{ t.back }}</button>
+        </div>
+      </div>
+    }
+    @case ('ready') {
+      @if (store.mode() === 'single') {
+        <!-- keys of the page (arrows, Space, n/b …) are handled by the dialog's keydown handler -->
+        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
+        <div
+          #view
+          class="view single"
+          tabindex="0"
+          [class.fit-height]="store.fit() === 'height'"
+          [attr.aria-label]="pageLabel()"
+          (click)="onViewClick($event)"
+          (pointerdown)="onPointerDown($event)"
+          (pointerup)="onPointerUp($event)"
+        >
+          @if (src(store.page()); as url) {
+            <img
+              [src]="url"
+              [alt]="pageLabel()"
+              [style.aspect-ratio]="ratio()"
+              draggable="false"
+              (load)="onLoad($event, store.page())"
+              (error)="onError(store.page())"
+            />
+          } @else {
+            <div class="page-failed">
+              <p>{{ t.pageFailed }}</p>
+              <button
+                type="button"
+                class="btn"
+                (click)="retry(store.page()); $event.stopPropagation()"
+              >
+                {{ t.retry }}
+              </button>
+            </div>
+          }
+        </div>
+      } @else {
+        <!-- keys of the page (arrows, Space, n/b …) are handled by the dialog's keydown handler -->
+        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
+        <div
+          #view
+          class="view continuous"
+          tabindex="0"
+          [attr.aria-label]="pageLabel()"
+          (scroll)="onScroll()"
+          (click)="onViewClick($event)"
+        >
+          <div class="track" [style.height.px]="layout().total">
+            @for (i of visible(); track i) {
+              @let box = layout().boxes[i];
+              @if (src(i); as url) {
+                <img
+                  class="page"
+                  [src]="url"
+                  [alt]="t.page(i + 1, store.pageCount())"
+                  [style.top.px]="box.top"
+                  [style.width.px]="box.width"
+                  [style.height.px]="box.height"
+                  decoding="async"
+                  draggable="false"
+                  (load)="onLoad($event, i)"
+                  (error)="onError(i)"
+                />
+              } @else {
+                <div
+                  class="page page-failed"
+                  [style.top.px]="box.top"
+                  [style.width.px]="box.width"
+                  [style.height.px]="box.height"
+                >
+                  <p>{{ t.pageFailed }}</p>
+                  <button type="button" class="btn" (click)="retry(i); $event.stopPropagation()">
+                    {{ t.retry }}
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+    }
+  }
+
+  @if (store.notice(); as n) {
+    <p class="notice" role="status">{{ n }}</p>
+  }
+  <div class="visually-hidden" aria-live="polite">{{ store.announcement() }}</div>
+</div>
