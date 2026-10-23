@@ -32,6 +32,8 @@ crc32fast = "1.5"
 open = "5"
 # design 006 E1: PDF pages and covers, pure Rust (no FFI, no external program)
 hayro = "0.8.0"
+# design 006 (review #1): our own bounded decoding of PDF streams before hayro sees them
+flate2 = "1"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 
 [dev-dependencies]

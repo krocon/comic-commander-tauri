@@ -624,7 +624,8 @@ impl ReaderService {
         let pdf = PdfBook::open(book)?;
         let pages: Vec<Entry> = (0..pdf.page_count())
             .map(|i| Entry {
-                name: format!("Seite {}", i + 1),
+                // the page number only – the label comes from the frontend's texts (review 006 #8)
+                name: (i + 1).to_string(),
                 size: 0,
                 pos: i,
                 encrypted: false,
@@ -637,8 +638,9 @@ impl ReaderService {
             .map(|((w, h), e)| PageInfo {
                 name: e.name.clone(),
                 size: 0,
-                width: Some((w * 2.0).round().max(1.0) as u32),
-                height: Some((h * 2.0).round().max(1.0) as u32),
+                // sizes are checked in `PdfBook::open`; clamped anyway (review 006 #7)
+                width: Some((w * 2.0).round().clamp(1.0, 1e6) as u32),
+                height: Some((h * 2.0).round().clamp(1.0, 1e6) as u32),
             })
             .collect();
         let session = Arc::new(Session {

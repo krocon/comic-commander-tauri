@@ -107,7 +107,8 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
   src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
                               Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
   src/reading_state.rs        reading-state.json (≤ 5 000 Bücher)
-  src/pdf/                    PDF (006): mod.rs (PdfBook, page_image, thumbnail), fast (Schnellweg JPEG), render
+  src/pdf/                    PDF (006): mod.rs (PdfBook, page_image, thumbnail), guard (Vorprüfung gegen Bomben),
+                              fast (Schnellweg JPEG), render
                               (2 Threads, 64 MiB Stack, Zeitlimit), tests (PDF-Generator von Hand)
   src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert/geöffnet)
   src/opener.rs               Buch auflösen (Registry) + mit Standard-App öffnen (fnf, `open` crate)

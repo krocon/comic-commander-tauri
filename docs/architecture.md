@@ -76,6 +76,7 @@
 | A34 | **PDF mit `hayro`** (reines Rust, kein FFI, Apache-2.0/MIT): Cover = Seite 1, Leser = Seiten in Zielbreite; das geparste PDF bleibt in der Sitzung | MuPDF AGPL, PDFium bräuchte je OS eine C++-Bibliothek + Isolierung; Probe: 72 ms je Scan-Seite, 26 ms Vektor (Release) | 006 E1, E5 |
 | A35 | **Schnellweg Scan-PDF**: Seite = genau ein `DCTDecode`-Bild (RGB/Grau/ICC 1–3, ohne Maske/Drehung, ≥ 90 % der Seite) → die JPEG-Bytes selbst | volle Qualität, kein Rendern; CMYK-JPEGs zeigen Browser falsch | 006 E2 |
 | A36 | Rendern auf 2 eigenen Threads (64 MiB Stack, `catch_unwind`), ≤ 16 wartend (sonst 503), 20 s Wartezeit; Grenzen: Datei ≤ 1 GiB, ≤ 10 000 Seiten, Bild ≤ 16 384 px / 64 MP | hayro ist nicht abbrechbar; tiefe Verschachtelung | 006 E3 |
+| A37 | **PDF-Vorprüfung** (`pdf/guard.rs`): vor hayro wird jeder Stream durch seine erweiternden Filter (Flate, LZW, RunLength, Hex, A85) mit ≤ 256 MiB je Schicht entpackt; Bild-XObjects ≤ 64 MP (auch der JPEG-Kopf); sonst `archive_too_large`. Ergebnis je Datei (Pfad, Größe, mtime) gemerkt | hayro entpackt ohne Grenze, OOM bricht den Prozess ab | 006 Review #1 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -205,6 +206,7 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 | `sevenz-rust2` 0.24 (`bzip2`, `ppmd`), `lzma-rust2` 0.23, `crc32fast` | Rust | CB7, fail-closed Header-Prüfung aus fnf | 003 |
 | `image` 0.25 (`jpeg png gif webp bmp`) | Rust | dekodieren mit Limits, verkleinern, JPEG | 003 |
 | `hayro` 0.8 (+ `hayro-interpret`, `hayro-syntax`, `vello_cpu`, eingebettete Standard-Fonts aus PDFium/Foxit, BSD) – Lizenzen in 012 nach `docs/licenses.md` | Rust | PDF: Seiten zählen, Größen, Schnellweg, rendern | 006 |
+| `flate2` 1 (schon über `zip` im Baum) | Rust | PDF-Streams vorab begrenzt entpacken (Bomben, Review 006 #1) | 006 |
 | `open` 5 (wie fnf) | Rust | Buch mit der Standard-App öffnen (`that_detached`, ohne Shell) | 004 |
 | `vitest`, `jsdom`, `eslint`, `angular-eslint`, `typescript-eslint`, `prettier` | dev | Tests, Lint, Format | 001 |
 

@@ -448,7 +448,7 @@ fn pdf_books_are_read_like_archives() {
     let opened = service.open(&book, events.sink()).unwrap();
     assert!(!opened.extracting);
     assert_eq!(opened.pages.len(), 2);
-    assert_eq!(opened.pages[1].name, "Seite 2");
+    assert_eq!(opened.pages[1].name, "2");
     assert_eq!(
         (opened.pages[1].width, opened.pages[1].height),
         (Some(800), Some(1200))

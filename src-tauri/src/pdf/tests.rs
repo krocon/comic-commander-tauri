@@ -23,6 +23,21 @@ pub(crate) mod make {
         Vector { w: u32, h: u32 },
         /// A page with `/Rotate 90`.
         Rotated { w: u32, h: u32 },
+        /// Objects as given: the content stream object and an image object (`/Im0`).
+        Raw {
+            w: u32,
+            h: u32,
+            content: Vec<u8>,
+            image: Option<Vec<u8>>,
+        },
+    }
+
+    /// A stream object: `dict` entries (without `/Length`) and data.
+    pub fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
+        let mut o = format!("<< {dict} /Length {} >>\nstream\n", data.len()).into_bytes();
+        o.extend_from_slice(data);
+        o.extend_from_slice(b"\nendstream");
+        o
     }
 
     /// Width, height, content stream, image (bytes, pixels, colour space), extra page keys.
@@ -47,6 +62,25 @@ pub(crate) mod make {
             let image_id = next + 2;
             next += 3;
             kids.push(format!("{page_id} 0 R"));
+            if let Page::Raw {
+                w,
+                h,
+                content,
+                image,
+            } = p
+            {
+                let xobj = if image.is_some() {
+                    format!("/XObject << /Im0 {image_id} 0 R >> ")
+                } else {
+                    String::new()
+                };
+                page_objs.push((page_id, format!(
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Resources << {xobj}>> /Contents {content_id} 0 R >>"
+                ).into_bytes()));
+                page_objs.push((content_id, content.clone()));
+                page_objs.push((image_id, image.clone().unwrap_or_else(|| b"null".to_vec())));
+                continue;
+            }
             let (w, h, content, image, rotate): PageParts<'_> = match p {
                 Page::Jpeg { w, h, data, px, cs } => (
                     *w,
@@ -69,6 +103,7 @@ pub(crate) mod make {
                     None,
                     "",
                 ),
+                Page::Raw { .. } => unreachable!(),
                 Page::Rotated { w, h } => (
                     *w,
                     *h,
@@ -257,9 +292,18 @@ fn rendered_pages_have_the_asked_width() {
 
 #[test]
 fn output_stays_within_the_pixel_limits() {
-    assert!(PdfBook::scale(100.0, 100_000.0, 4096, None) * 100_000.0 <= MAX_SIDE as f32 + 1.0);
-    let s = PdfBook::scale(10_000.0, 10_000.0, 16_000, None);
+    let s = PdfBook::scale(100.0, 100_000.0, 4096, None).unwrap();
+    assert!(s * 100_000.0 <= MAX_SIDE as f32 + 1.0);
+    let s = PdfBook::scale(10_000.0, 10_000.0, 16_000, None).unwrap();
     assert!((10_000.0 * s).powi(2) <= MAX_PIXELS as f32 * 1.01);
+    // review 006 #2: no floor – a page that would be less than a pixel is refused
+    // a huge page is drawn small, a hair-thin one would be under a pixel
+    assert_eq!(
+        PdfBook::scale(1e8, 1e8, 2048, None).map(|s| (1e8 * s).round()),
+        Some(2048.0)
+    );
+    assert_eq!(PdfBook::scale(1e8, 1.0, 2048, None), None);
+    assert_eq!(PdfBook::scale(f32::INFINITY, 100.0, 2048, None), None);
 }
 
 #[test]
@@ -286,4 +330,130 @@ fn broken_empty_and_encrypted_pdfs_are_codes() {
             .map(|e| e.code),
         Some(FsErrorCode::NotFound)
     );
+}
+
+fn deflate(data: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+    e.write_all(data).unwrap();
+    e.finish().unwrap()
+}
+
+fn jpeg_object(data: &[u8], (w, h): (u32, u32), cs: &str) -> Vec<u8> {
+    make::stream(
+        &format!(
+            "/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /{cs} /BitsPerComponent 8 /Filter /DCTDecode"
+        ),
+        data,
+    )
+}
+
+#[test]
+fn decompression_bombs_are_refused_before_hayro_sees_them() {
+    // review 006 #1: twice deflated zeros – a few hundred bytes, 300 MiB unpacked
+    let d = tempfile::tempdir().unwrap();
+    let bomb = deflate(&deflate(&vec![0u8; guard::MAX_STREAM + 1024]));
+    assert!(bomb.len() < 4096);
+    let p = write(
+        d.path(),
+        "bombe.pdf",
+        &[Page::Raw {
+            w: 400,
+            h: 600,
+            content: make::stream("/Filter [/FlateDecode /FlateDecode]", &bomb),
+            image: None,
+        }],
+    );
+    assert_eq!(
+        PdfBook::open(&p).err().map(|e| e.code),
+        Some(FsErrorCode::ArchiveTooLarge)
+    );
+    assert_eq!(
+        thumbnail(&p, 200, 300).unwrap_err().code,
+        FsErrorCode::ArchiveTooLarge
+    );
+    // an image declaring 100 000 × 100 000 pixels
+    let huge = make::stream(
+        "/Type /XObject /Subtype /Image /Width 100000 /Height 100000 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode",
+        &deflate(b"x"),
+    );
+    let p = write(
+        d.path(),
+        "riesig.pdf",
+        &[Page::Raw {
+            w: 400,
+            h: 600,
+            content: make::stream("", b"q 400 0 0 600 0 0 cm /Im0 Do Q"),
+            image: Some(huge),
+        }],
+    );
+    assert_eq!(
+        PdfBook::open(&p).err().map(|e| e.code),
+        Some(FsErrorCode::ArchiveTooLarge)
+    );
+    // a normal compressed content stream passes
+    let p = write(
+        d.path(),
+        "normal.pdf",
+        &[Page::Raw {
+            w: 400,
+            h: 600,
+            content: make::stream("/Filter /FlateDecode", &deflate(b"0 0 1 rg 0 0 50 50 re f")),
+            image: None,
+        }],
+    );
+    assert!(PdfBook::open(&p).is_ok());
+}
+
+#[test]
+fn fast_way_needs_the_image_on_the_page_and_usable() {
+    // review 006 #5, #6
+    let d = tempfile::tempdir().unwrap();
+    let j = build::jpeg(300, 450, 3);
+    let page = |content: &str, image: Vec<u8>| Page::Raw {
+        w: 600,
+        h: 900,
+        content: make::stream("", content.as_bytes()),
+        image: Some(image),
+    };
+    let cmyk = {
+        let mut out = Vec::new();
+        let img = image::ImageBuffer::from_pixel(30, 30, image::Rgb([1u8, 2, 3]));
+        image::codecs::jpeg::JpegEncoder::new(&mut out)
+            .encode_image(&image::DynamicImage::ImageRgb8(img).to_luma8())
+            .unwrap();
+        out
+    };
+    let p = write(
+        d.path(),
+        "schnellweg.pdf",
+        &[
+            // nested q/cm: still the whole page
+            page(
+                "q 2 0 0 3 0 0 cm q 300 0 0 300 0 0 cm /Im0 Do Q Q",
+                jpeg_object(&j, (300, 450), "DeviceRGB"),
+            ),
+            // moved mostly off the page
+            page(
+                "q 600 0 0 900 500 0 cm /Im0 Do Q",
+                jpeg_object(&j, (300, 450), "DeviceRGB"),
+            ),
+            // grey JPEG: usable
+            page(
+                "q 600 0 0 900 0 0 cm /Im0 Do Q",
+                jpeg_object(&cmyk, (30, 30), "DeviceGray"),
+            ),
+            // not a JPEG behind DCTDecode
+            page(
+                "q 600 0 0 900 0 0 cm /Im0 Do Q",
+                jpeg_object(b"\xff\xd8\xff junk", (30, 30), "DeviceRGB"),
+            ),
+        ],
+    );
+    let book = PdfBook::open(&p).unwrap();
+    assert_eq!(book.page_jpeg(0).unwrap(), j);
+    assert!(book.page_jpeg(1).is_none());
+    assert!(book.page_jpeg(2).is_some());
+    assert!(book.page_jpeg(3).is_none());
+    assert!(!fast::usable(b"\xff\xd8\xff"));
 }

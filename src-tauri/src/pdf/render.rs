@@ -7,6 +7,8 @@
 use crate::error::{FsError, FsErrorCode};
 use std::collections::VecDeque;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::{Condvar, Mutex, OnceLock};
 use std::time::Duration;
@@ -20,22 +22,29 @@ type Job = Box<dyn FnOnce() + Send>;
 struct Queue {
     jobs: Mutex<VecDeque<Job>>,
     ready: Condvar,
+    workers: AtomicUsize,
 }
 
 fn queue() -> &'static Queue {
     static Q: OnceLock<Queue> = OnceLock::new();
-    Q.get_or_init(|| {
+    let q = Q.get_or_init(|| Queue {
+        jobs: Mutex::new(VecDeque::new()),
+        ready: Condvar::new(),
+        workers: AtomicUsize::new(0),
+    });
+    static STARTED: OnceLock<()> = OnceLock::new();
+    STARTED.get_or_init(|| {
         for i in 0..THREADS {
-            let _ = std::thread::Builder::new()
+            let started = std::thread::Builder::new()
                 .name(format!("pdf-render-{i}"))
                 .stack_size(STACK)
                 .spawn(work);
+            if started.is_ok() {
+                q.workers.fetch_add(1, Ordering::SeqCst);
+            }
         }
-        Queue {
-            jobs: Mutex::new(VecDeque::new()),
-            ready: Condvar::new(),
-        }
-    })
+    });
+    q
 }
 
 fn work() {
@@ -60,7 +69,13 @@ pub fn run<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, FsError> + Send + 'static,
 ) -> Result<T, FsError> {
     let (tx, rx) = mpsc::channel();
+    // set when the caller gave up: a job not started yet is dropped with its book (review 006 #3)
+    let abandoned = Arc::new(AtomicBool::new(false));
+    let gone = abandoned.clone();
     let job: Job = Box::new(move || {
+        if gone.load(Ordering::SeqCst) {
+            return;
+        }
         let outcome = catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|_| {
             Err(FsError::new(
                 FsErrorCode::ArchiveError,
@@ -72,6 +87,9 @@ pub fn run<T: Send + 'static>(
     });
     {
         let q = queue();
+        if q.workers.load(Ordering::SeqCst) == 0 {
+            return Err(FsError::new(FsErrorCode::Io, "no PDF render thread", None));
+        }
         let mut jobs = q.jobs.lock().unwrap_or_else(|e| e.into_inner());
         if jobs.len() >= MAX_QUEUE {
             return Err(FsError::new(
@@ -85,11 +103,14 @@ pub fn run<T: Send + 'static>(
     }
     match rx.recv_timeout(limit) {
         Ok(outcome) => outcome,
-        Err(_) => Err(FsError::new(
-            FsErrorCode::Timeout,
-            "rendering the PDF page took too long",
-            None,
-        )),
+        Err(_) => {
+            abandoned.store(true, Ordering::SeqCst);
+            Err(FsError::new(
+                FsErrorCode::Timeout,
+                "rendering the PDF page took too long",
+                None,
+            ))
+        }
     }
 }
 
