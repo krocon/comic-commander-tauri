@@ -19,67 +19,7 @@ export type ReaderCommand =
   | 'fullscreen'
   | 'close';
 
-export interface KeyLike {
-  key: string;
-  metaKey: boolean;
-  ctrlKey: boolean;
-  shiftKey: boolean;
-  altKey: boolean;
-}
-
-/**
- * The command of a key (legacy §7 + design 005 „Tasten“). `rtl` (manga, E4) mirrors only the
- * horizontal keys: `←` goes on, `→` goes back. `Mod` = ⌘ or Ctrl.
- */
-export function keyCommand(e: KeyLike, rtl: boolean): ReaderCommand | null {
-  if (e.altKey) return null;
-  const mod = e.metaKey || e.ctrlKey;
-  if (e.key === 'F11' || (e.metaKey && e.ctrlKey && (e.key === 'f' || e.key === 'F'))) {
-    return 'fullscreen';
-  }
-  const forward: ReaderCommand = rtl ? 'prev' : 'next';
-  const backward: ReaderCommand = rtl ? 'next' : 'prev';
-  switch (e.key) {
-    case 'ArrowRight':
-      return mod ? (rtl ? 'first' : 'last') : forward;
-    case 'ArrowLeft':
-      return mod ? (rtl ? 'last' : 'first') : backward;
-    case 'ArrowDown':
-      return mod ? 'last' : 'next';
-    case 'ArrowUp':
-      return mod ? 'first' : 'prev';
-    case 'PageDown':
-      return 'next';
-    case 'PageUp':
-      return 'prev';
-    case 'Home':
-      return 'first';
-    case 'End':
-      return 'last';
-    case ' ':
-      return mod ? null : e.shiftKey ? 'prev' : 'next';
-    case 'Escape':
-      return 'close';
-  }
-  if (mod) return null;
-  switch (e.key.toLowerCase()) {
-    case 'n':
-      return 'next';
-    case 'b':
-      return 'prev';
-    case 's':
-      return 'toggleMode';
-    case 'w':
-      return 'toggleFit';
-    case 'm':
-      return 'toggleRtl';
-    case ']':
-      return 'nextBook';
-    case '[':
-      return 'prevBook';
-  }
-  return null;
-}
+// The keys are actions since design 008 (`core/actions/keymap.base.json`, context `reader`).
 
 /** Part of the screen that stays visible when scrolling one screen (legacy: one screen). */
 export const OVERLAP = 0.1;

@@ -19,10 +19,13 @@
 //! - [`reader`]        open books, pages in reading order, page cache, scheme `ccpage` (design 005)
 //! - [`reading_state`] last page per book in `reading-state.json` (design 005 E5)
 //! - [`jobs`]          slim job engine (one run per kind, cancel, pause, throttled events); missing covers (design 007)
+//! - [`app_menu`]      native menu bar of macOS from the frontend's menu model (design 008)
+//! - [`keymap_file`]   the user's shortcut overrides `keymap.json` (design 008 E2)
 //! - [`about`]         data for the About dialog (version, platform)
 //! - [`commands`]      thin Tauri command layer (validate, `spawn_blocking`, never synchronous)
 
 pub mod about;
+pub mod app_menu;
 pub mod book;
 pub mod book_registry;
 pub mod categories;
@@ -32,6 +35,7 @@ pub mod cover;
 pub mod error;
 pub mod fs_atomic;
 pub mod jobs;
+pub mod keymap_file;
 pub mod legacy_import;
 pub mod model;
 pub mod opener;
@@ -95,6 +99,17 @@ pub fn run() {
                 });
             },
         )
+        // native menu (macOS, design 008): a click is an action of the frontend
+        .on_menu_event(|app, event| {
+            use tauri::Emitter;
+            let id = event.id().0.clone();
+            // Quit works even when the webview hangs (review 008 #13)
+            if id == "app.quit" {
+                app.exit(0);
+            } else if app_menu::valid_id(&id) {
+                let _ = app.emit(app_menu::EVENT, app_menu::MenuAction { id });
+            }
+        })
         .setup(|app| {
             // trim the cover cache once per start, in the background
             let handle = app.handle().clone();
@@ -128,6 +143,9 @@ pub fn run() {
             commands::start_generate_thumbs,
             commands::pause_job,
             commands::cancel_job,
+            commands::set_app_menu,
+            commands::load_keymap_overrides,
+            commands::quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -40,6 +40,8 @@ import { GRID_TEXTS } from './grid-texts';
 import { GridStore } from './grid.store';
 import { ReaderService } from '../reader/reader.service';
 import { ThumbsJobStore } from '../jobs/thumbs-job.store';
+import { ActionService } from '../../core/actions/action.service';
+import { KeyboardDispatcher } from '../../core/actions/keyboard-dispatcher';
 
 /** Height of the floating toolbar = padding above the first row (design 004 „Zielbild“). */
 export const GRID_TOP = 56;
@@ -48,17 +50,6 @@ export const GRID_TOP = 56;
 export const COVER_RETRY_MS = new InjectionToken<number>('COVER_RETRY_MS', {
   factory: () => 2000,
 });
-
-const KEY_MOVES: Record<string, CursorMove> = {
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  Home: 'home',
-  End: 'end',
-  PageUp: 'pageUp',
-  PageDown: 'pageDown',
-};
 
 /** Width of a vertical scroll bar (0 with overlay scroll bars, e.g. macOS). */
 function scrollbarWidth(doc: Document): number {
@@ -94,6 +85,8 @@ export class CoverGrid {
   private readonly covers = inject(CoversApi);
   private readonly reader = inject(ReaderService);
   private readonly job = inject(ThumbsJobStore);
+  private readonly actions = inject(ActionService);
+  private readonly dispatcher = inject(KeyboardDispatcher);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly t = GRID_TEXTS;
 
@@ -177,7 +170,7 @@ export class CoverGrid {
 
   constructor() {
     const el = this.host.nativeElement;
-    el.addEventListener('keydown', (e: KeyboardEvent) => this.onKeydown(e), { capture: true });
+    this.registerActions();
 
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver((entries) => {
@@ -420,38 +413,55 @@ export class CoverGrid {
     }
   }
 
-  private onKeydown(e: KeyboardEvent): void {
-    // the menu handles its own keys
-    if ((e.target as Element | null)?.closest?.('app-book-menu')) return;
-    const mod = e.metaKey || e.ctrlKey;
-    const l = this.layout();
-    const rows = pageRows(this.viewHeight(), l.coverHeight, GRID_TOP);
-    let handled = true;
-    if (!e.altKey && KEY_MOVES[e.key] && (!mod || e.key === 'Home' || e.key === 'End')) {
-      this.store.move(KEY_MOVES[e.key], l.cols, rows);
-    } else if (mod && !e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      this.store.move(e.key === 'ArrowUp' ? 'home' : 'end', l.cols, rows);
-    } else if (!mod && e.key === 'Enter') {
-      const b = this.store.focused();
-      // held down: once (review 004 #9)
-      if (b && !e.repeat) void this.act('read', b);
-    } else if (
-      (!mod && !e.shiftKey && e.key === ' ') ||
-      e.key === 'ContextMenu' ||
-      (e.shiftKey && e.key === 'F10')
-    ) {
-      const b = this.store.focused();
-      if (b) this.openMenu(b);
-    } else if (!mod && e.key === 'Escape') {
-      this.escape.emit();
-    } else if (!mod && !e.altKey && !e.isComposing && e.key.length === 1 && e.key !== ' ') {
+  /** The grid's actions (design 008): cursor, read, menu, book actions; typing → filter. */
+  private registerActions(): void {
+    const destroyRef = inject(DestroyRef);
+    const move = (m: CursorMove) => ({
+      run: () => {
+        const l = this.layout();
+        this.store.move(m, l.cols, pageRows(this.viewHeight(), l.coverHeight, GRID_TOP));
+      },
+    });
+    const onBook = (action: BookAction) => ({
+      run: () => {
+        const b = this.store.focused();
+        if (b) void this.act(action, b);
+      },
+      enabled: () => this.store.focused() !== null,
+    });
+    this.actions.registerAll(
+      {
+        'grid.left': move('left'),
+        'grid.right': move('right'),
+        'grid.up': move('up'),
+        'grid.down': move('down'),
+        'grid.pageUp': move('pageUp'),
+        'grid.pageDown': move('pageDown'),
+        'grid.home': move('home'),
+        'grid.end': move('end'),
+        'grid.read': onBook('read'),
+        'grid.menu': {
+          run: () => {
+            const b = this.store.focused();
+            if (b) this.openMenu(b);
+          },
+          enabled: () => this.store.focused() !== null,
+        },
+        'grid.escape': { run: () => this.escape.emit() },
+        'book.openExternal': onBook('open'),
+        'book.reveal': onBook('reveal'),
+        'book.filterSeries': onBook('series'),
+        'book.copyPath': onBook('copy'),
+      },
+      destroyRef,
+    );
+    // a printable key in the grid goes to the filter (004 E3) – no action
+    const typing = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1 || e.key === ' ') return false;
       this.typed.emit(e.key);
-    } else {
-      handled = false;
-    }
-    if (handled) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+      return true;
+    };
+    this.dispatcher.setFallback('grid', typing);
+    destroyRef.onDestroy(() => this.dispatcher.clearFallback('grid', typing));
   }
 }

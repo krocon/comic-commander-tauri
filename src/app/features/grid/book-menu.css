@@ -43,3 +43,12 @@
     }
   }
 }
+
+/* shortcut of the action (design 008 E9) */
+.menu kbd {
+  margin-left: auto;
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-small);
+}

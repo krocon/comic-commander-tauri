@@ -4,8 +4,6 @@ import {
   clickZone,
   currentPage,
   DEFAULT_ASPECT,
-  KeyLike,
-  keyCommand,
   layoutPages,
   PAGE_GAP,
   pageAt,
@@ -17,59 +15,6 @@ import {
   visibleRange,
   widthBucket,
 } from './reader-logic';
-
-function key(k: string, mods: Partial<KeyLike> = {}): KeyLike {
-  return { key: k, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods };
-}
-
-describe('keyCommand', () => {
-  it('turns pages like the old reader', () => {
-    for (const k of ['ArrowRight', 'ArrowDown', 'n', 'N', ' ', 'PageDown']) {
-      expect(keyCommand(key(k), false)).toBe('next');
-    }
-    for (const k of ['ArrowLeft', 'ArrowUp', 'b', 'PageUp']) {
-      expect(keyCommand(key(k), false)).toBe('prev');
-    }
-    expect(keyCommand(key(' ', { shiftKey: true }), false)).toBe('prev');
-  });
-
-  it('goes to the start / end with Mod or Home / End', () => {
-    expect(keyCommand(key('ArrowRight', { metaKey: true }), false)).toBe('last');
-    expect(keyCommand(key('ArrowLeft', { ctrlKey: true }), false)).toBe('first');
-    expect(keyCommand(key('ArrowDown', { metaKey: true }), false)).toBe('last');
-    expect(keyCommand(key('ArrowUp', { ctrlKey: true }), false)).toBe('first');
-    expect(keyCommand(key('Home'), false)).toBe('first');
-    expect(keyCommand(key('End'), false)).toBe('last');
-  });
-
-  it('mirrors only the horizontal keys for manga', () => {
-    expect(keyCommand(key('ArrowLeft'), true)).toBe('next');
-    expect(keyCommand(key('ArrowRight'), true)).toBe('prev');
-    expect(keyCommand(key('ArrowRight', { metaKey: true }), true)).toBe('first');
-    expect(keyCommand(key('ArrowDown'), true)).toBe('next');
-    expect(keyCommand(key('n'), true)).toBe('next');
-    expect(keyCommand(key(' '), true)).toBe('next');
-  });
-
-  it('switches, books, full screen, close', () => {
-    expect(keyCommand(key('s'), false)).toBe('toggleMode');
-    expect(keyCommand(key('W'), false)).toBe('toggleFit');
-    expect(keyCommand(key('m'), false)).toBe('toggleRtl');
-    expect(keyCommand(key(']'), false)).toBe('nextBook');
-    expect(keyCommand(key('['), false)).toBe('prevBook');
-    expect(keyCommand(key('F11'), false)).toBe('fullscreen');
-    expect(keyCommand(key('f', { metaKey: true, ctrlKey: true }), false)).toBe('fullscreen');
-    expect(keyCommand(key('Escape'), false)).toBe('close');
-  });
-
-  it('leaves other keys and shortcuts alone', () => {
-    expect(keyCommand(key('s', { metaKey: true }), false)).toBeNull();
-    expect(keyCommand(key('f', { ctrlKey: true }), false)).toBeNull();
-    expect(keyCommand(key('ArrowRight', { altKey: true }), false)).toBeNull();
-    expect(keyCommand(key('x'), false)).toBeNull();
-    expect(keyCommand(key('Tab'), false)).toBeNull();
-  });
-});
 
 describe('step: first scroll, then turn', () => {
   it('scrolls a high page one screen at a time', () => {

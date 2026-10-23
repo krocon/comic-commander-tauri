@@ -6,6 +6,7 @@
   tabindex="-1"
   [attr.aria-label]="t.readerLabel(bookName())"
   [class.idle]="idle() && store.phase() === 'ready'"
+  (keydown)="onRootKey($event)"
   (pointermove)="wake()"
 >
   <header
@@ -133,7 +134,7 @@
     }
     @case ('ready') {
       @if (store.mode() === 'single') {
-        <!-- keys of the page (arrows, Space, n/b …) are handled by the dialog's keydown handler -->
+        <!-- keys of the page (arrows, Space, n/b …) are actions (design 008) -->
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
         <div
           #view
@@ -168,7 +169,7 @@
           }
         </div>
       } @else {
-        <!-- keys of the page (arrows, Space, n/b …) are handled by the dialog's keydown handler -->
+        <!-- keys of the page (arrows, Space, n/b …) are actions (design 008) -->
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
         <div
           #view

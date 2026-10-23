@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { BookEntry } from '../../core/scan/scan.models';
 import { GRID_TEXTS } from './grid-texts';
+import { ActionService } from '../../core/actions/action.service';
 
 export type BookAction = 'read' | 'open' | 'reveal' | 'series' | 'copy';
 
@@ -19,7 +20,17 @@ interface Item {
   label: string;
   icon: string;
   disabled: boolean;
+  /** Shortcut of the same action in the grid (design 008 E9). */
+  shortcut: string;
 }
+
+const ACTION_OF: Record<BookAction, string> = {
+  read: 'grid.read',
+  open: 'book.openExternal',
+  reveal: 'book.reveal',
+  series: 'book.filterSeries',
+  copy: 'book.copyPath',
+};
 
 /**
  * Actions on one book (design 004): a menu (WAI-ARIA APG) at the cover. ↑/↓/Home/End move,
@@ -49,6 +60,9 @@ interface Item {
         >
           <i [class]="'fa fa-fw fa-' + item.icon" aria-hidden="true"></i>
           <span>{{ item.label }}</span>
+          @if (item.shortcut) {
+            <kbd aria-hidden="true">{{ item.shortcut }}</kbd>
+          }
         </li>
       }
     </ul>
@@ -69,7 +83,11 @@ export class BookMenu {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly focused = signal(0);
 
-  protected readonly items = computed<Item[]>(() => [
+  private readonly actions = inject(ActionService);
+  protected readonly items = computed<Item[]>(() =>
+    this.baseItems().map((i) => ({ ...i, shortcut: this.actions.shortcut(ACTION_OF[i.action]) })),
+  );
+  private readonly baseItems = computed<Omit<Item, 'shortcut'>[]>(() => [
     {
       action: 'read',
       label: this.t.read,

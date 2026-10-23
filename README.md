@@ -8,8 +8,8 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 [files-and-folders-tauri](https://github.com/krocon/files-and-folders-tauri). Das Cover-Raster ist eine
 [GuiExpert Table](https://github.com/guiexperttable/mono) im Cover-Grid-Modus.
 
-> **Stand:** Cover-Grid (Prompt 004). Die App zeigt die Bücher einer Kategorie als randloses Raster aus Covern mit
-> Filter, Größen und Tastaturbedienung. Der Leser folgt – Fahrplan in [`prompts/README.md`](prompts/README.md).
+> **Stand:** Prompt 008 – Cover-Grid, Leser (auch PDF), Thumbnails im Stapel, Menüleiste, Befehlspalette und
+> Tastaturkürzel. Fahrplan in [`prompts/README.md`](prompts/README.md).
 
 ## Was funktioniert
 
@@ -31,7 +31,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   Sortierung nach Ordner und Name, Dateiname, Datum oder Größe. Filter, Größe, Sortierung und Position merkt sich
   die App je Kategorie. Auf Retina werden automatisch die großen Cover geladen.
 - **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
-  filtern, Pfad kopieren. Lesen folgt mit dem Leser (Prompt 005).
+  filtern, Pfad kopieren – mit den Tastenkürzeln daneben.
 - **Leser** (`Enter`/Doppelklick): Einzelseite (Breite oder Höhe einpassen; hohe Seiten erst bildschirmweise
   scrollen, dann blättern) oder fortlaufend; Klick ins linke/rechte Drittel, Wischen, Schieberegler, Manga
   (rechts → links), Vollbild. Seiten kommen direkt aus dem Buch – JPEG, PNG, WebP, GIF, BMP; 7z und solide RAR
@@ -42,6 +42,12 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 - **Thumbnails erzeugen** (Kategorie-Menü → „Generate thumbnails…“): alle fehlenden Cover einer oder aller Kategorien
   im Hintergrund, mit Fortschritt, Restzeit, Pause und Abbruch; die Toolbar zeigt den Stand, fehlerhafte Bücher
   werden am Ende aufgelistet. Ein abgebrochener Lauf setzt beim nächsten Start fort.
+- **Menüleiste**: Ablage, Ansicht, Kategorie, Lesen (Windows/Linux zusätzlich Hilfe) – auf macOS als natives Menü,
+  sonst als Menüleiste im Fenster (`F10`). Jede Funktion ist eine Aktion; Menü, Kontextmenü, Kürzel und die
+  **Befehlspalette** (`Ctrl/⌘ + Shift + P`, Suche nach Namen) zeigen dieselben. „About“ zeigt Version und Plattform.
+- **Eigene Kürzel** in `keymap.json` im App-Config-Ordner (z. B. `~/Library/Application Support/io.github.krocon.comiccommander/` bzw.
+  `~/.config/io.github.krocon.comiccommander/`): `{"version": 1, "bindings": {"book.copyPath": ["Mod+Shift+K"], "app.quit": []}}` –
+  ersetzt die Kürzel der Aktion (`[]` entfernt sie; `Mod` = ⌘ bzw. Ctrl). Ein Editor folgt mit den Einstellungen.
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 
@@ -56,6 +62,10 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `Ctrl/⌘ + F` | Filter |
 | `Ctrl/⌘ + Plus / Minus` | Cover größer / kleiner |
 | `Ctrl/⌘ + R` | Kategorie neu scannen |
+| `Ctrl/⌘ + O` · `Ctrl/⌘ + Shift + R` · `Ctrl/⌘ + Shift + C` | Buch mit Standard-App öffnen · im Dateimanager zeigen · Pfad kopieren |
+| `Ctrl/⌘ + Shift + P` | Befehlspalette |
+| `F10` (Windows/Linux) | Menüleiste (`←`/`→`, `↓`, `Enter`, `Esc`) |
+| `Ctrl + Q` / `⌘ + Q` | Beenden |
 | `Ctrl/⌘ + 1 … 9` | Kategorie 1 … 9 wählen |
 | Menü-Button, `↓`/`Enter` | Kategorie-Menü öffnen (`↑`/`↓`, `Enter`, `Esc`) |
 | Dialog: `Ctrl/⌘ + Enter`, `Esc` | Speichern, Abbrechen; Liste: `Alt + ↑/↓` verschiebt |
@@ -66,7 +76,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 |---|---|
 | `→` `↓` `n` `Leertaste` `Bild ↓` | weiter (hohe Seite: erst scrollen) |
 | `←` `↑` `b` `Shift+Leertaste` `Bild ↑` | zurück |
-| `Ctrl/⌘ + Pfeil`, `Home`/`End` | erste / letzte Seite |
+| `Ctrl/⌘ + Pfeil`, `Home`/`End` | erste / letzte Seite (Manga: `←` = letzte) |
 | `S` / `W` / `M` | Einzelseite ⇄ fortlaufend / Breite ⇄ Höhe / Manga (`←`/`→` und Klickdrittel gespiegelt) |
 | `]` / `[` | nächstes / vorheriges Buch der gefilterten Liste |
 | `F11`, `⌘ + Ctrl + F` | Vollbild |

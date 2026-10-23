@@ -20,7 +20,6 @@ import {
   aspects,
   clickZone,
   currentPage,
-  keyCommand,
   layoutPages,
   prefetchPages,
   ReaderCommand,
@@ -33,6 +32,7 @@ import {
 import { READER_TEXTS } from './reader-texts';
 import { ReaderStore } from './reader.store';
 import { ReaderService } from './reader.service';
+import { ActionService } from '../../core/actions/action.service';
 
 /** Pause before a failed page is asked for again: n × this (tests set it small). */
 export const PAGE_RETRY_MS = new InjectionToken<number>('PAGE_RETRY_MS', { factory: () => 1000 });
@@ -54,13 +54,13 @@ const MAX_RETRIES = 2;
   styleUrl: './reader.css',
   providers: [ReaderStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // on the document: a re-rendered view (mode switch) must not lose the keys (E2E 005)
-  host: { '(document:keydown)': 'onKeydown($event)' },
 })
 export class Reader {
   protected readonly store = inject(ReaderStore);
   private readonly books = inject(BooksApi);
   private readonly session = inject(ReaderService);
+  private readonly actions = inject(ActionService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly retryMs = inject(PAGE_RETRY_MS);
   private readonly idleMs = inject(BAR_IDLE_MS);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -221,6 +221,7 @@ export class Reader {
         this.noticeTimer = setTimeout(() => this.store.notice.set(null), 2500);
       });
     });
+    this.registerActions();
     this.wake();
   }
 
@@ -347,42 +348,53 @@ export class Reader {
     }
   }
 
-  protected onKeydown(e: KeyboardEvent): void {
-    const target = e.target as HTMLElement | null;
-    if (e.key === 'Tab') {
-      this.trapFocus(e);
-      return;
-    }
-    // the slider and the buttons keep their own keys
-    if (
-      target instanceof HTMLInputElement &&
-      [
-        'ArrowLeft',
-        'ArrowRight',
-        'ArrowUp',
-        'ArrowDown',
-        'Home',
-        'End',
-        'PageUp',
-        'PageDown',
-      ].includes(e.key)
-    ) {
-      return;
-    }
-    if (target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return;
-    const cmd = keyCommand(e, this.store.rtl());
-    if (cmd === null) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const once = cmd !== 'next' && cmd !== 'prev';
-    if (once && e.repeat) return;
-    if (
-      this.store.phase() !== 'ready' &&
-      !['close', 'fullscreen', 'nextBook', 'prevBook'].includes(cmd)
-    ) {
-      return;
-    }
-    this.run(cmd);
+  /** Tab stays in the reader (focus trap of the dialog); every other key is an action. */
+  protected onRootKey(e: KeyboardEvent): void {
+    if (e.key === 'Tab') this.trapFocus(e);
+  }
+
+  /** The reader's actions (design 008): keys, menus and the palette run them. */
+  private registerActions(): void {
+    const ready = () => this.store.phase() === 'ready';
+    const page = (cmd: ReaderCommand) => ({ run: () => this.run(cmd), enabled: ready });
+    const any = (cmd: ReaderCommand) => ({ run: () => this.run(cmd) });
+    this.actions.registerAll(
+      {
+        'reader.next': page('next'),
+        'reader.prev': page('prev'),
+        // manga mirrors only the horizontal keys (E4)
+        'reader.right': {
+          run: () => this.run(this.store.rtl() ? 'prev' : 'next'),
+          enabled: ready,
+        },
+        'reader.left': {
+          run: () => this.run(this.store.rtl() ? 'next' : 'prev'),
+          enabled: ready,
+        },
+        // Mod+←/→: the end on that side (manga: left = last page)
+        'reader.rightEnd': {
+          run: () => this.run(this.store.rtl() ? 'first' : 'last'),
+          enabled: ready,
+        },
+        'reader.leftEnd': {
+          run: () => this.run(this.store.rtl() ? 'last' : 'first'),
+          enabled: ready,
+        },
+        'reader.first': page('first'),
+        'reader.last': page('last'),
+        'reader.toggleMode': {
+          ...page('toggleMode'),
+          checked: () => this.store.mode() === 'continuous',
+        },
+        'reader.toggleFit': { ...page('toggleFit'), checked: () => this.store.fit() === 'height' },
+        'reader.toggleRtl': { ...page('toggleRtl'), checked: () => this.store.rtl() },
+        'reader.fullscreen': { ...any('fullscreen'), checked: () => this.store.fullscreen() },
+        'reader.nextBook': any('nextBook'),
+        'reader.prevBook': any('prevBook'),
+        'reader.close': any('close'),
+      },
+      this.destroyRef,
+    );
   }
 
   private trapFocus(e: KeyboardEvent): void {

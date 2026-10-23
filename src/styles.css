@@ -42,6 +42,7 @@
   --space-4: 16px;
   --control-height: 30px;
   --toolbar-height: 48px;
+  --menubar-height: 28px;
 }
 
 @media (prefers-color-scheme: dark) {
