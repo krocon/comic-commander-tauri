@@ -7,9 +7,13 @@
 //! - with cache:    `cached` → `started{firstScan:false}` → `progress`* → `diff` → `done`
 //! - without cache: `started{firstScan:true}` → (`batch` | `progress`)* → `done`
 //! - errors:        … → `failed{cacheKept}` | `cancelled`
+//! - after `done`, when books have no metadata yet (design 011 E3): `metaProgress` / `meta`* →
+//!   `metaDone{cancelled}`. The scan stays registered meanwhile; a new opener cancels this phase
+//!   and gets a new walk once it is over (the `queued` path), which goes on with the rest.
 //!
 //! Pure Rust (no Tauri): events go to a [`Sink`]; the command layer wraps a `Channel`.
 
+use crate::comic_info::{self, BookMeta};
 use crate::error::{FsError, FsErrorCode};
 use crate::model::{BookEntry, ScanStats};
 use crate::scan::{self, WalkEvent, WalkOptions};
@@ -17,7 +21,7 @@ use crate::scan_cache::{self, ScanCache};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -26,6 +30,10 @@ pub const MAX_PARALLEL: usize = 4;
 pub const BATCH_BOOKS: usize = 500;
 pub const BATCH_INTERVAL: Duration = Duration::from_millis(50);
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+/// Metadata are sent together this often (the frontend sorts once per message, design 011).
+pub const META_INTERVAL: Duration = Duration::from_millis(500);
+/// The cache is written this often during the ComicInfo pass – a cancel loses at most this.
+pub const META_WRITE_INTERVAL: Duration = Duration::from_secs(10);
 /// Books per message at most. One `cached` of 50 000 books (11 MB) got stuck in the IPC of
 /// WebKitGTK – nothing arrived for minutes, and every later event waited behind it (design 004,
 /// found in the E2E test). Cache, late openers and diffs go in parts of this size.
@@ -74,6 +82,26 @@ pub enum ScanEvent {
         error: FsError,
         cache_kept: bool,
     },
+    /// ComicInfo pass (design 011): books done / to do.
+    MetaProgress {
+        done: u64,
+        total: u64,
+    },
+    /// Metadata read since the last message (≤ [`MESSAGE_BOOKS`]).
+    Meta {
+        items: Vec<MetaItem>,
+    },
+    MetaDone {
+        cancelled: bool,
+    },
+}
+
+/// The metadata of one book (design 011).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaItem {
+    pub id: String,
+    pub meta: BookMeta,
 }
 
 pub type Sink = Arc<dyn Fn(ScanEvent) + Send + Sync>;
@@ -97,6 +125,8 @@ struct Running {
     /// Openers that came after a cancel, while the cancelled walk was still finishing: they
     /// get a new scan when it is gone (review 002 #2).
     queued: Vec<(String, Sink)>,
+    /// The walk is over, the ComicInfo pass runs (design 011 E3).
+    meta_phase: bool,
 }
 
 struct Inner {
@@ -164,6 +194,11 @@ impl ScanHub {
         }
         let mut map = lock(&self.inner.running);
         if let Some(r) = map.get_mut(&key) {
+            if r.meta_phase {
+                // a new walk is wanted (reopened, rescan): end the ComicInfo pass, then walk
+                // again – the pass goes on there with the rest (design 011 E3)
+                r.cancel.store(true, Ordering::Relaxed);
+            }
             if r.cancel.load(Ordering::Relaxed) {
                 // the walk is cancelled but not gone yet: a new scan follows it
                 deliver(
@@ -330,6 +365,7 @@ fn start(
             first_scan: cached.is_none(),
             sent: Vec::new(),
             queued: Vec::new(),
+            meta_phase: false,
         },
     );
     let inner = inner.clone();
@@ -393,21 +429,77 @@ fn run(
         *active -= 1;
         inner.slot_free.notify_one();
     }
-    // leave the map first, then write the cache: a late opener either joined before (and gets
-    // the diff against the old cache) or starts a scan of its own (review 002 #4)
-    let (sinks, queued) = lock(&inner.running)
-        .remove(key)
-        .map(|r| (r.sinks, r.queued))
-        .unwrap_or_default();
-    if let Some(cache) = &new_cache {
-        // a cache that cannot be written only costs speed next time
-        let _ = scan_cache::write(cache_dir, cache);
-    }
-    for e in finals {
-        for s in &sinks {
-            deliver(s, e.clone());
+    let mut new_cache = new_cache;
+    let needs_meta = !cancel.load(Ordering::Relaxed)
+        && new_cache
+            .as_ref()
+            .is_some_and(|c| c.books.iter().any(|b| b.meta.is_none()));
+    let queued = match new_cache.as_mut() {
+        Some(cache) if needs_meta => {
+            // the walk is done: write the cache, tell the openers, then read the ComicInfo of
+            // the books without metadata – still registered, so a new opener queues (E3)
+            let _ = scan_cache::write(cache_dir, cache);
+            let sinks = {
+                let mut map = lock(&inner.running);
+                match map.get_mut(key) {
+                    Some(r) => {
+                        r.meta_phase = true;
+                        r.sinks.clone()
+                    }
+                    None => Vec::new(),
+                }
+            };
+            for e in finals {
+                for s in &sinks {
+                    deliver(s, e.clone());
+                }
+            }
+            let mut read = Vec::new();
+            let cancelled = catch_unwind(AssertUnwindSafe(|| {
+                meta_pass(inner, key, cache_dir, cache, cancel, &mut read)
+            }))
+            .unwrap_or(true);
+            let _ = scan_cache::write(cache_dir, cache);
+            let (sinks, queued) = lock(&inner.running)
+                .remove(key)
+                .map(|r| (r.sinks, r.queued))
+                .unwrap_or_default();
+            for s in &sinks {
+                deliver(s, ScanEvent::MetaDone { cancelled });
+            }
+            // openers that came during the pass may have read the cache before parts of it
+            // were written: everything read in this pass
+            for (_, s) in &queued {
+                for part in read.chunks(MESSAGE_BOOKS) {
+                    deliver(
+                        s,
+                        ScanEvent::Meta {
+                            items: part.to_vec(),
+                        },
+                    );
+                }
+            }
+            queued
         }
-    }
+        _ => {
+            // leave the map first, then write the cache: a late opener either joined before
+            // (and gets the diff against the old cache) or starts a scan of its own (review 002 #4)
+            let (sinks, queued) = lock(&inner.running)
+                .remove(key)
+                .map(|r| (r.sinks, r.queued))
+                .unwrap_or_default();
+            if let Some(cache) = &new_cache {
+                // a cache that cannot be written only costs speed next time
+                let _ = scan_cache::write(cache_dir, cache);
+            }
+            for e in finals {
+                for s in &sinks {
+                    deliver(s, e.clone());
+                }
+            }
+            queued
+        }
+    };
     if queued.is_empty() {
         return;
     }
@@ -438,6 +530,84 @@ fn run(
             queued,
         );
     }
+}
+
+/// The ComicInfo pass (design 011 E3): reads the metadata of every book without, one after the
+/// other, sends them in parts and writes the cache now and then. `read` gets every result (for
+/// openers that queued meanwhile). Returns `true` when cancelled.
+fn meta_pass(
+    inner: &Inner,
+    key: &str,
+    cache_dir: &Path,
+    cache: &mut ScanCache,
+    cancel: &AtomicBool,
+    read: &mut Vec<MetaItem>,
+) -> bool {
+    let todo: Vec<usize> = (0..cache.books.len())
+        .filter(|&i| cache.books[i].meta.is_none())
+        .collect();
+    let total = todo.len() as u64;
+    let mut pending: Vec<MetaItem> = Vec::new();
+    let mut last_flush = Instant::now();
+    let mut last_progress = Instant::now();
+    let mut last_write = Instant::now();
+    let flush = |pending: &mut Vec<MetaItem>| {
+        if !pending.is_empty() {
+            let items = std::mem::take(pending);
+            broadcast(inner, key, ScanEvent::Meta { items }, None);
+        }
+    };
+    broadcast(inner, key, ScanEvent::MetaProgress { done: 0, total }, None);
+    let mut cancelled = false;
+    for (n, &i) in todo.iter().enumerate() {
+        if cancel.load(Ordering::Relaxed) {
+            cancelled = true;
+            break;
+        }
+        if !inner.dir_delay.is_zero() {
+            std::thread::sleep(inner.dir_delay);
+        }
+        let book = &mut cache.books[i];
+        if let Some(meta) = comic_info::outcome(&PathBuf::from(&book.path), Some(cancel)) {
+            book.meta = Some(meta.clone());
+            let item = MetaItem {
+                id: book.id.clone(),
+                meta,
+            };
+            read.push(item.clone());
+            pending.push(item);
+        }
+        if pending.len() >= MESSAGE_BOOKS || last_flush.elapsed() >= META_INTERVAL {
+            flush(&mut pending);
+            last_flush = Instant::now();
+        }
+        if last_progress.elapsed() >= PROGRESS_INTERVAL {
+            broadcast(
+                inner,
+                key,
+                ScanEvent::MetaProgress {
+                    done: n as u64 + 1,
+                    total,
+                },
+                None,
+            );
+            last_progress = Instant::now();
+        }
+        if last_write.elapsed() >= META_WRITE_INTERVAL {
+            let _ = scan_cache::write(cache_dir, cache);
+            last_write = Instant::now();
+        }
+    }
+    flush(&mut pending);
+    if !cancelled {
+        broadcast(
+            inner,
+            key,
+            ScanEvent::MetaProgress { done: total, total },
+            None,
+        );
+    }
+    cancelled
 }
 
 /// One walk with batches and progress; returns the final events and the cache to write.
@@ -519,6 +689,9 @@ fn scan_once(
         Ok(outcome) if outcome.cancelled => (vec![ScanEvent::Cancelled], None),
         Ok(outcome) => {
             scan::sort_books(&mut all);
+            if let Some(old) = cached {
+                scan_cache::carry_meta(&old.books, &mut all);
+            }
             let scanned_at = now_ms();
             let cache = ScanCache {
                 version: scan_cache::VERSION,
@@ -595,9 +768,216 @@ mod tests {
                 ScanEvent::Done { .. } => "done",
                 ScanEvent::Cancelled => "cancelled",
                 ScanEvent::Failed { .. } => "failed",
+                ScanEvent::MetaProgress { .. } => "metaProgress",
+                ScanEvent::Meta { .. } => "meta",
+                ScanEvent::MetaDone { .. } => "metaDone",
             })
-            .filter(|k| *k != "progress")
+            .filter(|k| *k != "progress" && !k.starts_with("meta"))
             .collect()
+    }
+
+    /// The events of the ComicInfo pass (design 011): `metaProgress` collapsed to its last value.
+    fn meta_events(log: &Log) -> Vec<ScanEvent> {
+        lock(log)
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ScanEvent::Meta { .. } | ScanEvent::MetaDone { .. } | ScanEvent::MetaProgress { .. }
+                )
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn meta_read(log: &Log) -> HashMap<String, BookMeta> {
+        let mut m = HashMap::new();
+        for e in lock(log).iter() {
+            if let ScanEvent::Meta { items } = e {
+                for i in items {
+                    m.insert(i.id.clone(), i.meta.clone());
+                }
+            }
+        }
+        m
+    }
+
+    fn meta_totals(log: &Log) -> Vec<u64> {
+        lock(log)
+            .iter()
+            .filter_map(|e| match e {
+                ScanEvent::MetaProgress { done: 0, total } => Some(*total),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn meta_done(log: &Log) -> Vec<bool> {
+        lock(log)
+            .iter()
+            .filter_map(|e| match e {
+                ScanEvent::MetaDone { cancelled } => Some(*cancelled),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn comic(root: &Path, rel: &str, series: Option<&str>) {
+        let p = root.join(rel);
+        create_dir_all(p.parent().unwrap()).unwrap();
+        let mut entries = vec![("p01.jpg", crate::book::tests::build::jpeg(4, 6, 1))];
+        if let Some(s) = series {
+            entries.push((
+                "ComicInfo.xml",
+                format!("<ComicInfo><Series>{s}</Series><Number>7</Number></ComicInfo>").into_bytes(),
+            ));
+        }
+        crate::book::tests::build::cbz(&p, &entries);
+    }
+
+    fn cached_books(cache: &Path, lib: &Path) -> Vec<BookEntry> {
+        let t = target(lib);
+        scan_cache::read(cache, &t.base_dir, &t.extensions)
+            .unwrap()
+            .books
+    }
+
+    #[test]
+    fn comicinfo_pass_after_done_and_only_once() {
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        comic(lib.path(), "x/abc123.cbz", Some("Asterix"));
+        comic(lib.path(), "Hägar 🦸 01.cbz", None);
+        touch(lib.path(), "leer.cbz");
+        let hub = ScanHub::default();
+        let (sink, log) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink.clone());
+        wait_idle(&hub);
+        assert_eq!(kinds(&log), ["started", "batch", "done"]);
+        // the pass comes after `done`
+        let done_at = lock(&log)
+            .iter()
+            .position(|e| matches!(e, ScanEvent::Done { .. }))
+            .unwrap();
+        let first_meta = lock(&log)
+            .iter()
+            .position(|e| matches!(e, ScanEvent::MetaProgress { .. }))
+            .unwrap();
+        assert!(first_meta > done_at);
+        assert_eq!(meta_totals(&log), [3]);
+        assert_eq!(meta_done(&log), [false]);
+        let read = meta_read(&log);
+        let books = cached_books(cache.path(), lib.path());
+        let asterix = books.iter().find(|b| b.name == "abc123.cbz").unwrap();
+        assert_eq!(read[&asterix.id].series.as_deref(), Some("Asterix"));
+        assert_eq!(asterix.meta.as_ref().unwrap().number.as_deref(), Some("7"));
+        let hagar = books.iter().find(|b| b.name.starts_with("Hägar")).unwrap();
+        assert_eq!(hagar.meta, Some(BookMeta::default()));
+        // an empty file is no book: lasting, read (empty)
+        let leer = books.iter().find(|b| b.name == "leer.cbz").unwrap();
+        assert_eq!(leer.meta, Some(BookMeta::default()));
+
+        // second scan: everything known, no pass; `cached` carries the metadata
+        let (sink2, log2) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink2);
+        wait_idle(&hub);
+        assert!(meta_events(&log2).is_empty());
+        let carried = lock(&log2).iter().any(|e| match e {
+            ScanEvent::Cached { books, .. } => books
+                .iter()
+                .any(|b| b.meta.as_ref().and_then(|m| m.series.as_deref()) == Some("Asterix")),
+            _ => false,
+        });
+        assert!(carried);
+
+        // a changed book is read again – only that one
+        std::thread::sleep(Duration::from_millis(20));
+        comic(lib.path(), "x/abc123.cbz", Some("Obelix"));
+        let (sink3, log3) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), sink3);
+        wait_idle(&hub);
+        assert_eq!(kinds(&log3), ["cached", "started", "diff", "done"]);
+        assert_eq!(meta_totals(&log3), [1]);
+        assert_eq!(
+            meta_read(&log3)[&asterix.id].series.as_deref(),
+            Some("Obelix")
+        );
+    }
+
+    #[test]
+    fn a_new_opener_ends_the_pass_and_the_next_walk_goes_on() {
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        for i in 0..20 {
+            comic(lib.path(), &format!("Band {i:02}.cbz"), Some("S"));
+        }
+        // the delay slows the walk (one folder) and every book of the pass
+        let hub = ScanHub::with_options(4, Duration::from_millis(30));
+        let (s1, l1) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s1);
+        let t = Instant::now();
+        while meta_read(&l1).is_empty() {
+            assert!(t.elapsed() < Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let (s2, l2) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s2);
+        wait_idle(&hub);
+        assert_eq!(meta_done(&l1), [true]);
+        assert_eq!(hub.walks(), 2);
+        assert_eq!(kinds(&l2).first(), Some(&"cached"));
+        assert_eq!(kinds(&l2).last(), Some(&"done"));
+        assert_eq!(meta_done(&l2), [false]);
+        let totals = meta_totals(&l2);
+        assert_eq!(totals.len(), 1);
+        assert!(totals[0] < 20, "the second pass only reads the rest: {totals:?}");
+        // the second opener knows every book's metadata (sent at the end of the first pass
+        // plus its own pass, or in its `cached`)
+        let mut known = meta_read(&l2);
+        for e in lock(&l2).iter() {
+            if let ScanEvent::Cached { books, .. } | ScanEvent::CachedMore { books, .. } = e {
+                for b in books {
+                    if let Some(m) = &b.meta {
+                        known.insert(b.id.clone(), m.clone());
+                    }
+                }
+            }
+        }
+        assert_eq!(known.len(), 20);
+        assert!(
+            cached_books(cache.path(), lib.path())
+                .iter()
+                .all(|b| b.meta.as_ref().and_then(|m| m.series.as_deref()) == Some("S"))
+        );
+    }
+
+    #[test]
+    fn cancel_ends_the_pass_and_keeps_what_was_read() {
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        for i in 0..20 {
+            comic(lib.path(), &format!("Band {i:02}.cbz"), Some("S"));
+        }
+        let hub = ScanHub::with_options(4, Duration::from_millis(30));
+        let (s1, l1) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s1);
+        let t = Instant::now();
+        while meta_read(&l1).is_empty() {
+            assert!(t.elapsed() < Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        hub.cancel("c1");
+        wait_idle(&hub);
+        assert_eq!(meta_done(&l1), [true]);
+        assert_eq!(kinds(&l1).last(), Some(&"done"), "the walk itself was not cancelled");
+        let books = cached_books(cache.path(), lib.path());
+        let with = books.iter().filter(|b| b.meta.is_some()).count();
+        assert!(with >= 1 && with < 20, "{with}");
+        // the next scan reads the rest only
+        let (s2, l2) = recorder();
+        hub.open(cache.path(), "c1", target(lib.path()), s2);
+        wait_idle(&hub);
+        assert_eq!(meta_totals(&l2), [(20 - with) as u64]);
     }
 
     fn batched(log: &Log) -> usize {
@@ -659,6 +1039,7 @@ mod tests {
                     format: crate::model::BookFormat::Cbz,
                     size: 1,
                     modified_ms: None,
+                    meta: None,
                 }
             })
             .collect()
@@ -898,6 +1279,21 @@ mod tests {
         .unwrap();
         assert_eq!(e["scannedAt"], 5);
         assert_eq!(e["stats"]["skippedDirLinks"], 0);
+        let e = serde_json::to_string(&ScanEvent::Meta {
+            items: vec![MetaItem {
+                id: "00ff".into(),
+                meta: BookMeta {
+                    page_count: Some(3),
+                    ..Default::default()
+                },
+            }],
+        })
+        .unwrap();
+        assert_eq!(e, r#"{"kind":"meta","items":[{"id":"00ff","meta":{"pageCount":3}}]}"#);
+        let e = serde_json::to_string(&ScanEvent::MetaProgress { done: 1, total: 2 }).unwrap();
+        assert_eq!(e, r#"{"kind":"metaProgress","done":1,"total":2}"#);
+        let e = serde_json::to_string(&ScanEvent::MetaDone { cancelled: false }).unwrap();
+        assert_eq!(e, r#"{"kind":"metaDone","cancelled":false}"#);
     }
 
     /// Measurement for docs/architecture.md: `cargo test --release -- --ignored --nocapture measure`.

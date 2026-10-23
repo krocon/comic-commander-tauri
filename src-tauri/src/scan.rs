@@ -249,6 +249,7 @@ pub fn walk(
                         .ok()
                         .and_then(|d| i64::try_from(d.as_millis()).ok())
                 }),
+                meta: None,
             };
             on(WalkEvent::Book(book), &stats);
         }

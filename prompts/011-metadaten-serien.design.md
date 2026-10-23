@@ -1,6 +1,6 @@
 # Design 011 – Metadaten, Serien und Ordneransicht
 
-> Status: **Entwurf – wartet auf Freigabe** · 23.10.2026 · Branch `feat/metadaten-serien` · Auftrag:
+> Status: **freigegeben** 23.10.2026 (Marc: Fragen 1 ja, 2 ja, 3 „vermutlich ja“ – Empfehlungen gelten) · Branch `feat/metadaten-serien` · Auftrag:
 > [`011-metadaten-serien.md`](011-metadaten-serien.md) · baut auf 002 (Scan, Scan-Cache, ScanHub), 003 (Bücher nach
 > Inhalt lesen), 004 (Cover-Grid, Filter, Sortierung, Ansichtszustand), 005 (Leser-Sitzung, Lesestand) und 008
 > (Aktionen, Keymaps, Menü) auf. Vorlage: legacy §6 (`extractSeriesFilter`).
@@ -73,8 +73,8 @@ year?: number; writer?: string; publisher?: string; pageCount?: number; manga?: 
 - `comic_info::find(entries) -> Option<&Entry>`: Basisname `ComicInfo.xml` ohne Groß-/Kleinschreibung, nicht versteckt,
   nicht unter `__MACOSX`; bei mehreren der mit den wenigsten Ordnerebenen, dann natürliche Reihenfolge.
 - `comic_info::read_book(path, cancel) -> Result<BookMeta, FsError>`: PDF → `Ok(leer)` ohne Öffnen (Erkennung über
-  `book::detect`); sonst `book::list` + `book::read` mit **eigenem Budget: 5 s, ≤ 64 MiB übersprungen (solide), Datei
-  ≤ 1 MiB**.
+  `book::detect`); sonst `book::list` + `book::read` mit **eigenem Budget: 20 s, ≤ 512 MiB übersprungen (solide, wie Cover – Marcs CBRs
+  haben vermutlich ComicInfo, oft am Ende), Datei ≤ 1 MiB**.
 - `comic_info::parse(bytes) -> BookMeta`: BOM UTF-8/UTF-16LE/BE; Deklaration `ISO-8859-1`/`windows-1252` → Latin-1
   (Byte → Zeichen); sonst UTF-8 (ungültig → leer). Nur direkte Kinder des Wurzelelements `ComicInfo` (Name ohne
   Groß-/Kleinschreibung), Tiefe ≤ 32, `<!DOCTYPE>` wird übersprungen (keine Entitäten daraus). Texte: Entitäten
@@ -266,10 +266,10 @@ Nebenläufigkeit der Phase `meta` im ScanHub).
    als Textdatei in den Repo-Ordner, nicht eingecheckt) für den Heuristik-Katalog nutzen? Ohne sie baue ich den Katalog
    aus den Fällen oben und den bisherigen Testdaten.
 2. E7 (Einzelbände als Buchkachel) und E12 (Kürzel `Mod+Shift+L/S/D`) – passt das so?
-3. Haben deine CBRs ComicInfo? Bei soliden RARs liegt sie oft am Ende; mit der 64-MiB-Grenze (E3) würden wir sie dort
-   auslassen statt das ganze Buch zu entpacken.
+3. Haben deine CBRs ComicInfo? → „vermutlich ja“: Grenze für solide Bücher daher wie bei Covern (512 MiB, 20 s) statt
+   64 MiB.
 
 ## Fortschritt
 
-- 23.10.2026: Bestand gelesen, Entwurf geschrieben – wartet auf Freigabe. Container eingerichtet (Node 22.23.3, pnpm,
+- 23.10.2026: Bestand gelesen, Entwurf geschrieben, freigegeben. Basis-`pnpm check` grün. Container eingerichtet (Node 22.23.3, pnpm,
   Rust-Build).

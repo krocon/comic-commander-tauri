@@ -29,6 +29,7 @@ pub mod app_menu;
 pub mod book;
 pub mod book_registry;
 pub mod categories;
+pub mod comic_info;
 pub mod commands;
 pub mod config_file;
 pub mod cover;

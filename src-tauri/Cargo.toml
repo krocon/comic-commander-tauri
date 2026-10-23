@@ -34,6 +34,8 @@ open = "5"
 hayro = "0.8.0"
 # design 006 (review #1): our own bounded decoding of PDF streams before hayro sees them
 flate2 = "1"
+# design 011 E1: ComicInfo.xml – pull parser without DTD/external entities, already in the tree via `plist`
+quick-xml = { version = "0.42", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 
 [dev-dependencies]

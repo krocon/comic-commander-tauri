@@ -100,6 +100,7 @@ mod tests {
                     format: BookFormat::Cbz,
                     size: 1,
                     modified_ms: None,
+                    meta: None,
                 }],
                 scanned_at: 0,
                 stats: ScanStats::default(),

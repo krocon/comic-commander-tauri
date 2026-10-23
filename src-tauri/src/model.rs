@@ -39,6 +39,9 @@ pub struct BookEntry {
     pub size: u64,
     /// Modification time in ms since the epoch, if the file system tells it.
     pub modified_ms: Option<i64>,
+    /// `ComicInfo.xml` (design 011): `None` = not read yet, empty = read, nothing found.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<crate::comic_info::BookMeta>,
 }
 
 /// Statistics of one scan (design 002).

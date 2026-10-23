@@ -15,8 +15,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// 2: `BookEntry.id` (design 003) – older caches count as missing.
-pub const VERSION: u32 = 2;
+/// 2: `BookEntry.id` (design 003); 3: `BookEntry.meta` (design 011) – older caches count as
+/// missing (one new walk, then the ComicInfo pass).
+pub const VERSION: u32 = 3;
 /// Largest cache file read (≈ 1 million books).
 pub const MAX_BYTES: u64 = 256 << 20;
 pub const DIR_NAME: &str = "scans";
@@ -143,6 +144,25 @@ pub fn diff(old: &[BookEntry], new: &[BookEntry]) -> Diff {
     d
 }
 
+/// Copies the metadata of the old scan to the new one where the book is the same file (path,
+/// size, modification time and format – what `diff` calls unchanged; design 011 E3).
+pub fn carry_meta(old: &[BookEntry], new: &mut [BookEntry]) {
+    let before: HashMap<&str, &BookEntry> = old
+        .iter()
+        .filter(|b| b.meta.is_some())
+        .map(|b| (b.path.as_str(), b))
+        .collect();
+    for b in new.iter_mut() {
+        if let Some(o) = before.get(b.path.as_str())
+            && o.size == b.size
+            && o.modified_ms == b.modified_ms
+            && o.format == b.format
+        {
+            b.meta.clone_from(&o.meta);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +177,7 @@ mod tests {
             format: BookFormat::Cbz,
             size,
             modified_ms: Some(1),
+            meta: None,
         }
     }
 
@@ -232,5 +253,52 @@ mod tests {
         let d = diff(&new, &old[..1]);
         assert_eq!(d.removed, ["/lib/b", "/lib/c", "/lib/d"]);
         assert!(diff(&old, &old).is_empty());
+    }
+
+    #[test]
+    fn meta_is_carried_over_for_unchanged_books_only() {
+        use crate::comic_info::BookMeta;
+        let meta = |s: &str| {
+            Some(BookMeta {
+                series: Some(s.into()),
+                ..Default::default()
+            })
+        };
+        let mut a = book("a", 1);
+        a.meta = meta("A");
+        let mut b = book("b", 1);
+        b.meta = meta("B");
+        let mut c = book("c", 1);
+        c.meta = Some(BookMeta::default());
+        let old = vec![a, b, c, book("d", 1)];
+        let mut new = vec![book("a", 1), book("b", 2), book("c", 1), book("d", 1), book("e", 1)];
+        carry_meta(&old, &mut new);
+        assert_eq!(new[0].meta, meta("A"));
+        assert_eq!(new[1].meta, None, "changed size: read again");
+        assert_eq!(new[2].meta, Some(BookMeta::default()), "read, nothing found: kept");
+        assert_eq!(new[3].meta, None);
+        assert_eq!(new[4].meta, None);
+        // the metadata does not make a diff
+        assert!(diff(&old, &new[..4]).changed.len() == 1);
+    }
+
+    #[test]
+    fn meta_round_trips_and_old_entries_without_it_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut c = cache("/c", &[".cbz"]);
+        c.books[0].meta = Some(crate::comic_info::BookMeta {
+            series: Some("Hägar".into()),
+            year: Some(1973),
+            ..Default::default()
+        });
+        write(dir.path(), &c).unwrap();
+        let back = read(dir.path(), "/c", &exts(&[".cbz"])).unwrap();
+        assert_eq!(back, c);
+        assert_eq!(back.books[1].meta, None);
+        // version 2 (before design 011) counts as missing
+        let mut old = cache("/c", &[".cbz"]);
+        old.version = 2;
+        write(dir.path(), &old).unwrap();
+        assert_eq!(read(dir.path(), "/c", &exts(&[".cbz"])), None);
     }
 }
