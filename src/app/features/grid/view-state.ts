@@ -20,6 +20,8 @@ export interface ViewState {
   view: ViewMode;
   /** Opened series (key) or folder; `null` = the top. */
   level: string | null;
+  /** Series view in a series: the filter of the overview, in force again on the way back. */
+  outerFilter?: string | null;
 }
 
 const VERSION = 2;
@@ -59,6 +61,7 @@ export function loadViewState(
       topId: str(v['topId']),
       view,
       level: view === 'flat' ? null : str(v['level']),
+      outerFilter: view === 'series' ? str(v['outerFilter']) : null,
     };
   } catch {
     return null;
