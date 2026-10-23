@@ -126,6 +126,10 @@ pub fn remembered(code: FsErrorCode) -> bool {
 }
 
 pub fn make_thumbnail(book: &Path, width: u32, height: u32) -> Result<Vec<u8>, FsError> {
+    // PDF: page 1, embedded JPEG or rendered (design 006 E6)
+    if book::detect(book)? == book::Container::Pdf {
+        return crate::pdf::thumbnail(book, width, height);
+    }
     let budget = Budget::new(TIME_LIMIT, None);
     let (container, entries) = book::list(book, &budget)?;
     let cover = choose::cover(&entries)

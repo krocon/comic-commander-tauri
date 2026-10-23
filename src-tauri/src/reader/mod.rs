@@ -20,6 +20,7 @@ use crate::book::{self, Budget, Container, Entry, MAX_ENTRY_BYTES, TIME_LIMIT, T
 use crate::cover::Reply;
 use crate::cover::choose;
 use crate::error::{FsError, FsErrorCode};
+use crate::pdf::PdfBook;
 use model::{OpenedBook, PageDims, PageInfo, ReaderEvent};
 use page_cache::{Complete, PageCache};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -112,6 +113,8 @@ pub struct Session {
     /// Reading order.
     pages: Vec<Entry>,
     unpacked: Option<Arc<Unpacked>>,
+    /// A PDF: parsed once, its pages rendered or taken as they are (design 006 E5).
+    pdf: Option<Arc<PdfBook>>,
     cancel: AtomicBool,
 }
 
@@ -125,7 +128,10 @@ impl Session {
     }
 
     /// The bytes of page `index` (blocking: reads the book or waits for the unpacking).
-    fn page_bytes(&self, index: usize, cache: &PageCache) -> Result<Vec<u8>, FsError> {
+    fn page_bytes(&self, index: usize, width: u32, cache: &PageCache) -> Result<Vec<u8>, FsError> {
+        if let Some(pdf) = &self.pdf {
+            return crate::pdf::page_image(pdf, index, width);
+        }
         let entry = self
             .pages
             .get(index)
@@ -213,7 +219,7 @@ fn run_pass(session: &Session, cache: &PageCache, sink: &Sink, unpack_pass: bool
     let mut dims = DimsBatcher::new(sink);
     let outcome = match &session.unpacked {
         None => {
-            if session.container == Container::Rar {
+            if session.container == Container::Rar || session.pdf.is_some() {
                 // non-solid RAR: no cheap header pass – the frontend learns sizes on load (E9)
                 Ok(())
             } else {
@@ -491,6 +497,9 @@ impl ReaderService {
     /// `last_page` of the answer is left to the caller (reading state).
     pub fn open(self: &Arc<Self>, book: &Path, sink: Sink) -> Result<OpenedBook, FsError> {
         let meta = std::fs::metadata(book).map_err(|e| FsError::from_io(&e, book))?;
+        if book::detect(book)? == Container::Pdf {
+            return self.open_pdf(book, sink);
+        }
         let budget = Budget::new(TIME_LIMIT, None);
         let (container, entries) = book::list(book, &budget)?;
         let pages: Vec<Entry> = choose::pages(&entries).into_iter().cloned().collect();
@@ -570,20 +579,10 @@ impl ReaderService {
             container,
             pages,
             unpacked,
+            pdf: None,
             cancel: AtomicBool::new(false),
         });
-        let closed: Vec<Arc<Session>> = {
-            let mut list = lock(&self.sessions);
-            list.push_back(session.clone());
-            let mut out = Vec::new();
-            while list.len() > MAX_SESSIONS {
-                out.extend(list.pop_front());
-            }
-            out
-        };
-        for s in closed {
-            self.cancel(&s);
-        }
+        self.register(session.clone());
         if unpack_pass {
             // room for this book before it is unpacked (books in use stay)
             self.trim_cache();
@@ -601,6 +600,65 @@ impl ReaderService {
             pages: infos,
             last_page: None,
             extracting: sequential,
+        })
+    }
+
+    /// Adds an open session; beyond [`MAX_SESSIONS`] the oldest is closed.
+    fn register(&self, session: Arc<Session>) {
+        let closed: Vec<Arc<Session>> = {
+            let mut list = lock(&self.sessions);
+            list.push_back(session);
+            let mut out = Vec::new();
+            while list.len() > MAX_SESSIONS {
+                out.extend(list.pop_front());
+            }
+            out
+        };
+        for s in closed {
+            self.cancel(&s);
+        }
+    }
+
+    /// A PDF (design 006 E4/E5): sizes known at once, pages rendered on request.
+    fn open_pdf(self: &Arc<Self>, book: &Path, sink: Sink) -> Result<OpenedBook, FsError> {
+        let pdf = PdfBook::open(book)?;
+        let pages: Vec<Entry> = (0..pdf.page_count())
+            .map(|i| Entry {
+                // the page number only – the label comes from the frontend's texts (review 006 #8)
+                name: (i + 1).to_string(),
+                size: 0,
+                pos: i,
+                encrypted: false,
+            })
+            .collect();
+        let infos = pdf
+            .sizes
+            .iter()
+            .zip(&pages)
+            .map(|((w, h), e)| PageInfo {
+                name: e.name.clone(),
+                size: 0,
+                // sizes are checked in `PdfBook::open`; clamped anyway (review 006 #7)
+                width: Some((w * 2.0).round().clamp(1.0, 1e6) as u32),
+                height: Some((h * 2.0).round().clamp(1.0, 1e6) as u32),
+            })
+            .collect();
+        let session = Arc::new(Session {
+            token: self.new_token(book),
+            book: book.to_path_buf(),
+            container: Container::Pdf,
+            pages,
+            unpacked: None,
+            pdf: Some(pdf),
+            cancel: AtomicBool::new(false),
+        });
+        self.register(session.clone());
+        sink(ReaderEvent::Done);
+        Ok(OpenedBook {
+            token: session.token.clone(),
+            pages: infos,
+            last_page: None,
+            extracting: false,
         })
     }
 
@@ -677,7 +735,7 @@ impl ReaderService {
             return Reply::status(503);
         };
         let outcome = session
-            .page_bytes(req.index, &self.cache)
+            .page_bytes(req.index, req.width, &self.cache)
             .and_then(|data| image::prepare(data, req.width, &session.book));
         match outcome {
             Ok((data, mime)) => {

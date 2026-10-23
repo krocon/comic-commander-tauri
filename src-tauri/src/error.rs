@@ -27,7 +27,7 @@ pub enum FsErrorCode {
     ArchiveTooLarge,
     /// The book (or its cover entry) is encrypted – covers are never asked for a password.
     ArchiveEncrypted,
-    /// The container format is not supported (yet) – e.g. PDF until prompt 006.
+    /// The container format is not supported (e.g. a PDF asked for as an archive, a page that is no image).
     UnsupportedFormat,
     /// The image cannot be decoded (broken, unknown format).
     UnsupportedImage,

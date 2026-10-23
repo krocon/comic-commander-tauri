@@ -9,7 +9,7 @@
 //!
 //! Formats: ZIP (`zip`), TAR (`tar`), 7z (`sevenz-rust2` behind the fail-closed header check of
 //! files-and-folders), RAR (UnRAR via `unrar-ng-sys`, the only `unsafe` code). PDF is detected
-//! and reported as `unsupported_format` until prompt 006.
+//! and handed to [`crate::pdf`] by its callers (design 006); here it is `unsupported_format`.
 
 mod rar;
 mod sevenz;
@@ -193,7 +193,7 @@ pub fn list(path: &Path, budget: &Budget<'_>) -> Result<(Container, Vec<Entry>),
         Container::Pdf => {
             return Err(FsError::new(
                 FsErrorCode::UnsupportedFormat,
-                "PDF follows in prompt 006",
+                "PDF is read by `pdf::` (design 006)",
                 Some(path),
             ));
         }
@@ -225,7 +225,7 @@ pub fn read(
         Container::Rar => rar_read(path, entry, max_bytes, budget),
         Container::Pdf => Err(FsError::new(
             FsErrorCode::UnsupportedFormat,
-            "PDF follows in prompt 006",
+            "PDF is read by `pdf::` (design 006)",
             Some(path),
         )),
     }
@@ -267,7 +267,7 @@ pub fn read_many(
         Container::Rar => rar_read_many(path, wanted, take, budget, on),
         Container::Pdf => Err(FsError::new(
             FsErrorCode::UnsupportedFormat,
-            "PDF follows in prompt 006",
+            "PDF is read by `pdf::` (design 006)",
             Some(path),
         )),
     }

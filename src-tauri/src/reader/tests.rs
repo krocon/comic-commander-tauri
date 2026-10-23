@@ -223,7 +223,8 @@ fn books_that_cannot_be_read() {
     let pdf = d.path().join("a.pdf");
     std::fs::write(&pdf, b"%PDF-1.7\n...").unwrap();
     let code = |p: &Path| service.open(p, Events::default().sink()).unwrap_err().code;
-    assert_eq!(code(&pdf), FsErrorCode::UnsupportedFormat);
+    // design 006: a broken PDF is broken, not unsupported
+    assert_eq!(code(&pdf), FsErrorCode::ArchiveError);
     let text = d.path().join("text.cbz");
     build::cbz(&text, &[("a.txt", b"hallo".to_vec())]);
     assert_eq!(code(&text), FsErrorCode::NoImage);
@@ -418,4 +419,44 @@ fn two_sessions_of_one_book_share_the_unpacking() {
     service.close(&second.token);
     let third = service.open(&book, Events::default().sink()).unwrap();
     assert_eq!(third.pages[0].width, Some(40));
+}
+
+#[test]
+fn pdf_books_are_read_like_archives() {
+    // design 006 E5: scanned page as it is, vector page rendered in the asked width
+    use crate::pdf::tests::make::{self, Page};
+    let d = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let service = ReaderService::new(cache.path(), page_cache::DEFAULT_LIMIT);
+    let scan = build::jpeg(300, 450, 9);
+    let book = d.path().join("Make 01 ä.pdf");
+    std::fs::write(
+        &book,
+        make::pdf(&[
+            Page::Jpeg {
+                w: 600,
+                h: 900,
+                data: scan.clone(),
+                px: (300, 450),
+                cs: "DeviceRGB",
+            },
+            Page::Vector { w: 400, h: 600 },
+        ]),
+    )
+    .unwrap();
+    let events = Events::default();
+    let opened = service.open(&book, events.sink()).unwrap();
+    assert!(!opened.extracting);
+    assert_eq!(opened.pages.len(), 2);
+    assert_eq!(opened.pages[1].name, "2");
+    assert_eq!(
+        (opened.pages[1].width, opened.pages[1].height),
+        (Some(800), Some(1200))
+    );
+    assert!(events.wait_end().contains(&ReaderEvent::Done));
+    assert_eq!(page(&service, &opened.token, 0, 1024).body, scan);
+    let vector = page(&service, &opened.token, 1, 1024);
+    assert_eq!((vector.status, vector.mime), (200, "image/jpeg"));
+    assert_eq!(image::dimensions(&vector.body), Some((1024, 1536)));
+    assert_eq!(page(&service, &opened.token, 2, 1024).status, 404);
 }

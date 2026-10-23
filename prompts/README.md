@@ -26,7 +26,7 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 | 003 | [003-cover-thumbnails.md](done/003-cover-thumbnails.md) | Archive lesen (ZIP/RAR/7z/TAR nach Inhalt), Cover-Wahl, Thumbnails + Cache, alte Sidecars, URI-Schema | 001, 002 | L | ✅ 22.10.2026 |
 | 004 | [004-cover-grid.md](done/004-cover-grid.md) | GuiExpert Cover-Grid, Renderer, Größen, Filter `+/-`, Serie filtern, Tastatur, Aktionen je Buch, Scrollposition | 002, 003 | L | ✅ 22.10.2026 |
 | 005 | [005-leser.md](done/005-leser.md) | Leser: Einzelseite/fortlaufend, Blättern wie Vorlage, Seiten direkt aus dem Archiv, Vorausladen, Position merken | 003, 004 | L | ✅ 23.10.2026 |
-| 006 | [006-pdf.md](006-pdf.md) | PDF: Seitenzahl, Cover, Seiten rendern (Renderer-Entscheidung), Schnellweg eingebettete JPEGs | 003, 005 | M–L | offen |
+| 006 | [006-pdf.md](done/006-pdf.md) | PDF: Seitenzahl, Cover, Seiten rendern (Renderer-Entscheidung), Schnellweg eingebettete JPEGs | 003, 005 | M–L | ✅ 23.10.2026 |
 | 007 | [007-thumbs-generieren.md](007-thumbs-generieren.md) | Job-Engine (schlank) + fehlende Thumbnails im Stapel mit Fortschritt, Restzeit, Pause, Abbruch | 003 | M | offen |
 | 008 | [008-aktionen-menue-tastatur.md](008-aktionen-menue-tastatur.md) | Aktionskatalog, Keymaps je OS, native/HTML-Menüleiste, Kontextmenü, Befehlspalette, About | 004, 005 | M | offen |
 | 009 | [009-einstellungen-themes-i18n.md](009-einstellungen-themes-i18n.md) | Einstellungen + Dialog, Farbschemata, Deutsch/Englisch zur Laufzeit | 004, 005, 008 | M | offen |

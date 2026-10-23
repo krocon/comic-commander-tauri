@@ -36,7 +36,9 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   scrollen, dann blättern) oder fortlaufend; Klick ins linke/rechte Drittel, Wischen, Schieberegler, Manga
   (rechts → links), Vollbild. Seiten kommen direkt aus dem Buch – JPEG, PNG, WebP, GIF, BMP; 7z und solide RAR
   werden einmal in den App-Cache entpackt (begrenzt auf 1 GiB, älteste zuerst weg). Die letzte Seite je Buch wird
-  gemerkt (`reading-state.json`), das Grid zeigt den Lesefortschritt als Balken am Cover. PDF folgt mit Prompt 006.
+  gemerkt (`reading-state.json`), das Grid zeigt den Lesefortschritt als Balken am Cover.
+- **PDF**: Cover und Seiten, gerendert in Rust (`hayro`, ohne externe Programme); bei Scan-PDFs wird das eingebettete
+  JPEG direkt gezeigt. Verschlüsselte PDFs werden nicht geöffnet.
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 
@@ -45,7 +47,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | Taste | Funktion |
 |---|---|
 | Pfeiltasten, `Home`/`End`, `Bild ↑/↓` | Cursor im Raster |
-| `Enter` / Doppelklick | Buch lesen (PDF bis Prompt 006: Standard-App) |
+| `Enter` / Doppelklick | Buch lesen (auch PDF) |
 | `Leertaste`, `Shift+F10`, Rechtsklick | Aktionen für das Buch |
 | Tippen | springt in den Filter; `Esc` leert ihn |
 | `Ctrl/⌘ + F` | Filter |

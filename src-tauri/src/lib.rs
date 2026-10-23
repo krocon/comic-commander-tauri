@@ -15,6 +15,7 @@
 //! - [`book_registry`] which books the scans listed – the only ones covers are served for
 //! - [`opener`]        open a listed book with the default app (design 004 E5, from files-and-folders)
 //! - [`platform`]      OS functions with one signature each: `desktop::reveal` (design 004 E5)
+//! - [`pdf`]           PDF books: pages, sizes, fast way for scans, rendering with hayro (design 006)
 //! - [`reader`]        open books, pages in reading order, page cache, scheme `ccpage` (design 005)
 //! - [`reading_state`] last page per book in `reading-state.json` (design 005 E5)
 //! - [`about`]         data for the About dialog (version, platform)
@@ -33,6 +34,7 @@ pub mod legacy_import;
 pub mod model;
 pub mod opener;
 pub mod paths;
+pub mod pdf;
 pub mod platform;
 pub mod reader;
 pub mod reading_state;
