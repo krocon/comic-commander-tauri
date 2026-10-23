@@ -115,7 +115,7 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi, FakeJobsApi), Fixtures – nie im
                               Produktivcode importieren
   test-setup.ts               Vitest-Setup (ResizeObserver für jsdom, fnf G11)
-public/                       favicon.png
+public/                       favicon.png (= icons/32x32.png), logo.svg (About, = docs/logo-5farbig.svg)
 src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib `cc_lib`
   src/lib.rs                  Modulübersicht, Builder (Dialog-Plugin, AppState, Schema cccover), Commands
   src/commands.rs             dünne Command-Schicht (AppState: Kategorien, ScanHub, BookRegistry, CoverService),
@@ -152,7 +152,8 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
   testdata/archives/          RAR/7z-Testdateien + Generatoren aus files-and-folders (Bomben, Slip, verschlüsselt)
   testdata/pdf/               encrypted.pdf + Generator (reportlab); andere Test-PDFs schreibt pdf/tests.rs
   capabilities/default.json   nur core:default
-  icons/source/app-icon.svg   Quelle des App-Icons
+  icons/source/app-icon.svg   Quelle des App-Icons (macOS-Raster: Körper 824 px, Radius 185.4, Schatten; Logo
+                              logo-5farbig.svg mittig, 560 px hoch)
 docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),
                               legacy-analysis.md (Vorlage comiccommander)
 prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbeitsweise.md), done/

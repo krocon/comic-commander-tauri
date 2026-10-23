@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Comic Commander</title>
+  <!-- linke Hälfte des C -->
+  <path fill="#F0309C" d="M128 0V66L80 96V160L128 190V256L24 192V64Z"/>
+  <!-- rechte Hälfte des C -->
+  <path fill="#8A1EE0" d="M128 0L232 64L184 96L128 66ZM128 190L184 160L232 192L128 256Z"/>
+</svg>
