@@ -5,13 +5,16 @@ import { DialogService } from '../../shared/dialog/dialog.service';
 import { Modal } from '../../shared/dialog/modal';
 import { MENUS_TEXTS } from './menus-texts';
 
-/** About (design 008 E10): name, version, platform, licence, source. */
+/** About (design 008 E10): logo (public/logo.svg = docs/logo-5farbig.svg), name, version, platform, licence, source. */
 @Component({
   selector: 'app-about-dialog',
   imports: [Modal],
   template: `
     <app-modal [heading]="t.aboutTitle" width="28rem" (closed)="dialogs.close()">
-      <p class="intro">{{ t.aboutText }}</p>
+      <div class="head">
+        <img class="logo" src="logo.svg" alt="" width="64" height="64" />
+        <p class="intro">{{ t.aboutText }}</p>
+      </div>
       <dl>
         <dt>{{ t.version }}</dt>
         <dd>{{ info()?.version ?? '–' }}</dd>
@@ -30,6 +33,16 @@ import { MENUS_TEXTS } from './menus-texts';
     </app-modal>
   `,
   styles: `
+    .head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .logo {
+      flex: none;
+      width: 4rem;
+      height: 4rem;
+    }
     .intro {
       margin: 0;
     }

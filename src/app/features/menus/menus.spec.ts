@@ -218,5 +218,8 @@ describe('AboutDialog', () => {
     expect(text).toContain('0.1.0');
     expect(text).toContain('linux · x86_64');
     expect(text).toContain('MIT');
+    const logo = (fixture.nativeElement as HTMLElement).querySelector('img.logo');
+    expect(logo?.getAttribute('src')).toBe('logo.svg');
+    expect(logo?.getAttribute('alt')).toBe('');
   });
 });

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Comic Commander</title>
+  <path fill="#FF2E8E" stroke="#FF2E8E" stroke-width=".5" stroke-linejoin="round" d="M24 64 96 64 80 96ZM80 160 24 192 61 128ZM24 192 128 256 96 192Z"/><!-- Pink -->
+  <path fill="#F768C9" stroke="#F768C9" stroke-width=".5" stroke-linejoin="round" d="M128 0 128 64 96 64ZM24 64 80 96 61 128ZM24 192 96 192 80 160ZM128 256 128 192 96 192Z"/><!-- Hellrosa -->
+  <path fill="#D21FC2" stroke="#D21FC2" stroke-width=".5" stroke-linejoin="round" d="M24 64 128 0 96 64ZM128 0 163 64 128 64ZM96 64 128 64 80 96ZM80 96 80 160 61 128ZM24 192 24 64 61 128ZM96 192 128 192 80 160Z"/><!-- Magenta -->
+  <path fill="#A436E8" stroke="#A436E8" stroke-width=".5" stroke-linejoin="round" d="M128 0 232 64 163 64ZM128 64 163 64 180 96ZM163 192 232 192 180 160ZM128 256 163 192 128 192Z"/><!-- Violett -->
+  <path fill="#7414DC" stroke="#7414DC" stroke-width=".5" stroke-linejoin="round" d="M163 64 232 64 180 96ZM128 192 163 192 180 160ZM128 256 232 192 163 192Z"/><!-- Lila -->
+</svg>
