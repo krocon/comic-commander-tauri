@@ -491,6 +491,49 @@ pub async fn cancel_job(app: AppHandle, job_id: String) -> Result<(), FsError> {
     .await
 }
 
+/// The native menu bar (design 008 E8): checked always, set on macOS only (Windows/Linux draw
+/// an HTML menu bar).
+#[tauri::command]
+pub async fn set_app_menu(app: AppHandle, spec: crate::app_menu::MenuSpec) -> Result<(), FsError> {
+    crate::app_menu::validate(&spec)?;
+    #[cfg(target_os = "macos")]
+    {
+        // menus are built on the main thread
+        let (tx, rx) = std::sync::mpsc::channel();
+        let handle = app.clone();
+        app.run_on_main_thread(move || {
+            let _ = tx.send(crate::app_menu::apply(&handle, &spec));
+        })
+        .map_err(|e| io_error(e.to_string()))?;
+        return blocking(move || {
+            rx.recv()
+                .map_err(|e| io_error(e.to_string()))?
+                .map_err(|e| io_error(e.to_string()))
+        })
+        .await;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
+/// The user's shortcut overrides (`keymap.json`, design 008 E2).
+#[tauri::command]
+pub async fn load_keymap_overrides(
+    app: AppHandle,
+) -> Result<crate::keymap_file::KeymapOverrides, FsError> {
+    blocking(move || Ok(crate::keymap_file::load(&config_dir(&app)?))).await
+}
+
+/// Ends the app (action `app.quit`).
+#[tauri::command]
+pub async fn quit_app(app: AppHandle) -> Result<(), FsError> {
+    app.exit(0);
+    Ok(())
+}
+
 /// The cover service of the app (created on first use).
 pub fn covers(app: &AppHandle) -> Result<Arc<CoverService>, FsError> {
     let state = app.state::<AppState>();
@@ -547,6 +590,6 @@ mod command_rules {
                 count += 1;
             }
         }
-        assert!(count >= 18);
+        assert!(count >= 21);
     }
 }

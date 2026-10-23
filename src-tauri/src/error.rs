@@ -43,6 +43,8 @@ pub enum FsErrorCode {
     ProgramNotFound,
     /// A job of this kind is running already (design 007).
     JobRunning,
+    /// The menu sent to `set_app_menu` is not valid (design 008).
+    InvalidMenu,
 }
 
 /// The one error type every command returns.
