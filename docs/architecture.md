@@ -23,6 +23,7 @@
 │ book/   ZIP/RAR/7z/TAR nach Inhalt, Liste + ein Eintrag mit Grenzen (RAR: unrar-ng-sys, FFI)   │
 │ cover/  Wahl, Decoder, Sidecars, Plattencache, LIFO-Pool, Schema cccover                        │
 │ reader/ Sitzungen (Token), Seiten direkt oder entpackt, Schema ccpage   reading_state.rs (005)  │
+│ pdf/    hayro: Seiten, Schnellweg eingebettete JPEGs, Render-Threads (006)                       │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
  Dateien:  <app config>/categories.json        <app cache>/scans/<fnv64(baseDir+Endungen)>.json
            <app cache>/covers/<xx>/<fnv64(Pfad, Größe, mtime, B×H)>.jpg
@@ -61,7 +62,7 @@
 | A19 | Titelseite: Bilder ohne versteckte/`__MACOSX`; `cover.` im Namen → weniger Ordnerebenen → natürliche Reihenfolge | Vorlage + natürliche Sortierung | 003 E8 |
 | A20 | Alte Sidecars (`Band.jpg`, `Band_xl.jpg` …) werden **gelesen**, nie geschrieben; erzeugte Cover als JPEG q80 im App-Cache (Grenze 2 GiB, älteste zuerst weg); bleibende Fehler (kein Bild, kaputt, verschlüsselt …) je Sitzung gemerkt, Zeitlimit/I/O nicht | nichts in die Comic-Ordner (legacy §10.2) | 003 E4, E5 |
 | A21 | Eigener Cover-Pool: min(4, Kerne − 1) Threads, **LIFO**, gleiche Schlüssel zusammengelegt, > 2 000 wartende → älteste 503 | sichtbare Cover zuerst nach schnellem Scrollen | 003 E9 |
-| A22 | Status: 404 kein Bild/unbekannt, 415 Format (PDF bis 006), 422 kaputt/verschlüsselt/zu groß/Zeitlimit, 503 voll, 500 Panik; 200 mit `immutable`, sonst `no-store` | Frontend zeigt bei Fehler das Format-Kürzel und fragt nach 2 s/4 s noch zweimal (`&retry=n`) | 003 E10 |
+| A22 | Status: 404 kein Bild/unbekannt, 415 Format, 422 kaputt/verschlüsselt/zu groß/Zeitlimit, 503 voll, 500 Panik; 200 mit `immutable`, sonst `no-store` | Frontend zeigt bei Fehler das Format-Kürzel und fragt nach 2 s/4 s noch zweimal (`&retry=n`) | 003 E10 |
 | A23 | **Cover-Grid**: GuiExpert `CoverGridTableModel`, einmal gebaut, Daten über `bodyModel.items`; Renderer ohne Angular (`.cc-cover`, global gestylt); randlos: `cols = floor(B / Stufe)`, Coverbreite `floor(B / cols)`; Toolbar schwebt (`GRID_TOP` = `firstRowPaddingTop` = 56 px) | Zielbild (Marcs Screenshot), 50 000 Bücher flüssig | 004 E6 |
 | A24 | Eigener Cursor im `GridStore` (Buch-Id), Tastatur im Capture-Listener des Grids, Table-Shortcuts aus; Screenreader über Live-Region | Cover-Grid der Table hat kein Fokusmodell und setzt `aria-activedescendant` zurück | 004 E7, E8 |
 | A25 | Filter/Sortierung/Größe im `GridStore` (rein: `filter-logic`, `series-filter`, `grid-math`, `sortBooksBy`); Ansichtszustand je Kategorie in `localStorage` (`cc.view.<id>`, v1), Position als Buch-Ids | Pixel stimmen nach Größenwechsel nicht; Einstellungen ziehen in 009 nach Rust | 004 E4, E9, E10 |
@@ -72,6 +73,9 @@
 | A31 | Lesestand in `reading-state.json` (App-Config, ≤ 5 000 Bücher, Schlüssel Buch-Id), nur für Bücher der Registry; Balken am Cover | nichts in die Comic-Ordner | 005 E5 |
 | A32 | Leser als Ebene über der montierten Kategorie-Ansicht (`inert`), Zustand im Root-`ReaderService` statt Router; Tasten am `document`, solange der Leser offen ist | Zurück ohne Wiederherstellen; Desktop ohne URL | 005 E6 |
 | A33 | Vollbild über den Command `toggle_fullscreen` statt einer Window-Capability | keine neue Berechtigung der WebView | 005 E11 |
+| A34 | **PDF mit `hayro`** (reines Rust, kein FFI, Apache-2.0/MIT): Cover = Seite 1, Leser = Seiten in Zielbreite; das geparste PDF bleibt in der Sitzung | MuPDF AGPL, PDFium bräuchte je OS eine C++-Bibliothek + Isolierung; Probe: 72 ms je Scan-Seite, 26 ms Vektor (Release) | 006 E1, E5 |
+| A35 | **Schnellweg Scan-PDF**: Seite = genau ein `DCTDecode`-Bild (RGB/Grau/ICC 1–3, ohne Maske/Drehung, ≥ 90 % der Seite) → die JPEG-Bytes selbst | volle Qualität, kein Rendern; CMYK-JPEGs zeigen Browser falsch | 006 E2 |
+| A36 | Rendern auf 2 eigenen Threads (64 MiB Stack, `catch_unwind`), ≤ 16 wartend (sonst 503), 20 s Wartezeit; Grenzen: Datei ≤ 1 GiB, ≤ 10 000 Seiten, Bild ≤ 16 384 px / 64 MP | hayro ist nicht abbrechbar; tiefe Verschachtelung | 006 E3 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -107,7 +111,7 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `cancel_scan` | `id` | `void` | – |
 | `open_book_external` | `categoryId`, `bookId` | `void` | `unknown_book`, `not_found`, `io` |
 | `reveal_book` | `categoryId`, `bookId` | `void` | `unknown_book`, `not_found`, `program_not_found`, `io` |
-| `open_book` | `categoryId`, `bookId`, `onEvent: Channel<ReaderEvent>` | `OpenedBook` | `unknown_book`, `not_found`, `unsupported_format` (PDF bis 006), `archive_*`, `no_image`, `timeout` |
+| `open_book` | `categoryId`, `bookId`, `onEvent: Channel<ReaderEvent>` | `OpenedBook` (PDF: Seiten „Seite N“ mit Größen, sofort `done`) | `unknown_book`, `not_found`, `archive_*` (PDF kaputt/verschlüsselt), `no_image`, `timeout` |
 | `close_book` | `token` | `void` | – |
 | `save_reading_position` | `categoryId`, `bookId`, `page`, `pages` | `void` | `unknown_book`, `io` |
 | `load_reading_state` | – | `Record<bookId, ReadingPosition>` | – |
@@ -159,6 +163,16 @@ Filter über 50 000 Bücher (Vitest, `filter-logic.perf.spec.ts`) deutlich < 50 
 `xdotool` (Debug); `Ctrl+End` sofort. Im Debug-Build ist der IPC-Transport der Engpass (~0,5 MB/s; Rust 0,7 s,
 Frontend 40–60 ms je Ereignis). Auf dem Mac nachmessen.
 
+**PDF (Design 006, 23.10.2026)** – Container, Release-Probe mit `hayro` 0.8, Seite auf 1600 px Breite:
+
+| PDF | öffnen | Seite 1 |
+|---|---|---|
+| Scan, 40 Seiten 1988 × 3056 JPEG (10 MB) | 5 ms | 72 ms gerendert, ~0 ms über den Schnellweg |
+| Vektor (Text, Formen, Bild), A4 | 0,1 ms | 26 ms |
+| gemischte Seitengrößen | 0,8 ms | 12 ms |
+
+Marcs „Make“-Hefte (Zeitschriften-PDFs) auf dem Mac abnehmen.
+
 **Leser (Design 005, 23.10.2026)** – Container (2 Kerne), Release-Build, `cargo test --release --lib -- --ignored
 --nocapture measure_reader`, 200 Seiten 1600 × 2400 (Zeiten ab `open`):
 
@@ -190,6 +204,7 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 | `unrar-ng-sys` =0.7.7 (vendierte UnRAR-Quellen, C++, unRAR-Lizenz → `docs/licenses.md` in 012) | Rust | CBR (RAR4/RAR5), einziges FFI | 003 |
 | `sevenz-rust2` 0.24 (`bzip2`, `ppmd`), `lzma-rust2` 0.23, `crc32fast` | Rust | CB7, fail-closed Header-Prüfung aus fnf | 003 |
 | `image` 0.25 (`jpeg png gif webp bmp`) | Rust | dekodieren mit Limits, verkleinern, JPEG | 003 |
+| `hayro` 0.8 (+ `hayro-interpret`, `hayro-syntax`, `vello_cpu`, eingebettete Standard-Fonts aus PDFium/Foxit, BSD) – Lizenzen in 012 nach `docs/licenses.md` | Rust | PDF: Seiten zählen, Größen, Schnellweg, rendern | 006 |
 | `open` 5 (wie fnf) | Rust | Buch mit der Standard-App öffnen (`that_detached`, ohne Shell) | 004 |
 | `vitest`, `jsdom`, `eslint`, `angular-eslint`, `typescript-eslint`, `prettier` | dev | Tests, Lint, Format | 001 |
 
@@ -198,4 +213,7 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 `shared/dialog/modal.ts` + `dialog.service.ts` (gekürzt), `book/rar.rs`, `book/sevenz_header.rs`, Teile von
 `book/sevenz.rs` (ohne Passwörter) und die Archiv-Testdateien unter `src-tauri/testdata/archives/`.
 
-Geplant (Entscheidung im jeweiligen Prompt): PDF-Renderer (006), `trash` (010).
+Debug-Builds optimieren Decoder und PDF-Renderer trotzdem (`[profile.dev.package.*] opt-level = 3` in `Cargo.toml`,
+006): unoptimiert dauert eine PDF-Seite Sekunden.
+
+Geplant (Entscheidung im jeweiligen Prompt): `trash` (010).

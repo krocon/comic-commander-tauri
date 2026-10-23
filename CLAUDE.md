@@ -27,7 +27,9 @@
 - **Prompt 005 (Leser)** ist fertig: Seiten direkt aus dem Buch (ZIP/TAR/nicht-solides RAR) bzw. einmal in den
   App-Cache entpackt (7z, solides RAR), Schema `ccpage` mit Token, Einzelseite/fortlaufend, Manga, Vollbild,
   Lesestand in `reading-state.json` + Balken am Cover. Design: `prompts/done/005-leser.design.md`.
-- Als Nächstes: **006** (PDF). Reihenfolge und Status: `prompts/README.md`.
+- **Prompt 006 (PDF)** ist fertig: `pdf/` mit `hayro` (reines Rust), Cover und Leser-Seiten, Schnellweg für Scan-PDFs
+  (eingebettetes JPEG), Render-Threads mit Grenzen. Design: `prompts/done/006-pdf.design.md`.
+- Als Nächstes: **007** (Thumbnails im Stapel) oder **008** (Aktionen/Menü/Tastatur). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -105,6 +107,8 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
   src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
                               Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
   src/reading_state.rs        reading-state.json (≤ 5 000 Bücher)
+  src/pdf/                    PDF (006): mod.rs (PdfBook, page_image, thumbnail), fast (Schnellweg JPEG), render
+                              (2 Threads, 64 MiB Stack, Zeitlimit), tests (PDF-Generator von Hand)
   src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert/geöffnet)
   src/opener.rs               Buch auflösen (Registry) + mit Standard-App öffnen (fnf, `open` crate)
   src/platform/desktop.rs     reveal je OS (Finder/Explorer/D-Bus, Argument-Arrays, fnf)
@@ -115,6 +119,7 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
   src/about.rs                AppInfo (Version aus tauri.conf.json → package.json)
   testdata/legacy-config.json alte config.json (Marcs Struktur, Pfade neutralisiert)
   testdata/archives/          RAR/7z-Testdateien + Generatoren aus files-and-folders (Bomben, Slip, verschlüsselt)
+  testdata/pdf/               encrypted.pdf + Generator (reportlab); andere Test-PDFs schreibt pdf/tests.rs
   capabilities/default.json   nur core:default
   icons/source/app-icon.svg   Quelle des App-Icons
 docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),
