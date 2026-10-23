@@ -43,6 +43,13 @@ fn mime_of(head: &[u8]) -> Option<&'static str> {
 }
 
 /// The first usable sidecar: a regular file of at most [`MAX_BYTES`] that is a JPEG or PNG.
+/// A usable sidecar exists (size only – `find` checks the content when it is served).
+pub fn exists(book: &Path, suffix: &str) -> bool {
+    candidates(book, suffix).into_iter().any(|p| {
+        std::fs::metadata(&p).is_ok_and(|m| m.is_file() && m.len() >= 8 && m.len() <= MAX_BYTES)
+    })
+}
+
 pub fn find(book: &Path, suffix: &str) -> Option<(Vec<u8>, &'static str)> {
     candidates(book, suffix).into_iter().find_map(|p| {
         let meta = std::fs::metadata(&p).ok()?;

@@ -81,11 +81,26 @@ fn permits() -> &'static Permits {
 
 struct Permit;
 
+std::thread_local! {
+    static LOW_PRIORITY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Marks the calling thread as background work (design 007 E3): its decodes leave one of the
+/// [`MAX_DECODES`] places free for the covers the user is looking at.
+pub fn set_low_priority(low: bool) {
+    LOW_PRIORITY.with(|l| l.set(low));
+}
+
 impl Permit {
     fn take() -> Permit {
         let p = permits();
+        let limit = if LOW_PRIORITY.with(std::cell::Cell::get) {
+            MAX_DECODES - 1
+        } else {
+            MAX_DECODES
+        };
         let mut used = p.used.lock().unwrap_or_else(|e| e.into_inner());
-        while *used >= MAX_DECODES {
+        while *used >= limit {
             used = p.freed.wait(used).unwrap_or_else(|e| e.into_inner());
         }
         *used += 1;
@@ -98,7 +113,8 @@ impl Drop for Permit {
         let p = permits();
         let mut used = p.used.lock().unwrap_or_else(|e| e.into_inner());
         *used -= 1;
-        p.freed.notify_one();
+        // low and normal waiters wait for different counts: wake them all
+        p.freed.notify_all();
     }
 }
 
@@ -147,6 +163,28 @@ pub fn scale_jpeg(data: &[u8], width: u32, quality: u8, path: &Path) -> Result<V
 mod tests {
     use super::*;
     use crate::book::tests::build;
+
+    #[test]
+    fn background_decodes_leave_a_place_free() {
+        // hold MAX_DECODES - 1 places from a background thread: another background permit waits,
+        // a normal one gets through at once
+        let held: Vec<Permit> = (0..MAX_DECODES - 1).map(|_| Permit::take()).collect();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let t = std::thread::spawn(move || {
+            set_low_priority(true);
+            let _p = Permit::take();
+            tx.send(()).unwrap();
+        });
+        assert!(
+            rx.recv_timeout(std::time::Duration::from_millis(200))
+                .is_err()
+        );
+        let normal = Permit::take();
+        drop(normal);
+        drop(held);
+        rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        t.join().unwrap();
+    }
 
     fn size_of(jpeg: &[u8]) -> (u32, u32) {
         let img = image::load_from_memory(jpeg).unwrap();

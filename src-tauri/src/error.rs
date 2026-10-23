@@ -41,6 +41,8 @@ pub enum FsErrorCode {
     UnknownBook,
     /// An OS program (file manager) is missing (design 004 E5).
     ProgramNotFound,
+    /// A job of this kind is running already (design 007).
+    JobRunning,
 }
 
 /// The one error type every command returns.

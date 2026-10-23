@@ -46,6 +46,11 @@ impl CoverCache {
         self.dir.join(&key[..2]).join(format!("{key}.jpg"))
     }
 
+    /// A thumbnail exists (without reading it).
+    pub fn contains(&self, key: &str) -> bool {
+        self.file(key).is_file()
+    }
+
     pub fn get(&self, key: &str) -> Option<Vec<u8>> {
         let file = self.file(key);
         let data = fs::read(&file).ok()?;
