@@ -70,6 +70,9 @@ export class ReaderStore {
   readonly notice = signal<string | null>(null);
 
   private seq = 0;
+  /** One `open` at a time: quick `]` presses must not open (and evict) books nobody waits for
+   *  (review 005 #2). */
+  private queue: Promise<void> = Promise.resolve();
   private current: { categoryId: string; bookId: string; pages: number; saved: number } | null =
     null;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -112,6 +115,14 @@ export class ReaderStore {
     this.sizes.set([]);
     this.page.set(0);
     if (!book) return;
+    const run = () => this.openBook(seq, categoryId, book);
+    this.queue = this.queue.then(run, run);
+    await this.queue;
+  }
+
+  private async openBook(seq: number, categoryId: string, book: BookEntry): Promise<void> {
+    // a newer book was asked for while waiting: this one is never opened
+    if (seq !== this.seq) return;
     try {
       const opened = await this.api.open(categoryId, book.id, (e) => {
         if (seq === this.seq) this.onEvent(e);

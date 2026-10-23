@@ -167,6 +167,9 @@ export class Reader {
     effect(() => {
       this.store.token();
       untracked(() => {
+        // timers of the previous book must not spend this book's retries (review 005 #8)
+        this.retryTimers.forEach((t) => clearTimeout(t));
+        this.retryTimers.clear();
         this.retries.set({});
         this.failed.set({});
         this.anchor = null;

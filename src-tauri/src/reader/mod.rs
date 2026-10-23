@@ -24,8 +24,8 @@ use model::{OpenedBook, PageDims, PageInfo, ReaderEvent};
 use page_cache::{Complete, PageCache};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use url::PageRequest;
 
@@ -45,6 +45,8 @@ pub const DIMS_TIME: Duration = Duration::from_secs(60);
 pub const UNPACK_TIME: Duration = Duration::from_secs(600);
 /// Bytes unpacked per book at most.
 pub const UNPACK_BYTES: u64 = 2 << 30;
+/// Requests waiting for the unpacking at most (else 503).
+pub const MAX_UNPACK_WAITERS: usize = 32;
 /// How long a page request waits for the unpacking.
 pub const PAGE_WAIT: Duration = Duration::from_secs(120);
 /// Sizes are sent in batches of this many pages (or after [`DIMS_EVERY`]).
@@ -64,11 +66,19 @@ enum Slot {
     Failed(FsError),
 }
 
-/// Pages of a book that is unpacked into the page cache.
+/// Pages of a book that is unpacked into the page cache – **one per book**, shared by every
+/// session of that book (review 005 #3: two passes would delete each other's pages).
 struct Unpacked {
     key: String,
     slots: Mutex<Vec<Slot>>,
+    /// Page sizes as far as known (for a second session of the same book).
+    sizes: Mutex<Vec<Option<(u32, u32)>>>,
     changed: Condvar,
+    /// The folder was complete when it was found (nothing to unpack).
+    from_cache: bool,
+    /// Sessions using it; the pass stops when the last one closes.
+    users: AtomicUsize,
+    cancel: AtomicBool,
 }
 
 impl Unpacked {
@@ -77,6 +87,10 @@ impl Unpacked {
             *s = slot;
         }
         self.changed.notify_all();
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
     }
 
     /// Every page still waiting fails with `e`.
@@ -97,7 +111,7 @@ pub struct Session {
     container: Container,
     /// Reading order.
     pages: Vec<Entry>,
-    unpacked: Option<Unpacked>,
+    unpacked: Option<Arc<Unpacked>>,
     cancel: AtomicBool,
 }
 
@@ -120,32 +134,32 @@ impl Session {
             let budget = Budget::new(TIME_LIMIT, Some(&self.cancel));
             return book::read(&self.book, self.container, entry, MAX_ENTRY_BYTES, &budget);
         };
-        let deadline = Instant::now() + PAGE_WAIT;
-        let mut slots = lock(&u.slots);
-        loop {
-            if self.cancel.load(Ordering::Relaxed) {
-                return Err(self.closed());
-            }
-            match &slots[index] {
-                Slot::Ready => break,
-                Slot::Failed(e) => return Err(e.clone()),
-                Slot::Waiting => {
-                    let now = Instant::now();
-                    if now >= deadline {
-                        return Err(book::timeout(&self.book));
-                    }
-                    let wait = (deadline - now).min(Duration::from_millis(500));
-                    slots = u
-                        .changed
-                        .wait_timeout(slots, wait)
-                        .unwrap_or_else(|e| e.into_inner())
-                        .0;
-                }
+        // `serve` has waited already (outside the gate) – still waiting: busy, ask again
+        match lock(&u.slots)[index].clone() {
+            Slot::Ready => {}
+            Slot::Failed(e) => return Err(e),
+            Slot::Waiting if self.cancel.load(Ordering::Relaxed) => return Err(self.closed()),
+            Slot::Waiting => {
+                return Err(FsError::new(
+                    FsErrorCode::Busy,
+                    "the page is not unpacked yet",
+                    None,
+                ));
             }
         }
-        drop(slots);
         let file = cache.page_file(&u.key, index);
-        std::fs::read(&file).map_err(|e| FsError::from_io(&e, &file))
+        std::fs::read(&file).map_err(|e| {
+            // removed under us (should not happen: open books are never trimmed) – busy, not broken
+            if e.kind() == std::io::ErrorKind::NotFound {
+                FsError::new(
+                    FsErrorCode::Busy,
+                    "the page is gone from the cache",
+                    Some(&file),
+                )
+            } else {
+                FsError::from_io(&e, &file)
+            }
+        })
     }
 }
 
@@ -189,7 +203,7 @@ impl<'a> DimsBatcher<'a> {
 }
 
 /// The background pass of a session (runs on its own thread).
-fn run_pass(session: &Session, cache: &PageCache, sink: &Sink) {
+fn run_pass(session: &Session, cache: &PageCache, sink: &Sink, unpack_pass: bool) {
     let index_of: HashMap<usize, usize> = session
         .pages
         .iter()
@@ -220,14 +234,26 @@ fn run_pass(session: &Session, cache: &PageCache, sink: &Sink) {
                 )
             }
         }
+        // a second session of a book being unpacked: the first one's pass does the work
+        Some(_) if !unpack_pass => Ok(()),
         Some(u) => unpack(session, u, cache, &index_of, &mut dims),
     };
     dims.flush();
-    if session.cancel.load(Ordering::Relaxed) {
-        if let Some(u) = &session.unpacked {
+    let stopped = match &session.unpacked {
+        Some(u) if unpack_pass => u.cancelled(),
+        _ => session.cancel.load(Ordering::Relaxed),
+    };
+    if stopped {
+        if let Some(u) = &session.unpacked
+            && unpack_pass
+        {
             u.fail_waiting(&session.closed());
         }
         return;
+    }
+    if !unpack_pass && session.unpacked.is_some() {
+        // sizes of a shared unpacking: what is known so far; the rest arrives on load
+        return sink(ReaderEvent::Done);
     }
     match outcome {
         Ok(()) => sink(ReaderEvent::Done),
@@ -249,7 +275,7 @@ fn unpack(
     dims: &mut DimsBatcher<'_>,
 ) -> Result<(), FsError> {
     let book = &session.book;
-    if cache.complete(&u.key).is_some() {
+    if u.from_cache {
         // `open` has set the slots and sizes from the marker
         return Ok(());
     }
@@ -262,7 +288,9 @@ fn unpack(
     let mut written: u64 = 0;
     let mut write_error: Option<FsError> = None;
     let positions: Vec<usize> = session.pages.iter().map(|e| e.pos).collect();
-    let budget = Budget::new(UNPACK_TIME, Some(&session.cancel));
+    let budget = Budget::new(UNPACK_TIME, Some(&u.cancel));
+    // never more than the whole cache (review 005 #5)
+    let max_bytes = UNPACK_BYTES.min(cache.limit());
     book::read_many(
         book,
         session.container,
@@ -276,9 +304,9 @@ fn unpack(
             match data {
                 Ok(d) => {
                     written += d.len() as u64;
-                    if written > UNPACK_BYTES {
+                    if written > max_bytes {
                         write_error = Some(book::too_large(
-                            format!("more than {} MiB of pages", UNPACK_BYTES >> 20),
+                            format!("more than {} MiB of pages", max_bytes >> 20),
                             book,
                         ));
                         return false;
@@ -288,6 +316,9 @@ fn unpack(
                         return false;
                     }
                     sizes[i] = image::dimensions(&d);
+                    if let Some(s) = lock(&u.sizes).get_mut(i) {
+                        *s = sizes[i];
+                    }
                     dims.push(i, &d);
                     u.set(i, Slot::Ready);
                 }
@@ -404,6 +435,11 @@ impl Memory {
 
 pub struct ReaderService {
     sessions: Mutex<VecDeque<Arc<Session>>>,
+    /// Books being read from the page cache, by key – also the lock that keeps `trim` and
+    /// `open` apart (review 005 #7).
+    unpacks: Mutex<HashMap<String, Weak<Unpacked>>>,
+    /// Requests waiting for a page to be unpacked (review 005 #4).
+    unpack_waiters: AtomicUsize,
     cache: Arc<PageCache>,
     gate: Gate,
     memory: Mutex<Memory>,
@@ -421,6 +457,8 @@ impl ReaderService {
     pub fn new(cache_dir: &Path, limit: u64) -> Arc<Self> {
         Arc::new(Self {
             sessions: Mutex::new(VecDeque::new()),
+            unpacks: Mutex::new(HashMap::new()),
+            unpack_waiters: AtomicUsize::new(0),
             cache: Arc::new(PageCache::new(cache_dir, limit)),
             gate: Gate {
                 state: Mutex::new((0, 0)),
@@ -431,16 +469,12 @@ impl ReaderService {
         })
     }
 
-    fn open_keys(&self) -> HashSet<String> {
-        lock(&self.sessions)
-            .iter()
-            .filter_map(|s| s.unpacked.as_ref().map(|u| u.key.clone()))
-            .collect()
-    }
-
-    /// Trims the page cache (open books stay). Returns (books removed, bytes left).
+    /// Trims the page cache (books in use stay). Returns (books removed, bytes left).
     pub fn trim_cache(&self) -> (usize, u64) {
-        self.cache.trim(&self.open_keys())
+        let mut unpacks = lock(&self.unpacks);
+        unpacks.retain(|_, w| w.strong_count() > 0);
+        let keep: HashSet<String> = unpacks.keys().cloned().collect();
+        self.cache.trim(&keep)
     }
 
     fn new_token(&self, book: &Path) -> String {
@@ -478,30 +512,57 @@ impl ReaderService {
             })
             .collect();
         let mut unpacked = None;
+        let mut unpack_pass = false;
         if sequential {
             let key = page_cache::key(book, meta.len(), modified_ms(&meta));
-            let mut slots = vec![Slot::Waiting; pages.len()];
-            if let Some(c) = self.cache.complete(&key)
-                && c.pages.len() == pages.len()
-            {
-                for (i, size) in c.pages.iter().enumerate() {
-                    slots[i] = Slot::Ready;
-                    if let Some((w, h)) = size {
-                        infos[i].width = Some(*w);
-                        infos[i].height = Some(*h);
+            let mut unpacks = lock(&self.unpacks);
+            let shared = unpacks
+                .get(&key)
+                .and_then(Weak::upgrade)
+                .filter(|u| !u.cancelled() && lock(&u.slots).len() == pages.len());
+            let u = match shared {
+                Some(u) => u,
+                None => {
+                    let n = pages.len();
+                    let mut slots = vec![Slot::Waiting; n];
+                    let mut sizes = vec![None; n];
+                    // a marker of another page count (other app version) is not trusted (review 005 #1)
+                    let complete = self.cache.complete(&key).filter(|c| c.pages.len() == n);
+                    if let Some(c) = &complete {
+                        slots = vec![Slot::Ready; n];
+                        sizes.clone_from(&c.pages);
+                        for (i, code) in &c.failed {
+                            if let Some(s) = slots.get_mut(*i) {
+                                *s = Slot::Failed(FsError::new(
+                                    code_from(code),
+                                    "failed before",
+                                    None,
+                                ));
+                            }
+                        }
                     }
+                    unpack_pass = true;
+                    let u = Arc::new(Unpacked {
+                        key: key.clone(),
+                        slots: Mutex::new(slots),
+                        sizes: Mutex::new(sizes),
+                        changed: Condvar::new(),
+                        from_cache: complete.is_some(),
+                        users: AtomicUsize::new(0),
+                        cancel: AtomicBool::new(false),
+                    });
+                    unpacks.insert(key, Arc::downgrade(&u));
+                    u
                 }
-                for (i, code) in &c.failed {
-                    if let Some(s) = slots.get_mut(*i) {
-                        *s = Slot::Failed(FsError::new(code_from(code), "failed before", None));
-                    }
+            };
+            u.users.fetch_add(1, Ordering::SeqCst);
+            for (info, size) in infos.iter_mut().zip(lock(&u.sizes).iter()) {
+                if let Some((w, h)) = size {
+                    info.width = Some(*w);
+                    info.height = Some(*h);
                 }
             }
-            unpacked = Some(Unpacked {
-                key,
-                slots: Mutex::new(slots),
-                changed: Condvar::new(),
-            });
+            unpacked = Some(u);
         }
         let session = Arc::new(Session {
             token: self.new_token(book),
@@ -523,12 +584,18 @@ impl ReaderService {
         for s in closed {
             self.cancel(&s);
         }
-        if sequential {
-            // room for this book before it is unpacked (open ones stay)
+        if unpack_pass {
+            // room for this book before it is unpacked (books in use stay)
             self.trim_cache();
         }
         let (me, s) = (self.clone(), session.clone());
-        std::thread::spawn(move || run_pass(&s, &me.cache, &sink));
+        std::thread::spawn(move || {
+            run_pass(&s, &me.cache, &sink, unpack_pass);
+            if unpack_pass && s.unpacked.as_ref().is_some_and(|u| !u.from_cache) {
+                // a big book may have pushed the cache over its limit (review 005 #5)
+                me.trim_cache();
+            }
+        });
         Ok(OpenedBook {
             token: session.token.clone(),
             pages: infos,
@@ -538,8 +605,14 @@ impl ReaderService {
     }
 
     fn cancel(&self, s: &Session) {
-        s.cancel.store(true, Ordering::Relaxed);
+        if s.cancel.swap(true, Ordering::SeqCst) {
+            return;
+        }
         if let Some(u) = &s.unpacked {
+            // the last reader of this book: its unpacking stops
+            if u.users.fetch_sub(1, Ordering::SeqCst) == 1 {
+                u.cancel.store(true, Ordering::SeqCst);
+            }
             u.changed.notify_all();
         }
         lock(&self.memory).forget(&s.token);
@@ -577,12 +650,17 @@ impl ReaderService {
         if let Some((data, mime)) = lock(&self.memory).get(&key) {
             return Reply::image(data.as_ref().clone(), mime);
         }
-        // waiting for the unpacking happens outside the gate
-        if let Some(u) = &session.unpacked {
-            let ready = |s: &Slot| !matches!(s, Slot::Waiting);
+        // waiting for the unpacking happens outside the gate – bounded (review 005 #4)
+        if let Some(u) = &session.unpacked
+            && matches!(lock(&u.slots)[req.index], Slot::Waiting)
+        {
+            if self.unpack_waiters.fetch_add(1, Ordering::SeqCst) >= MAX_UNPACK_WAITERS {
+                self.unpack_waiters.fetch_sub(1, Ordering::SeqCst);
+                return Reply::status(503);
+            }
             let deadline = Instant::now() + PAGE_WAIT;
             let mut slots = lock(&u.slots);
-            while !ready(&slots[req.index])
+            while matches!(slots[req.index], Slot::Waiting)
                 && Instant::now() < deadline
                 && !session.cancel.load(Ordering::Relaxed)
             {
@@ -592,6 +670,8 @@ impl ReaderService {
                     .unwrap_or_else(|e| e.into_inner())
                     .0;
             }
+            drop(slots);
+            self.unpack_waiters.fetch_sub(1, Ordering::SeqCst);
         }
         let Some(_pass) = self.gate.enter() else {
             return Reply::status(503);

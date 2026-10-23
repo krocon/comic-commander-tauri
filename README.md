@@ -32,6 +32,11 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   die App je Kategorie. Auf Retina werden automatisch die großen Cover geladen.
 - **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
   filtern, Pfad kopieren. Lesen folgt mit dem Leser (Prompt 005).
+- **Leser** (`Enter`/Doppelklick): Einzelseite (Breite oder Höhe einpassen; hohe Seiten erst bildschirmweise
+  scrollen, dann blättern) oder fortlaufend; Klick ins linke/rechte Drittel, Wischen, Schieberegler, Manga
+  (rechts → links), Vollbild. Seiten kommen direkt aus dem Buch – JPEG, PNG, WebP, GIF, BMP; 7z und solide RAR
+  werden einmal in den App-Cache entpackt (begrenzt auf 1 GiB, älteste zuerst weg). Die letzte Seite je Buch wird
+  gemerkt (`reading-state.json`), das Grid zeigt den Lesefortschritt als Balken am Cover. PDF folgt mit Prompt 006.
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 
@@ -40,7 +45,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | Taste | Funktion |
 |---|---|
 | Pfeiltasten, `Home`/`End`, `Bild ↑/↓` | Cursor im Raster |
-| `Enter` / Doppelklick | Buch öffnen (bis zum Leser: Standard-App) |
+| `Enter` / Doppelklick | Buch lesen (PDF bis Prompt 006: Standard-App) |
 | `Leertaste`, `Shift+F10`, Rechtsklick | Aktionen für das Buch |
 | Tippen | springt in den Filter; `Esc` leert ihn |
 | `Ctrl/⌘ + F` | Filter |
@@ -49,6 +54,18 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `Ctrl/⌘ + 1 … 9` | Kategorie 1 … 9 wählen |
 | Menü-Button, `↓`/`Enter` | Kategorie-Menü öffnen (`↑`/`↓`, `Enter`, `Esc`) |
 | Dialog: `Ctrl/⌘ + Enter`, `Esc` | Speichern, Abbrechen; Liste: `Alt + ↑/↓` verschiebt |
+
+**Im Leser**
+
+| Taste | Funktion |
+|---|---|
+| `→` `↓` `n` `Leertaste` `Bild ↓` | weiter (hohe Seite: erst scrollen) |
+| `←` `↑` `b` `Shift+Leertaste` `Bild ↑` | zurück |
+| `Ctrl/⌘ + Pfeil`, `Home`/`End` | erste / letzte Seite |
+| `S` / `W` / `M` | Einzelseite ⇄ fortlaufend / Breite ⇄ Höhe / Manga (`←`/`→` und Klickdrittel gespiegelt) |
+| `]` / `[` | nächstes / vorheriges Buch der gefilterten Liste |
+| `F11`, `⌘ + Ctrl + F` | Vollbild |
+| `Esc` | Vollbild verlassen, sonst zurück zum Raster (an dieselbe Stelle) |
 
 ## Entwickeln
 

@@ -107,12 +107,38 @@ describe('ReaderStore', () => {
     s.service.open('c1', s.list, 0);
     const store = TestBed.inject(ReaderStore);
     TestBed.tick();
+    await wait(); // the first open is in flight
     s.service.move(1);
     TestBed.tick();
+    await wait();
+    s.api.release();
+    await wait();
+    // one open at a time: the second waits for the first
     s.api.release();
     await wait();
     expect(store.token()).toBe('fast');
     expect(s.api.calls).toContain('close slow');
+  });
+
+  it('never opens a book that was skipped while another one was opening (review 005 #2)', async () => {
+    const s = setup();
+    s.api.hold = true;
+    s.service.open('c1', s.list, 0);
+    const store = TestBed.inject(ReaderStore);
+    TestBed.tick();
+    await wait(); // the first open is in flight
+    s.service.move(1);
+    TestBed.tick();
+    s.service.move(1);
+    TestBed.tick();
+    await wait();
+    s.api.release();
+    await wait();
+    s.api.release();
+    await wait();
+    const opens = s.api.calls.filter((c) => c.startsWith('open'));
+    expect(opens).toEqual([`open c1.${s.list[0].id}`, `open c1.${s.list[2].id}`]);
+    expect(store.phase()).toBe('ready');
   });
 
   it('takes sizes from events and loaded images, even before the answer', async () => {
@@ -122,6 +148,7 @@ describe('ReaderStore', () => {
     s.service.open('c1', s.list, 0);
     const store = TestBed.inject(ReaderStore);
     TestBed.tick();
+    await wait();
     s.api.emit({ kind: 'dims', pages: [{ index: 1, width: 100, height: 150 }] });
     s.api.release();
     await wait();

@@ -1,6 +1,6 @@
 # Design 005 – Leser (Seiten anzeigen und blättern)
 
-> Status: freigegeben 23.10.2026 (Marc: „bearbeite selbständig“ – Empfehlungen gelten als freigegeben) ·
+> Status: umgesetzt · freigegeben 23.10.2026 (Marc: „bearbeite selbständig“ – Empfehlungen gelten als freigegeben) ·
 > Branch `feat/leser` · Auftrag: [`005-leser.md`](005-leser.md) · Vorlage: legacy §7, §10.4
 
 ## Entscheidungen auf einen Blick
@@ -172,8 +172,22 @@ Manga kehrt nur die *horizontalen* Gesten um (`←/→`, Klickdrittel, Wischen);
 ## Fortschritt
 
 - [x] Phase 1 Design (dieses Dokument)
-- [ ] Phase 2 Rust
-- [ ] Phase 3 Frontend
-- [ ] Phase 4 Ende-zu-Ende
-- [ ] Phase 5 Doku
-- [ ] Phase 6 Abschluss + Review
+- [x] Phase 2 Rust (Commit d268559)
+- [x] Phase 3 Frontend (3d84b12, E2E-Fix e5a2c9e)
+- [x] Phase 4 Ende-zu-Ende (Xvfb, Testsammlung mit Umlauten/Emoji, CBZ/CBR=ZIP/RAR4/CB7 solide/CBT, PNG/WebP/GIF/BMP, kaputte Bücher und Seiten, PDF-Menü, Neustart → Position, Zurück → Grid-Stelle)
+- [x] Phase 5 Doku
+- [x] Phase 6 Abschluss + Review (`pnpm check` grün, Debug-Build, Review durch separaten Agenten)
+
+## Review (separater Agent, 23.10.2026)
+
+| # | Befund | Erledigt |
+|---|---|---|
+| 1 | `complete.json` mit anderer Seitenzahl: Pass meldete fertig, alle Seiten hingen bis zum Zeitlimit | „vollständig“ wird einmal in `open` entschieden (`Unpacked.from_cache`), sonst neu entpackt; Test `a_marker_of_another_page_count_is_not_trusted` |
+| 2 | Schnelles `]`: veraltete `open`s verdrängen das gezeigte Buch (max. 4 Sitzungen) | `ReaderStore` öffnet nacheinander, übersprungene Bücher werden nie geöffnet; Test |
+| 3 | Zwei Sitzungen desselben 7z/soliden RAR löschen sich gegenseitig die Seiten | ein `Arc<Unpacked>` je Schlüssel, geteilt, Pass stoppt erst mit dem letzten Leser; Test `two_sessions_of_one_book_share_the_unpacking` |
+| 4 | Warten aufs Entpacken unbegrenzt, zweites Warten im Gate | ≤ 32 Wartende (sonst 503), `page_bytes` wartet nicht mehr (`busy` → 503) |
+| 5 | Seiten-Cache kann das Limit weit überschreiten | je Buch ≤ Cache-Grenze, Trim auch nach jedem Entpacken |
+| 6 | Solides RAR: verworfene Daten eines zu großen Eintrags ohne Byte-Grenze | zählen gegen `MAX_SKIPPED` |
+| 7 | Trim gegen gleichzeitiges `open` | `trim` und `open` unter derselben Sperre (`unpacks`); fehlende Datei → 503 statt 500 |
+| 8 | Retry-Timer überleben den Buchwechsel | beim neuen Token gelöscht |
+| 9 | Seitenzahl des Lesestands kommt aus der WebView | offen (nur Anzeige des Balkens betroffen); mit 009 über den Token lösen |

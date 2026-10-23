@@ -482,19 +482,32 @@ fn rar_read_many(
             let mut over = false;
             // never stop in the middle of an entry (the stream must stay in step): data beyond
             // the limit is decoded and dropped
+            let mut skip_over = false;
             let complete = archive.test_into(&h, &mut |chunk| {
                 let room = (max as usize).saturating_sub(data.len());
-                if chunk.len() > room {
+                let dropped = if over {
+                    chunk.len()
+                } else if chunk.len() > room {
                     if prefix {
                         data.extend_from_slice(&chunk[..room]);
                     } else {
                         over = true;
                     }
-                } else if !over {
+                    chunk.len() - if prefix { room } else { 0 }
+                } else {
                     data.extend_from_slice(chunk);
+                    0
+                };
+                // dropped data counts as skipped: a lying entry cannot keep a core busy (review 005 #6)
+                if dropped > 0 && !budget.skip(dropped) {
+                    skip_over = true;
+                    return false;
                 }
                 budget.ok()
             })?;
+            if skip_over {
+                return Err(budget.skip_error(path));
+            }
             if !complete {
                 return Err(timeout(path));
             }

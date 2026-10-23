@@ -59,6 +59,10 @@ impl PageCache {
         }
     }
 
+    pub fn limit(&self) -> u64 {
+        self.limit
+    }
+
     pub fn book_dir(&self, key: &str) -> PathBuf {
         self.dir.join(key)
     }

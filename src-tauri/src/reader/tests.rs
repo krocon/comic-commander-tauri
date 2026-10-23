@@ -353,3 +353,69 @@ fn measure_reader() {
         service.close(&opened.token);
     }
 }
+
+#[test]
+fn a_marker_of_another_page_count_is_not_trusted() {
+    // review 005 #1
+    let d = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let service = ReaderService::new(cache.path(), page_cache::DEFAULT_LIMIT);
+    let book = d.path().join("b.cb7");
+    build::cb7(&book, &book_pages(), true);
+    let meta = std::fs::metadata(&book).unwrap();
+    let key = page_cache::key(&book, meta.len(), modified_ms(&meta));
+    let pc = PageCache::new(cache.path(), page_cache::DEFAULT_LIMIT);
+    pc.reset(&key).unwrap();
+    pc.mark_complete(
+        &key,
+        &Complete {
+            pages: vec![None; 9],
+            failed: vec![],
+        },
+    )
+    .unwrap();
+    let events = Events::default();
+    let opened = service.open(&book, events.sink()).unwrap();
+    for (i, name) in ORDER.iter().enumerate() {
+        assert_eq!(page(&service, &opened.token, i, 0).body, bytes_of(name));
+    }
+    assert!(events.wait_end().contains(&ReaderEvent::Done));
+    assert_eq!(pc.complete(&key).unwrap().pages.len(), 4);
+}
+
+#[test]
+fn two_sessions_of_one_book_share_the_unpacking() {
+    // review 005 #3: the second pass must not delete the first one's pages
+    let d = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let service = ReaderService::new(cache.path(), page_cache::DEFAULT_LIMIT);
+    let book = d.path().join("b.cb7");
+    build::cb7(&book, &book_pages(), true);
+    let first = service.open(&book, Events::default().sink()).unwrap();
+    let events = Events::default();
+    let second = service.open(&book, events.sink()).unwrap();
+    // the first reader goes away while unpacking: the second one still gets every page
+    service.close(&first.token);
+    for (i, name) in ORDER.iter().enumerate() {
+        let r = page(&service, &second.token, i, 0);
+        assert_eq!((r.status, r.body), (200, bytes_of(name)), "{name}");
+    }
+    events.wait_end();
+    let pages_dir = cache.path().join(page_cache::DIR_NAME);
+    assert_eq!(std::fs::read_dir(&pages_dir).unwrap().count(), 1);
+    // done by the shared pass: complete, used by the next reader as it is
+    let until = Instant::now() + Duration::from_secs(20);
+    let dir = std::fs::read_dir(&pages_dir)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    while !dir.join("complete.json").exists() {
+        assert!(Instant::now() < until);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    service.close(&second.token);
+    let third = service.open(&book, Events::default().sink()).unwrap();
+    assert_eq!(third.pages[0].width, Some(40));
+}
