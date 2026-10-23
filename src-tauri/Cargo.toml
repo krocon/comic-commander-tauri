@@ -38,3 +38,30 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 tempfile = "3"
 # design 003: writing 7z test books
 sevenz-rust2 = { version = "0.24.1", default-features = false, features = ["bzip2", "ppmd", "compress"] }
+
+# design 006: decoders and the PDF renderer optimised in debug builds too (`pnpm tauri dev`: a PDF page
+# takes seconds unoptimised); our own code stays debuggable
+[profile.dev.package.hayro]
+opt-level = 3
+[profile.dev.package."hayro-interpret"]
+opt-level = 3
+[profile.dev.package."hayro-syntax"]
+opt-level = 3
+[profile.dev.package."hayro-jpeg2000"]
+opt-level = 3
+[profile.dev.package."hayro-jbig2"]
+opt-level = 3
+[profile.dev.package."hayro-ccitt"]
+opt-level = 3
+[profile.dev.package.vello_cpu]
+opt-level = 3
+[profile.dev.package.vello_common]
+opt-level = 3
+[profile.dev.package."pic-scale"]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package."zune-jpeg"]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
