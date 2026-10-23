@@ -27,6 +27,13 @@ export class ActionService {
   /** Bumped on every (un)registration – menus and palette recompute. */
   private readonly version = signal(0);
   readonly keymap = signal<Keymap>(buildKeymap(this.os));
+  /** Which actions the app allows now (e.g. no grid actions while reading); reads signals. */
+  private readonly gate = signal<(def: ActionDef) => boolean>(() => true);
+
+  /** Set once by the app shell (review 008 #5, #6): keys, menus and palette all follow it. */
+  setGate(fn: (def: ActionDef) => boolean): void {
+    this.gate.set(fn);
+  }
 
   /** Loads `keymap.json` (design 008 E2); problems go to the console only. */
   async loadOverrides(): Promise<void> {
@@ -66,11 +73,13 @@ export class ActionService {
 
   private handler(id: string): ActionHandler | undefined {
     this.version();
+    const def = actionDef(id);
+    if (!def || !this.gate()(def)) return undefined;
     const s = this.stacks.get(id);
     return s?.[s.length - 1];
   }
 
-  /** A view offers the action now. */
+  /** A view offers the action now and the gate lets it through. */
   available(id: string): boolean {
     return this.handler(id) !== undefined;
   }

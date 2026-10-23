@@ -103,7 +103,10 @@ pub fn run() {
         .on_menu_event(|app, event| {
             use tauri::Emitter;
             let id = event.id().0.clone();
-            if app_menu::valid_id(&id) {
+            // Quit works even when the webview hangs (review 008 #13)
+            if id == "app.quit" {
+                app.exit(0);
+            } else if app_menu::valid_id(&id) {
                 let _ = app.emit(app_menu::EVENT, app_menu::MenuAction { id });
             }
         })

@@ -34,7 +34,7 @@
               @case ('item') {
                 <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
                 <li
-                  [attr.role]="r.item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'"
+                  [attr.role]="role(r.item)"
                   tabindex="-1"
                   [attr.aria-checked]="r.item.checked ?? null"
                   [attr.aria-disabled]="r.item.enabled ? null : 'true'"

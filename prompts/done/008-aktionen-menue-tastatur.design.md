@@ -1,6 +1,6 @@
 # Design 008 – Aktionen, Tastaturkürzel und Menüleiste
 
-> Status: freigegeben 23.10.2026 (Marc: „bearbeite Prompt 008 selbstständig“ – Empfehlungen gelten als freigegeben) ·
+> Status: umgesetzt 23.10.2026 · freigegeben 23.10.2026 (Marc: „bearbeite Prompt 008 selbstständig“ – Empfehlungen gelten als freigegeben) ·
 > Branch `feat/aktionen-menue` (auf `feat/thumbs-generieren`) · Auftrag:
 > [`008-aktionen-menue-tastatur.md`](008-aktionen-menue-tastatur.md) · Vorlage: legacy §6, §7, §9
 
@@ -66,11 +66,44 @@ Grid, Kategorie-Ansicht und Leser registrieren ihre Handler beim `ActionService`
 - Ende-zu-Ende: HTML-Menüleiste (Linux), alle bisherigen Tasten im Grid und Leser, Palette, About. macOS nativ: nur
   auf dem Mac prüfbar.
 
+## Ende-zu-Ende (Linux, Xvfb, Debug-Build, 1 001 Bücher)
+
+- HTML-Menüleiste: `F10` fokussiert „File“, `→` `↓` öffnet „View“ mit Kürzeln und abgehakter Sortierung, „Bigger
+  covers“ wirkt; Kategorie-Menü listet die Kategorien.
+- Palette `Ctrl+Shift+P`, „about“ filtert auf „About Comic Commander“, `Enter` öffnet About (Version 0.1.0,
+  linux · x86_64, MIT, Repo-Adresse).
+- Grid: Klick/Pfeile bewegen den Cursor, `Shift+F10` öffnet das Buchmenü mit Kürzeln (Ctrl+O, Ctrl+Shift+R,
+  Ctrl+Shift+C). **Fund:** WebKitGTK legte sein eigenes Kontextmenü (Back, Reload, Inspect Element) darüber → jetzt
+  außer in Textfeldern unterdrückt (A41, roter Test zuerst).
+- Tippen „ha“ → Filter (0 Treffer), `Esc` `Esc` zurück, `Enter` liest, `n` blättert, `s` fortlaufend, `]` nächstes
+  Buch, `Esc` zurück ins Raster mit dem Cursor am zuletzt gelesenen Buch.
+- macOS (natives Menü, ⌘-Kürzel, Main-Thread): **nur auf dem Mac prüfbar** – offen für Marc: Menü erscheint, Häkchen
+  folgen dem Zustand, ⌘-Kürzel laufen genau einmal (WKWebView gibt `preventDefault`-te Tasten nicht ans Menü weiter),
+  bei offenem Dialog passiert nichts.
+
+## Review (eigener Agent, 23.10.2026)
+
+| # | Befund | Schwere | Umgang |
+|---|---|---|---|
+| 1 | Natives Menü/⌘-Kürzel liefen bei offenem Dialog (Dialog ersetzt, Rescan, Buch hinter dem Modal) | hoch (macOS) | `MenuService.onAction` ignoriert Klicks bei offenem Dialog (außer Beenden); Test |
+| 2 | muda schaltet Häkchen beim Klick selbst um; ohne Zustandsänderung kein Neuaufbau | mittel (macOS) | Zähler je Klick im Effekt → Menü wird nach jedem Klick neu gesetzt; Test |
+| 3 | Manga: `Mod+←/→` nicht mehr gespiegelt (005-Regression) | mittel | `reader.leftEnd/rightEnd` (spiegeln mit `rtl`); Test über `wireKeyboard` – schon vor dem Review im E2E bemerkt |
+| 4 | Kategorie-Titel mit Steuerzeichen → `invalid_menu` → gar kein Menü | mittel (macOS) | `menuLabel()` in `toSpec` (Steuerzeichen → Leerzeichen, ≤ 120 Zeichen); Rust bleibt streng; Test |
+| 5 | Ansicht-/Kategorie-Aktionen (`Mod+F`, `Mod+=`, `Mod+R`, `Mod+1…`) liefen unter dem Leser | mittel | **Gate** im `ActionService` (`setGate`, gesetzt in `app.ts`): beim Lesen nur `reader.*` + Palette/About/Einstellungen/Beenden; Tasten fallen dann weiter; Test |
+| 6 | Palette bot Grid-/Buch-Aktionen beim Lesen an | mittel | dasselbe Gate; Test |
+| 7 | Palette: aktive Option nicht im Blick; Home/End gehören dem Textfeld | niedrig | `scrollIntoView({block:'nearest'})` per `afterRenderEffect`; Home/End entfernt |
+| 8 | Kategorien/Sortierung sind `menuitemcheckbox` statt `menuitemradio`; `F10` im Filterfeld wirkungslos; „Lesen“ unter Windows/Linux immer grau | niedrig | `menuitemradio` (`isRadio`); F-Tasten wirken auch aus Textfeldern; „Lesen“ bleibt (Kürzel-Übersicht), `Alt` allein öffnet nicht (kollidiert mit AltGr) |
+| 9 | `keymap.json`: Rust verwarf `Cmd+P`/`Shift+Mod+P`, die TS versteht | niedrig | Rust prüft nur noch Text (Länge, Steuerzeichen), TS normalisiert und meldet; Test |
+| 10 | Shift+Pfeile im Grid, `N`/`B` im Leser wirkten nicht mehr; `[`/`]` auf deutscher Tastatur (Alt/AltGr) | niedrig | Shift-Varianten in `keymap.base.json`; `chordOf` ignoriert Alt/AltGr bei Satzzeichen; Test |
+| 11 | Deaktivierte Aktion schluckt die Taste statt weiterzureichen | niedrig | bewusst: eine Taste mit Aktion im Kontext tut nichts anderes (Leer-Grid: `Enter` tippt nicht); gesperrte Aktionen (Gate) reichen weiter |
+| 12 | `setFallback('grid', null)` beim Zerstören löschte ggf. den Rückfall eines neueren Grids | niedrig | `clearFallback(ctx, fn)` nur für den eigenen; Test |
+| 13 | Beenden lief Rust → JS → `quit_app` (hängt die WebView, geht ⌘Q nicht) | niedrig | `on_menu_event` beendet bei `app.quit` direkt |
+
 ## Fortschritt
 
 - [x] Phase 1 Design
-- [ ] Phase 2 Rust
-- [ ] Phase 3 Frontend
-- [ ] Phase 4 Ende-zu-Ende
-- [ ] Phase 5 Doku
-- [ ] Phase 6 Review + Abschluss
+- [x] Phase 2 Rust
+- [x] Phase 3 Frontend
+- [x] Phase 4 Ende-zu-Ende (Linux; macOS offen, s. o.)
+- [x] Phase 5 Doku
+- [x] Phase 6 Review + Abschluss

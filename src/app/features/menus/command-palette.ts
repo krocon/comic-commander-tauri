@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActionService } from '../../core/actions/action.service';
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { Modal } from '../../shared/dialog/modal';
@@ -92,6 +100,15 @@ export class CommandPalette {
 
   protected readonly entries = computed(() => this.all.filter((e) => matches(e, this.query())));
 
+  constructor() {
+    // the active option stays in view (review 008 #7); Home/End stay with the text field (APG)
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    afterRenderEffect(() => {
+      const el = host.querySelector(`#palette-${this.active()}`);
+      el?.scrollIntoView?.({ block: 'nearest' });
+    });
+  }
+
   protected onInput(e: Event): void {
     this.query.set((e.target as HTMLInputElement).value);
     this.active.set(0);
@@ -105,12 +122,6 @@ export class CommandPalette {
         break;
       case 'ArrowUp':
         if (n) this.active.update((i) => (i - 1 + n) % n);
-        break;
-      case 'Home':
-        this.active.set(0);
-        break;
-      case 'End':
-        this.active.set(Math.max(0, n - 1));
         break;
       case 'Enter': {
         const entry = this.entries()[this.active()];

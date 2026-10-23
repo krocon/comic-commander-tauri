@@ -26,6 +26,11 @@ describe('shortcut notation', () => {
     expect(chordOf(ev('Shift', { shiftKey: true }), 'mac')).toBeNull();
     expect(chordOf(ev('Meta', { metaKey: true }), 'mac')).toBeNull();
     expect(chordOf(ev('F10', { shiftKey: true }), 'other')).toBe('Shift+F10');
+    // German layouts: [ ] come with Alt (macOS) or AltGr = Ctrl+Alt (Windows) – review 008 #10
+    expect(chordOf(ev(']', { altKey: true }), 'mac')).toBe(']');
+    expect(chordOf(ev('[', { altKey: true, ctrlKey: true }), 'other')).toBe('[');
+    expect(chordOf(ev('[', { altKey: true, metaKey: true }), 'mac')).toBe('Mod+[');
+    expect(chordOf(ev('x', { altKey: true }), 'mac')).toBe('Alt+x');
   });
 
   it('normalizes written chords', () => {

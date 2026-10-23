@@ -46,9 +46,13 @@ export class KeyboardDispatcher {
   }
 
   /** Keys no action took (typing into the grid's filter). */
-  setFallback(ctx: ActionContext, fn: ((e: KeyboardEvent) => boolean) | null): void {
-    if (fn) this.fallbacks.set(ctx, fn);
-    else this.fallbacks.delete(ctx);
+  setFallback(ctx: ActionContext, fn: (e: KeyboardEvent) => boolean): void {
+    this.fallbacks.set(ctx, fn);
+  }
+
+  /** Removes `fn` – only if it is still the one set (a newer view may have replaced it). */
+  clearFallback(ctx: ActionContext, fn: (e: KeyboardEvent) => boolean): void {
+    if (this.fallbacks.get(ctx) === fn) this.fallbacks.delete(ctx);
   }
 
   attach(doc: Document): void {
@@ -78,7 +82,8 @@ export class KeyboardDispatcher {
     if (!chord) return;
     const hasMod =
       chord.startsWith('Mod+') || (this.actions.os === 'mac' && chord.startsWith('Ctrl+'));
-    if (isTextField(target) && !hasMod) return;
+    // F-keys (F10 menu bar, F11 full screen) are no typing either
+    if (isTextField(target) && !hasMod && !/^(Shift\+)?F\d{1,2}$/.test(chord)) return;
     if (target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return;
     if (target instanceof HTMLInputElement && target.type === 'range' && SLIDER_KEYS.has(e.key)) {
       return;

@@ -80,6 +80,43 @@ describe('KeyboardDispatcher', () => {
     expect(ran).toEqual([]);
   });
 
+  it('F-keys reach the app from a text field (F10 → menu bar, review 008 #8)', () => {
+    const { dispatcher, ran, reg } = setup();
+    dispatcher.setContextProvider(() => ['global']);
+    reg('app.focusMenu');
+    key(el('t'), 'F10');
+    expect(ran).toEqual(['app.focusMenu']);
+  });
+
+  it('a gated action is not there: the key goes on to the next context (review 008 #5)', () => {
+    const { actions, dispatcher, ran, reg } = setup();
+    dispatcher.setContextProvider(() => ['reader', 'global']);
+    reg('app.rescan');
+    reg('app.about');
+    actions.setGate((def) => def.id !== 'app.rescan');
+    expect(key(el('g'), 'r', { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(actions.available('app.rescan')).toBe(false);
+    expect(actions.enabled('app.rescan')).toBe(false);
+    expect(actions.run('app.rescan')).toBe(false);
+    expect(actions.run('app.about')).toBe(true);
+    expect(ran).toEqual(['app.about']);
+  });
+
+  it('a fallback is removed only by its owner (review 008 #12)', () => {
+    const { dispatcher } = setup();
+    dispatcher.setContextProvider(() => ['grid']);
+    const typed: string[] = [];
+    const old = () => false;
+    const now = (e: KeyboardEvent) => typed.push(e.key) > 0;
+    dispatcher.setFallback('grid', old);
+    dispatcher.setFallback('grid', now);
+    dispatcher.clearFallback('grid', old);
+    key(el('g'), 'x');
+    dispatcher.clearFallback('grid', now);
+    key(el('g'), 'y');
+    expect(typed).toEqual(['x']);
+  });
+
   it('keeps the webview menu (Back, Reload, Inspect) away except in text fields', () => {
     const { dispatcher } = setup();
     const menu = (target: Element) => {

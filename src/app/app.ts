@@ -16,6 +16,9 @@ import { Reader } from './features/reader/reader';
 import { ReaderService } from './features/reader/reader.service';
 import { DialogService } from './shared/dialog/dialog.service';
 
+/** App actions that stay while the reader is open. */
+const WHILE_READING = new Set(['app.palette', 'app.about', 'app.settings', 'app.quit']);
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -78,6 +81,12 @@ export class App {
       return target?.closest('app-cover-grid') ? ['grid', 'global'] : ['global'];
     });
     dispatcher.attach(inject(DOCUMENT));
+    // while reading only the reader and the app itself (review 008 #5, #6) – keys, menus, palette
+    this.actions.setGate((def) =>
+      this.reader.session() !== null
+        ? def.context === 'reader' || WHILE_READING.has(def.id)
+        : def.context !== 'reader',
+    );
     inject(AppActions).register();
     void this.actions.loadOverrides();
     inject(MenuService).start();

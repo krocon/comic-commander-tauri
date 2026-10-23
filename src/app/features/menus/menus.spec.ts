@@ -10,6 +10,8 @@ import { CategoriesStore } from '../categories/categories.store';
 import { AboutDialog } from './about-dialog';
 import { CommandPalette, matches } from './command-palette';
 import { MenuBar } from './menu-bar';
+import { MenuService } from './menu.service';
+import { MenuApi, MenuSpec } from '../../core/menu/menu-api';
 
 const flush = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -81,7 +83,7 @@ describe('MenuBar (APG menubar)', () => {
     expect(first.textContent).toContain('Command palette');
     expect(first.textContent).toContain('Ctrl+Shift+P');
     // the order radio items are checkboxes with a state
-    const checked = el.querySelector('[role=menuitemcheckbox][aria-checked=true]');
+    const checked = el.querySelector('[role=menuitemradio][aria-checked=true]');
     expect(checked?.textContent).toContain('Order: folder and name');
     key(first, 'Enter');
     await flush(5);
@@ -142,6 +144,66 @@ describe('CommandPalette', () => {
     expect(ran).toEqual(['app.rescan']);
     expect(TestBed.inject(DialogService).open()).toBeNull();
     fixture.nativeElement.remove();
+  });
+});
+
+describe('CommandPalette and the gate', () => {
+  it('leaves out what the gate holds back (grid actions while reading, review 008 #6)', async () => {
+    const { actions, reg } = await setup();
+    reg('app.about');
+    reg('book.copyPath');
+    actions.setGate((def) => def.context !== 'grid');
+    TestBed.inject(DialogService).show('palette');
+    const fixture = TestBed.createComponent(CommandPalette);
+    document.body.appendChild(fixture.nativeElement);
+    await fixture.whenStable();
+    const options = [...(fixture.nativeElement as HTMLElement).querySelectorAll('[role=option]')];
+    expect(options.map((o) => o.textContent!.trim())).toEqual(['About Comic Commander']);
+    fixture.nativeElement.remove();
+  });
+});
+
+class FakeMenuApi extends MenuApi {
+  specs: MenuSpec[] = [];
+  fire: (id: string) => void = () => undefined;
+  quits = 0;
+  setAppMenu(spec: MenuSpec): Promise<void> {
+    this.specs.push(spec);
+    return Promise.resolve();
+  }
+  onAction(fn: (id: string) => void): Promise<() => void> {
+    this.fire = fn;
+    return Promise.resolve(() => undefined);
+  }
+  quit(): Promise<void> {
+    this.quits++;
+    return Promise.resolve();
+  }
+}
+
+describe('MenuService (native menu)', () => {
+  it('ignores menu clicks while a dialog is open and rebuilds after each click (review 008 #1, #2)', async () => {
+    TestBed.overrideProvider(OS, { useValue: 'mac' });
+    TestBed.overrideProvider(MenuApi, { useValue: new FakeMenuApi() });
+    const { ran, reg } = await setup();
+    const api = TestBed.inject(MenuApi) as FakeMenuApi;
+    reg('app.rescan');
+    reg('app.palette');
+    const menus = TestBed.inject(MenuService);
+    menus.start();
+    TestBed.tick();
+    await flush(200);
+    const built = api.specs.length;
+    expect(built).toBeGreaterThan(0);
+    api.fire('app.rescan');
+    TestBed.tick();
+    await flush(200);
+    expect(ran).toEqual(['app.rescan']);
+    // same state, but the click may have toggled a check mark natively: built again
+    expect(api.specs.length).toBe(built + 1);
+    TestBed.inject(DialogService).show('about');
+    api.fire('app.palette');
+    expect(ran).toEqual(['app.rescan']);
   });
 });
 

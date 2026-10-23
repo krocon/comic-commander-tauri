@@ -17,7 +17,7 @@ describe('keymap', () => {
 
   it('lists the chords of an action', () => {
     const k = buildKeymap('other');
-    expect(k.chords.get('reader.next')).toEqual(['ArrowDown', 'n', 'Space', 'PageDown']);
+    expect(k.chords.get('reader.next')).toEqual(['ArrowDown', 'n', 'Shift+n', 'Space', 'PageDown']);
     expect(k.chords.get('view.sizeUp')).toEqual(['Mod++', 'Mod+=']);
   });
 

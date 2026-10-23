@@ -50,4 +50,15 @@ describe('menu model', () => {
     expect(JSON.stringify(spec)).not.toContain('shortcut');
     expect(spec.menus[1].items[0]).toMatchObject({ accelerator: 'Mod+Shift+p' });
   });
+
+  it('cleans labels for the native menu (a title with a newline must not break it, review 008 #4)', () => {
+    const model = buildMenuModel('mac', [{ id: 'c1', title: 'Neu\nRoman\t' + 'x'.repeat(200) }]);
+    const spec = toSpec(resolveMenu(model, look(), 'mac'));
+    const cat = spec.menus[2].items.find((i) => i.kind === 'action' && i.id === 'app.category.1');
+    const label = cat && cat.kind === 'action' ? cat.label : '';
+    expect(label.startsWith('Neu Roman x')).toBe(true);
+    // eslint-disable-next-line no-control-regex
+    expect(label).not.toMatch(/[\u0000-\u001f\u007f]/);
+    expect([...label].length).toBeLessThanOrEqual(120);
+  });
 });

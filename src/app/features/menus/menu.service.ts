@@ -1,6 +1,7 @@
-import { computed, effect, inject, Injectable, Injector, untracked } from '@angular/core';
+import { computed, effect, inject, Injectable, Injector, signal, untracked } from '@angular/core';
 import { ActionService } from '../../core/actions/action.service';
 import { MenuApi } from '../../core/menu/menu-api';
+import { DialogService } from '../../shared/dialog/dialog.service';
 import { CategoriesStore } from '../categories/categories.store';
 import { buildMenuModel, resolveMenu, ResolvedMenu, toSpec } from './menu-model';
 
@@ -17,7 +18,10 @@ export class MenuService {
   private readonly actions = inject(ActionService);
   private readonly api = inject(MenuApi);
   private readonly categories = inject(CategoriesStore);
+  private readonly dialogs = inject(DialogService);
   private readonly injector = inject(Injector);
+  /** Bumped after every native click: muda toggles a check item itself (review 008 #2). */
+  private readonly clicks = signal(0);
   private started = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -43,10 +47,16 @@ export class MenuService {
   start(): void {
     if (this.started) return;
     this.started = true;
-    void this.api.onAction((id) => this.actions.run(id));
+    void this.api.onAction((id) => {
+      this.clicks.update((n) => n + 1);
+      // a dialog owns the app (E4) – native shortcuts and clicks wait, quitting does not
+      if (this.dialogs.open() !== null && id !== 'app.quit') return;
+      this.actions.run(id);
+    });
     if (this.actions.os !== 'mac') return;
     effect(
       () => {
+        this.clicks();
         const spec = toSpec(this.menus());
         untracked(() => {
           clearTimeout(this.timer);

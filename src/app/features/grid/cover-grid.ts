@@ -456,11 +456,12 @@ export class CoverGrid {
       destroyRef,
     );
     // a printable key in the grid goes to the filter (004 E3) – no action
-    this.dispatcher.setFallback('grid', (e) => {
+    const typing = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1 || e.key === ' ') return false;
       this.typed.emit(e.key);
       return true;
-    });
-    destroyRef.onDestroy(() => this.dispatcher.setFallback('grid', null));
+    };
+    this.dispatcher.setFallback('grid', typing);
+    destroyRef.onDestroy(() => this.dispatcher.clearFallback('grid', typing));
   }
 }

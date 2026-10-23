@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { ActionService } from '../../core/actions/action.service';
 import { MenuService } from './menu.service';
-import { ResolvedItem } from './menu-model';
+import { isRadio, ResolvedItem } from './menu-model';
 import { MENUS_TEXTS } from './menus-texts';
 
 type Row =
@@ -191,6 +191,11 @@ export class MenuBar {
     }
     e.preventDefault();
     e.stopPropagation();
+  }
+
+  protected role(item: Extract<ResolvedItem, { kind: 'action' }>): string {
+    if (item.checked === undefined) return 'menuitem';
+    return isRadio(item.id) ? 'menuitemradio' : 'menuitemcheckbox';
   }
 
   protected choose(item: Extract<ResolvedItem, { kind: 'action' }>): void {

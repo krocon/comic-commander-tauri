@@ -52,14 +52,17 @@ function join(mods: Set<Modifier>, key: string): string {
 export function chordOf(e: KeyEventLike, os: Os): string | null {
   if (IGNORED.has(e.key)) return null;
   const mods = new Set<Modifier>();
+  // on many layouts punctuation needs Alt (macOS) or AltGr = Ctrl+Alt (Windows): `[` is `[`
+  const punct = e.key.length === 1 && !/[\p{L}\p{N} ]/u.test(e.key);
+  const altGr = punct && os === 'other' && e.ctrlKey && e.altKey;
   if (os === 'mac') {
     if (e.metaKey) mods.add('Mod');
     if (e.ctrlKey) mods.add('Ctrl');
   } else {
-    if (e.ctrlKey) mods.add('Mod');
+    if (e.ctrlKey && !altGr) mods.add('Mod');
     if (e.metaKey) mods.add('Meta');
   }
-  if (e.altKey) mods.add('Alt');
+  if (e.altKey && !punct) mods.add('Alt');
   if (e.shiftKey) mods.add('Shift');
   return join(mods, keyName(e.key));
 }

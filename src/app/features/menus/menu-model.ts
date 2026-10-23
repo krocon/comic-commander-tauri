@@ -121,14 +121,31 @@ export function resolveMenu(model: TopMenuNode[], look: ActionLookup, os: Os): R
 }
 
 /** The spec Rust gets (the HTML-only `shortcut` stays here). */
+/** Longest label Rust accepts (`app_menu.rs`). */
+const MAX_LABEL = 120;
+
+/** Control characters out, length cut – a category title with a newline must not cost the menu. */
+export function menuLabel(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  const flat = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').trim();
+  return [...flat].slice(0, MAX_LABEL).join('') || '…';
+}
+
 export function toSpec(menus: ResolvedMenu[]): MenuSpec {
   const strip = (items: ResolvedItem[]): MenuItemSpec[] =>
     items.map((i) => {
-      if (i.kind === 'submenu') return { kind: 'submenu', label: i.label, items: strip(i.items) };
+      if (i.kind === 'submenu') {
+        return { kind: 'submenu', label: menuLabel(i.label), items: strip(i.items) };
+      }
       if (i.kind === 'separator') return i;
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { shortcut, ...rest } = i;
-      return rest;
+      return { ...rest, label: menuLabel(rest.label) };
     });
-  return { menus: menus.map((m) => ({ label: m.label, items: strip(m.items) })) };
+  return { menus: menus.map((m) => ({ label: menuLabel(m.label), items: strip(m.items) })) };
+}
+
+/** Items that exclude each other (one category, one order) are radio items. */
+export function isRadio(id: string): boolean {
+  return id.startsWith('app.category.') || id.startsWith('view.sort.');
 }
