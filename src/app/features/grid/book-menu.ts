@@ -23,8 +23,8 @@ interface Item {
 
 /**
  * Actions on one book (design 004): a menu (WAI-ARIA APG) at the cover. ↑/↓/Home/End move,
- * Enter/Space choose, Esc or a click outside closes – the grid gets the focus back. „Read“ is
- * disabled for PDF until prompt 006.
+ * Enter/Space choose, Esc or a click outside closes – the grid gets the focus back. „Read“ can be
+ * disabled (`canRead`); since prompt 006 every book can be read.
  */
 @Component({
   selector: 'app-book-menu',
@@ -61,7 +61,7 @@ export class BookMenu {
   readonly book = input.required<BookEntry>();
   readonly x = input(0);
   readonly y = input(0);
-  readonly canRead = input(false);
+  readonly canRead = input(true);
   readonly chosen = output<BookAction>();
   readonly closed = output<void>();
 
@@ -72,7 +72,7 @@ export class BookMenu {
   protected readonly items = computed<Item[]>(() => [
     {
       action: 'read',
-      label: this.canRead() ? this.t.read : this.t.readPdfLater,
+      label: this.t.read,
       icon: 'book',
       disabled: !this.canRead(),
     },

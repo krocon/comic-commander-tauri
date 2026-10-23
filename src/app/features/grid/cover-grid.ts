@@ -75,8 +75,7 @@ function scrollbarWidth(doc: Document): number {
  * gets its books from the `GridStore` (sorted, filtered) – the table only shows them; the model
  * is built once, new books (background scan, filter) go into it without a new table.
  *
- * Keyboard (E7): arrows, Home/End, PgUp/PgDn move the cursor, Enter reads (PDF: default app until
- * prompt 006), Space/Shift+F10/context key open the actions, typing goes to the filter
+ * Keyboard (E7): arrows, Home/End, PgUp/PgDn move the cursor, Enter reads, Space/Shift+F10/context key open the actions, typing goes to the filter
  * (`typed`), Esc clears the filter. The table's own shortcuts are off. Screen readers hear the
  * focused book through a live region (the table resets `aria-activedescendant` in every pass –
  * the cover grid has no focus model, see design 004 E8).
@@ -386,8 +385,6 @@ export class CoverGrid {
   private async act(action: BookAction, book: BookEntry): Promise<void> {
     switch (action) {
       case 'read':
-        // PDF follows in prompt 006 (design 005 E12): the default app until then
-        if (book.format === 'pdf') return this.store.openExternal(book);
         this.store.read(book);
         return;
       case 'open':

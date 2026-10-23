@@ -38,15 +38,16 @@ describe('BookMenu', () => {
     expect(el.querySelector('[role="menu"]')!.getAttribute('aria-label')).toBe(
       'Actions for Hägar <b>1</b>.cbz',
     );
-    expect(items()[0].getAttribute('aria-disabled')).toBe('true');
-    expect(document.activeElement).toBe(items()[1]);
+    expect(items()[0].getAttribute('aria-disabled')).toBeNull();
+    expect(document.activeElement).toBe(items()[0]);
+    key('ArrowDown');
     key('ArrowDown');
     expect(document.activeElement).toBe(items()[2]);
     key('Enter');
     expect(host.chosen()).toBe('reveal');
     key('Home');
     key(' ');
-    expect(host.chosen()).toBe('reveal'); // „read“ is disabled
+    expect(host.chosen()).toBe('read'); // PDF too since prompt 006
     key('End');
     key('Enter');
     expect(host.chosen()).toBe('copy');

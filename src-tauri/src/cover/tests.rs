@@ -112,8 +112,9 @@ fn failures_get_a_status_and_are_remembered() {
     );
     assert_eq!(ask(&service, &broken_page, &dim(200, 300, "")).status, 422);
     let pdf = lib.path().join("Make 01.pdf");
+    // a broken PDF (design 006: PDFs have covers now)
     std::fs::write(&pdf, b"%PDF-1.4\n").unwrap();
-    assert_eq!(ask(&service, &pdf, &dim(200, 300, "")).status, 415);
+    assert_eq!(ask(&service, &pdf, &dim(200, 300, "")).status, 422);
     assert_eq!(
         ask(&service, &lib.path().join("weg.cbz"), &dim(200, 300, "")).status,
         404

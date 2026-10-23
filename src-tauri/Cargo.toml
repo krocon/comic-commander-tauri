@@ -30,6 +30,8 @@ sevenz-rust2 = { version = "0.24.1", default-features = false, features = ["bzip
 lzma-rust2 = { version = "0.23", default-features = false, features = ["std"] }
 crc32fast = "1.5"
 open = "5"
+# design 006 E1: PDF pages and covers, pure Rust (no FFI, no external program)
+hayro = "0.8.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 
 [dev-dependencies]
