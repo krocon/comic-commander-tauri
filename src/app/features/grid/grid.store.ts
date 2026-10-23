@@ -374,7 +374,7 @@ export class GridStore {
   filterSeries(book: BookEntry): void {
     const series = bookInfo(book).series;
     if (!series) return;
-    this.applyFilterNow(`series:"${series.replace(/"/gu, '')}"`);
+    this.applyFilterNow(`series:"${series.replace(/"/gu, ' ').replace(/\s+/gu, ' ').trim()}"`);
     this.focusOn(this.tileOf(book));
   }
 

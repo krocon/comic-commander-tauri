@@ -146,6 +146,8 @@ pub fn diff(old: &[BookEntry], new: &[BookEntry]) -> Diff {
 
 /// Copies the metadata of the old scan to the new one where the book is the same file (path,
 /// size, modification time and format – what `diff` calls unchanged; design 011 E3).
+/// Without a modification time (`None` on both sides) a file rewritten with the same size keeps
+/// its metadata – the same blind spot as `diff` (review 011 #11).
 pub fn carry_meta(old: &[BookEntry], new: &mut [BookEntry]) {
     let before: HashMap<&str, &BookEntry> = old
         .iter()

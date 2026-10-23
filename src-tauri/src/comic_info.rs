@@ -65,8 +65,10 @@ pub struct BookMeta {
     pub manga: Option<Manga>,
 }
 
+/// Name segments; `.` and `..` are no names (`tar -cf b.cbt .` stores `./ComicInfo.xml`, review 011 #4).
 fn parts(name: &str) -> impl Iterator<Item = &str> {
-    name.split(['/', '\\']).filter(|p| !p.is_empty())
+    name.split(['/', '\\'])
+        .filter(|p| !p.is_empty() && *p != "." && *p != "..")
 }
 
 /// The `ComicInfo.xml` of a book: base name without case, nothing hidden, not under
@@ -112,12 +114,16 @@ pub fn read_book(path: &Path, cancel: Option<&AtomicBool>) -> Result<BookMeta, F
 }
 
 /// The outcome the scan keeps (design 011 E3): `Some` = read (maybe empty), also for failures a
-/// retry cannot change; `None` = try again with the next scan (time limit, I/O, cancel, panic).
+/// retry cannot change and for the time limit (a book that needs > 20 s would cost every later
+/// scan 20 s again – review 011 #5; it is read again when the file changes); `None` = try again
+/// with the next scan (I/O, cancel, panic).
 pub fn outcome(path: &Path, cancel: Option<&AtomicBool>) -> Option<BookMeta> {
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_book(path, cancel)));
+    let cancelled = || cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed));
     match result {
         Ok(Ok(meta)) => Some(meta),
         Ok(Err(e)) if lasting(e.code) => Some(BookMeta::default()),
+        Ok(Err(e)) if e.code == FsErrorCode::Timeout && !cancelled() => Some(BookMeta::default()),
         _ => None,
     }
 }
@@ -173,11 +179,25 @@ fn decode(data: &[u8]) -> String {
                 .iter()
                 .any(|e| decl.contains(&format!("\"{e}\"")) || decl.contains(&format!("'{e}'")));
             if latin1 {
-                data.iter().map(|&b| b as char).collect()
+                // as browsers do: ISO-8859-1 is read as windows-1252 (review 011 #6)
+                data.iter().map(|&b| cp1252(b)).collect()
             } else {
                 String::from_utf8_lossy(data).into_owned()
             }
         }
+    }
+}
+
+/// windows-1252: 0x80–0x9F are typographic characters (– ’ € …), the rest is Latin-1.
+fn cp1252(b: u8) -> char {
+    const HIGH: [char; 32] = [
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž',
+        '\u{8F}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}',
+        'ž', 'Ÿ',
+    ];
+    match b {
+        0x80..=0x9F => HIGH[(b - 0x80) as usize],
+        _ => b as char,
     }
 }
 

@@ -300,6 +300,22 @@ kaputtes CBZ, PDF.
 - Nicht geprüft: helles Schema (die App startet dunkel, 004 Nachtrag), natives macOS-Menü, Marcs echte Sammlung und
   NAS (Dauer der ComicInfo-Phase bei soliden CBRs → auf dem Mac messen).
 
+## Review (separater Agent) und Fixes
+
+| # | Befund | Fix |
+|---|---|---|
+| 1 | Öffner zwischen Cache-Lesen und Phase `meta` bekam veraltete Liste bzw. doppelte Bücher | `meta_phase` vor dem Cache-Schreiben setzen; Wartende bekommen am Ende den ganzen finalen Cache (`cached`), dann den Diff des neuen Walks; `applyDiff` ersetzt statt zu verdoppeln |
+| 2 | Bisherige Abonnenten verloren beim Abbruch durch einen neuen Öffner den Rest der Metadaten; Phase im UI nicht abbrechbar | sie gehen mit dem nächsten Walk weiter (Ids bleiben für `cancel_scan`); „Cancel“-Knopf während „ComicInfo x / y“ |
+| 3 | Phasen nicht begrenzt (solide Bücher, große Wörterbücher, je Kategorie eine) | `MAX_META_PASSES = 1` (eigene Semaphore, Warten abbrechbar) |
+| 4 | `./ComicInfo.xml` (und `./p01.jpg`) aus `tar -cf b.cbt .` galten als versteckt | `.`/`..` sind keine Namenssegmente (auch Cover-Wahl) |
+| 5 | Zeitlimit → jeder Scan versuchte das Buch erneut (20 s) | Zeitlimit ohne Abbruch zählt als bleibend (neu bei geänderter Datei) |
+| 6 | cp1252-Zeichen (– ’) wurden Steuerzeichen | Latin-1/cp1252-Deklaration wird als windows-1252 gelesen |
+| 7 | `YEAR_IN_BRACKETS` kubisch bei langen Namen ohne `)` | Läufe auf 80 Zeichen begrenzt |
+| 8 | „Filter series“ bei Serien mit `"` fand nichts | `seriesKey` ohne `"` |
+| 9 | `Running.sent` blieb während der Phase im Speicher | beim Wechsel in die Phase geleert |
+| 10 | Panik einer Sink beendete Walk/Phase für alle | `broadcast` über `deliver` |
+| 11 | ohne mtime behält eine gleich große, neu geschriebene Datei ihre Metadaten | dokumentiert (wie `diff`) |
+
 ## Offene Fragen an Marc
 
 1. **Namensliste**: Darf ich eine Liste der Dateinamen deiner Sammlung (z. B. `find … -name '*.cb?' | sed 's|.*/Comics/||'`
@@ -311,5 +327,6 @@ kaputtes CBZ, PDF.
 
 ## Fortschritt
 
-- 23.10.2026: Bestand gelesen, Entwurf geschrieben, freigegeben. Basis-`pnpm check` grün. Container eingerichtet (Node 22.23.3, pnpm,
+- 23.10.2026: Bestand gelesen, Entwurf geschrieben, freigegeben. Basis-`pnpm check` grün. Phasen 2–6 umgesetzt,
+  E2E im Fenster, Review (11 Befunde) eingearbeitet, `pnpm check` grün, Debug-Build gebaut. Container eingerichtet (Node 22.23.3, pnpm,
   Rust-Build).

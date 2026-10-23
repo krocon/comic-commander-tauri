@@ -82,7 +82,8 @@ export class CategoryStore {
 
   async cancel(): Promise<void> {
     const id = this.categoryId();
-    if (id && this.scanning()) await this.api.cancel(id);
+    // also the ComicInfo pass after the scan (review 011 #2)
+    if (id && (this.scanning() || this.metaProgress())) await this.api.cancel(id);
   }
 
   /** The collected diff parts in one step (one sort). */
@@ -95,7 +96,14 @@ export class CategoryStore {
     const kept = this.books()
       .filter((b) => !removed.has(b.path))
       .map((b) => changed.get(b.path) ?? b);
-    this.books.set(sortBooks([...kept, ...d.added]));
+    // a book already shown is replaced, not doubled (review 011 #1)
+    const added = new Map(d.added.map((b) => [b.path, b]));
+    const merged = kept.map((b) => {
+      const a = added.get(b.path);
+      if (a) added.delete(b.path);
+      return a ?? b;
+    });
+    this.books.set(sortBooks([...merged, ...added.values()]));
   }
 
   /** Shows the parts so far; the whole cache sorted once. */

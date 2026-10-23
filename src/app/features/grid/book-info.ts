@@ -36,7 +36,8 @@ const MARKER = String.raw`(?:#|band|bd\.?|nr\.?|no\.?|heft|tome|tomo|t(?=\d)|iss
 /** One number token with an optional marker, between spaces (or at the ends). */
 const NUMBER_TOKEN = new RegExp(String.raw`(^|\s)(?:${MARKER}\s*)?(${NUM})(?=$|\s|[-–:,])`, 'giu');
 const VOLUME = new RegExp(String.raw`(^|\s)(?:v|vol\.?|volume)\s*(\d{1,4})(?=$|\s|[-–:,])`, 'iu');
-const YEAR_IN_BRACKETS = /[([][^)\]]*?\b((?:19|20)\d{2})\b[^)\]]*[)\]]/u;
+/** Bounded runs: unbounded ones are cubic on a long name without `)` (review 011 #7). */
+const YEAR_IN_BRACKETS = /[([][^)\]]{0,80}?\b((?:19|20)\d{2})\b[^)\]]{0,80}[)\]]/u;
 const EDGE = /^[\s\-–:.,_]+|[\s\-–:.,_]+$/gu;
 
 function tidy(s: string): string {
@@ -143,7 +144,8 @@ export function parseBookName(name: string, folder: string | null): NameInfo {
 /** The key series are grouped and filtered by. */
 export function seriesKey(series: string | null): string | null {
   if (!series) return null;
-  const k = tidy(series.normalize('NFC').toLowerCase().replace(/_/gu, ' '));
+  // without `"`: „Filter series“ writes the series in quotes (review 011 #8)
+  const k = tidy(series.normalize('NFC').toLowerCase().replace(/[_"]/gu, ' '));
   return k === '' ? null : k;
 }
 

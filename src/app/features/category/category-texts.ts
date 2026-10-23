@@ -29,6 +29,7 @@ export const CATEGORY_TEXTS = {
   updated: (ms: number, now: number) => `updated ${relativeTime(ms, now)}`,
   refreshing: 'refreshing…',
   /** Design 011: the ComicInfo pass after the scan. */
+  stopInfo: 'Stop reading ComicInfo (goes on with the next scan)',
   readingInfo: (done: number, total: number) =>
     `ComicInfo ${done.toLocaleString('en')} / ${total.toLocaleString('en')}`,
   scanning: (books: number, dirs: number) =>

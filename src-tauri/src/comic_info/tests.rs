@@ -107,6 +107,12 @@ fn encodings() {
     l.push(0xE4);
     l.extend_from_slice(b"gar</Series></ComicInfo>");
     assert_eq!(parse(&l).series, hagar);
+    // windows-1252 typography (review 011 #6): – and ’
+    let mut w =
+        b"<?xml version='1.0' encoding='windows-1252'?><ComicInfo><Series>Spider-Man \x96 Don\x92t"
+            .to_vec();
+    w.extend_from_slice(b"</Series></ComicInfo>");
+    assert_eq!(parse(&w).series.as_deref(), Some("Spider-Man – Don’t"));
     // invalid UTF-8 without declaration: replacement character, no crash
     let mut bad = b"<ComicInfo><Series>H".to_vec();
     bad.push(0xE4);
@@ -229,6 +235,17 @@ fn finds_the_right_entry() {
     assert_eq!(find(&e[..3]).unwrap().name, "sub/ComicInfo.xml");
     assert!(find(&e[..2]).is_none());
     assert!(find(&[entry("ComicInfo.xml.bak", 1)]).is_none());
+    // `tar -cf book.cbt .` (review 011 #4)
+    assert_eq!(
+        find(&[entry("./ComicInfo.xml", 1)]).unwrap().name,
+        "./ComicInfo.xml"
+    );
+    assert_eq!(
+        find(&[entry("./sub/ComicInfo.xml", 1), entry("./ComicInfo.xml", 1)])
+            .unwrap()
+            .name,
+        "./ComicInfo.xml"
+    );
 }
 
 fn page() -> Vec<u8> {
@@ -259,6 +276,12 @@ fn reads_it_from_every_container() {
     let t = d.path().join("b.cbt");
     build::cbt(&t, &entries);
     assert_eq!(read_book(&t, None).unwrap(), asterix());
+    let dot = d.path().join("dot.cbt");
+    build::cbt(
+        &dot,
+        &[("./p01.jpg", page()), ("./ComicInfo.xml", INFO.to_vec())],
+    );
+    assert_eq!(read_book(&dot, None).unwrap(), asterix());
     for solid in [false, true] {
         let s = d.path().join(format!("b{solid}.cb7"));
         build::cb7(&s, &entries, solid);

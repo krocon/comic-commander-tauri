@@ -89,6 +89,10 @@
   }
   @if (store.scanning() && store.firstScan()) {
     <button type="button" class="btn" (click)="store.cancel()">{{ t.cancel }}</button>
+  } @else if (store.metaProgress()) {
+    <button type="button" class="btn" [title]="t.stopInfo" (click)="store.cancel()">
+      {{ t.cancel }}
+    </button>
   }
   <span class="status" role="status" aria-live="polite" [class.warn]="warn()">{{ status() }}</span>
   @if (job.running()) {

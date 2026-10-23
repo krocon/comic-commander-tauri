@@ -27,6 +27,12 @@ describe('parseBookName (catalog, design 011)', () => {
     });
   }
 
+  it('stays fast on very long names without a closing bracket (review 011 #7)', () => {
+    const t = performance.now();
+    parseBookName('(2000 '.repeat(2000) + '.cbz', null);
+    expect(performance.now() - t).toBeLessThan(200);
+  });
+
   it('has a large catalog', () => {
     expect(catalog.cases.length).toBeGreaterThanOrEqual(60);
   });
@@ -37,6 +43,7 @@ describe('seriesKey and numberValue', () => {
     expect(seriesKey('Hägar')).toBe(seriesKey('Hägar'));
     expect(seriesKey('  Im_roten   Bereich - ')).toBe('im roten bereich');
     expect(seriesKey('ASTERIX')).toBe('asterix');
+    expect(seriesKey('The "Best" of')).toBe('the best of');
     expect(seriesKey('')).toBeNull();
     expect(seriesKey(null)).toBeNull();
   });
