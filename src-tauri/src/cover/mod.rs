@@ -214,7 +214,7 @@ impl CoverService {
         match make_thumbnail_with(book, dim.width, dim.height, cancel) {
             Ok(data) => self
                 .cache
-                .put(&key, &data)
+                .put_quiet(&key, &data)
                 .map_err(|e| FsError::from_io(&e, book)),
             Err(e) => {
                 if remembered(e.code) {

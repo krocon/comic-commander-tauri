@@ -39,6 +39,9 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   gemerkt (`reading-state.json`), das Grid zeigt den Lesefortschritt als Balken am Cover.
 - **PDF**: Cover und Seiten, gerendert in Rust (`hayro`, ohne externe Programme); bei Scan-PDFs wird das eingebettete
   JPEG direkt gezeigt. Verschlüsselte PDFs werden nicht geöffnet.
+- **Thumbnails erzeugen** (Kategorie-Menü → „Generate thumbnails…“): alle fehlenden Cover einer oder aller Kategorien
+  im Hintergrund, mit Fortschritt, Restzeit, Pause und Abbruch; die Toolbar zeigt den Stand, fehlerhafte Bücher
+  werden am Ende aufgelistet. Ein abgebrochener Lauf setzt beim nächsten Start fort.
 - Natürliche Reihenfolge (`Band 2` vor `Band 10`), Umlaute in beiden Unicode-Formen gleich behandelt.
 - Hell/Dunkel folgt dem System.
 

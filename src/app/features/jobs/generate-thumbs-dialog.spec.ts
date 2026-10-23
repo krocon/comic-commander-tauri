@@ -27,6 +27,7 @@ async function render() {
   const api = TestBed.inject(JobsApi) as FakeJobsApi;
   TestBed.inject(DialogService).show('thumbs');
   const fixture = TestBed.createComponent(GenerateThumbsDialog);
+  document.body.appendChild(fixture.nativeElement);
   await fixture.whenStable();
   const el = fixture.nativeElement as HTMLElement;
   const update = async () => {
@@ -109,6 +110,7 @@ describe('GenerateThumbsDialog', () => {
     expect(el.textContent).toContain('Cancelled – 1 generated so far.');
     button('Run again').click();
     await update();
+    expect(document.activeElement?.textContent?.trim()).toBe('Start');
     api.failWith = { code: 'job_running', message: 'x' };
     button('Start').click();
     await update();

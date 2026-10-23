@@ -65,6 +65,12 @@ impl CoverCache {
         Some(data)
     }
 
+    /// Writes without the periodic trim – the batch job trims once at its end (review 007 #2:
+    /// a run must not evict the covers it just made).
+    pub fn put_quiet(&self, key: &str, data: &[u8]) -> io::Result<()> {
+        write_atomic(&self.file(key), data)
+    }
+
     pub fn put(&self, key: &str, data: &[u8]) -> io::Result<()> {
         write_atomic(&self.file(key), data)?;
         if self.written.fetch_add(1, Ordering::Relaxed) % TRIM_EVERY == TRIM_EVERY - 1 {

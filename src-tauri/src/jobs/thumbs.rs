@@ -22,6 +22,8 @@ pub const MAX_ERROR_LIST: usize = 1000;
 #[derive(Debug, Clone)]
 pub struct Target {
     pub category_id: String,
+    /// Shown in the error list instead of the folder (review 007 #5: no full user paths).
+    pub title: String,
     pub base_dir: String,
     pub extensions: Vec<String>,
     pub dims: Vec<ThumbsDim>,
@@ -100,12 +102,23 @@ impl State {
     }
 }
 
-/// The books of a category: the scan cache, else a fresh walk.
-fn books_of(cache_dir: &Path, t: &Target) -> Result<Vec<BookEntry>, FsError> {
+/// The books of a category: the scan cache, else a fresh walk (cancellable, review 007 #4).
+fn books_of(cache_dir: &Path, t: &Target, control: &Control) -> Result<Vec<BookEntry>, FsError> {
     if let Some(c) = scan_cache::read(cache_dir, &t.base_dir, &t.extensions) {
         return Ok(c.books);
     }
-    scan::scan(Path::new(&t.base_dir), &t.extensions).map(|(b, _)| b)
+    let mut books = Vec::new();
+    scan::walk(
+        Path::new(&t.base_dir),
+        &scan::WalkOptions::new(&t.extensions),
+        control.cancel_flag(),
+        &mut |e, _| {
+            if let scan::WalkEvent::Book(b) = e {
+                books.push(b);
+            }
+        },
+    )?;
+    Ok(books)
 }
 
 /// Runs the job (blocking); every event goes to `sink`.
@@ -130,16 +143,17 @@ pub fn run(
         existing: 0,
     });
     for t in targets {
-        let books = match books_of(cache_dir, t) {
+        let books = match books_of(cache_dir, t, control) {
             Ok(b) => b,
+            Err(_) if control.cancelled() => return finish(state, control, sink),
             Err(e) => {
-                state.error(t.base_dir.clone(), e.code);
+                state.error(t.title.clone(), e.code);
                 continue;
             }
         };
         for book in books {
             for dim in &t.dims {
-                if control.cancelled() {
+                if !control.wait_while_paused() {
                     return finish(state, control, sink);
                 }
                 match covers.state(Path::new(&book.path), dim) {
@@ -149,6 +163,11 @@ pub fn run(
                         book: book.clone(),
                         dim: dim.clone(),
                     }),
+                    // gone since the last scan: nothing to do (review 007 #6)
+                    Err(FsError {
+                        code: FsErrorCode::NotFound,
+                        ..
+                    }) => {}
                     Ok(CoverState::Failed(code)) | Err(FsError { code, .. }) => {
                         // known already: counted, not opened again
                         state.progress.total += 1;
@@ -177,20 +196,41 @@ pub fn run(
 
     // 2. make them
     let next = AtomicUsize::new(0);
+    let threads = threads.max(1);
+    // workers still running – a drop guard counts a panicking one too (review 007 #1)
+    let alive = AtomicUsize::new(threads);
+    struct Exit<'a>(&'a AtomicUsize);
+    impl Drop for Exit<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+            crate::cover::image::set_low_priority(false);
+        }
+    }
     let shared = Mutex::new(state);
     std::thread::scope(|scope| {
-        for _ in 0..threads.max(1) {
+        for _ in 0..threads {
             scope.spawn(|| {
+                let _exit = Exit(&alive);
                 crate::cover::image::set_low_priority(true);
                 loop {
-                    if !control.wait_while_paused() {
+                    // nothing left: no waiting for a pause at 100 % (review 007 #9)
+                    if next.load(Ordering::SeqCst) >= work.len() || !control.wait_while_paused() {
                         break;
                     }
                     let i = next.fetch_add(1, Ordering::SeqCst);
                     let Some(item) = work.get(i) else { break };
                     lock(&shared).progress.current_file = Some(item.book.rel_path.clone());
                     let path = PathBuf::from(&item.book.path);
-                    let outcome = covers.generate(&path, &item.dim, Some(control.cancel_flag()));
+                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        covers.generate(&path, &item.dim, Some(control.cancel_flag()))
+                    }))
+                    .unwrap_or_else(|_| {
+                        Err(FsError::new(
+                            FsErrorCode::ArchiveError,
+                            "cover failed (panic)",
+                            None,
+                        ))
+                    });
                     let mut s = lock(&shared);
                     // cancelled in the middle: not counted (the run is over anyway)
                     if control.cancelled() && outcome.is_err() {
@@ -219,14 +259,12 @@ pub fn run(
                         sink(JobEvent::Progress { progress });
                     }
                 }
-                crate::cover::image::set_low_priority(false);
             });
         }
         // a paused run still tells that it is paused
         scope.spawn(|| {
             let mut was = false;
-            while next.load(Ordering::SeqCst) < work.len() + threads.max(1) && !control.cancelled()
-            {
+            while alive.load(Ordering::SeqCst) > 0 && !control.cancelled() {
                 let now = control.paused();
                 if now != was {
                     was = now;
@@ -242,6 +280,8 @@ pub fn run(
         });
     });
     let state = shared.into_inner().unwrap_or_else(|e| e.into_inner());
+    // the covers of this run are in; trim once now (review 007 #2)
+    covers.trim_cache();
     finish(state, control, sink);
 }
 

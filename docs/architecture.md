@@ -77,6 +77,8 @@
 | A35 | **Schnellweg Scan-PDF**: Seite = genau ein `DCTDecode`-Bild (RGB/Grau/ICC 1–3, ohne Maske/Drehung, ≥ 90 % der Seite) → die JPEG-Bytes selbst | volle Qualität, kein Rendern; CMYK-JPEGs zeigen Browser falsch | 006 E2 |
 | A36 | Rendern auf 2 eigenen Threads (64 MiB Stack, `catch_unwind`), ≤ 16 wartend (sonst 503), 20 s Wartezeit; Grenzen: Datei ≤ 1 GiB, ≤ 10 000 Seiten, Bild ≤ 16 384 px / 64 MP | hayro ist nicht abbrechbar; tiefe Verschachtelung | 006 E3 |
 | A37 | **PDF-Vorprüfung** (`pdf/guard.rs`): vor hayro wird jeder Stream durch seine erweiternden Filter (Flate, LZW, RunLength, Hex, A85) mit ≤ 256 MiB je Schicht entpackt; Bild-XObjects ≤ 64 MP (auch der JPEG-Kopf); sonst `archive_too_large`. Ergebnis je Datei (Pfad, Größe, mtime) gemerkt | hayro entpackt ohne Grenze, OOM bricht den Prozess ab | 006 Review #1 |
+| A38 | **Job-Engine schlank** (`jobs/`): ein Lauf je Art (`JobHub`, `job_running`), `Control` (Abbruch, Pause, Zeit ohne Pausen), `Reporter` ≤ 10 Ereignisse/s; Fortschritt über `Channel<JobEvent>` | Duplikate (010), Cache leeren folgen; keine Warteschlange nötig | 007 E1 |
+| A39 | **Thumbnails im Stapel** nur auf Knopfdruck: Bücher aus dem Scan-Cache (sonst Walk), alle Größen, vorhanden = Cache oder Sidecar, gemerkte Fehler ohne erneutes Öffnen; eigene Threads min(4, Kerne − 1) mit **niedriger Decoder-Priorität** (ein Platz bleibt für sichtbare Cover) | Akku/NAS; Grid bleibt flüssig; Abbruch lässt nur ganze Dateien (`write_atomic`) | 007 E2–E5 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -93,6 +95,7 @@
 | `model::AppInfo` | `AppInfo` in `about.models.ts` | |
 | `reader::model::{OpenedBook, PageInfo, PageDims, ReaderEvent}` | `core/reader/reader.models.ts` | `ReaderEvent` `tag = "kind"`: `dims`, `done`, `failed` |
 | `reading_state::ReadingPosition` | `ReadingPosition` | `{ page, pages, updatedMs }` |
+| `jobs::thumbs::{JobEvent, ThumbsProgress, ThumbError, ReadyBook}` | `core/jobs/jobs.models.ts` | `JobEvent` `tag = "kind"`: `counting`, `progress`, `done` (`cancelled`, `errorList` ≤ 1 000), `failed` |
 | `FsError { code, message, path }` | `FsError` in `fs-error.ts` | Codes `snake_case`; UI-Text nur aus `describeFsError()` |
 
 Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `categories.rs` und `category-form.ts`;
@@ -117,6 +120,9 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `save_reading_position` | `categoryId`, `bookId`, `page`, `pages` | `void` | `unknown_book`, `io` |
 | `load_reading_state` | – | `Record<bookId, ReadingPosition>` | – |
 | `toggle_fullscreen` | (Fenster) | `boolean` | `io` |
+| `start_generate_thumbs` | `categoryIds` (leer = alle), `onEvent: Channel<JobEvent>` | `string` (Job-Id) | `job_running`, `unknown_category` |
+| `pause_job` | `jobId`, `paused` | `void` | – |
+| `cancel_job` | `jobId` | `void` | – |
 
 **URI-Schema `cccover`** (kein Command, A17): `convertFileSrc('<cat>.<book>.<dim>', 'cccover')` + `?v=<mtime>` →
 `cccover://localhost/…` (macOS/Linux) bzw. `http://cccover.localhost/…` (Windows). Antwort `image/jpeg`/`image/png`
@@ -163,6 +169,11 @@ Cover 200×300 ≈ 10–25 KB, `_xl` ≈ 200–300 KB (mehr als die geschätzten
 Filter über 50 000 Bücher (Vitest, `filter-logic.perf.spec.ts`) deutlich < 50 ms; 30 × Bild-ab in 1,3 s inkl.
 `xdotool` (Debug); `Ctrl+End` sofort. Im Debug-Build ist der IPC-Transport der Engpass (~0,5 MB/s; Rust 0,7 s,
 Frontend 40–60 ms je Ereignis). Auf dem Mac nachmessen.
+
+**Thumbnails im Stapel (Design 007, 23.10.2026)** – Container (2 Kerne → 1 Job-Thread), **Debug-Build**, 1 001 Bücher
+(1200 × 1800 JPEG), 2 Größen: ~1 680 fehlende Cover, ≈ 7/s, Restzeit-Schätzung nach wenigen Sekunden stabil
+(~4 min); Grid scrollt und Leser blättert während des Laufs flüssig; Abbruch → nur ganze `.jpg`, neuer Lauf setzt
+fort. Release und Marcs NAS auf dem Mac messen.
 
 **PDF (Design 006, 23.10.2026)** – Container, Release-Probe mit `hayro` 0.8, Seite auf 1600 px Breite:
 

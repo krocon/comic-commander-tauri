@@ -27,7 +27,9 @@ export class ThumbsJobStore {
   readonly ready = signal<readonly ReadyBook[]>([]);
 
   readonly running = computed(() => ['starting', 'counting', 'running'].includes(this.phase()));
-  readonly paused = computed(() => this.progress()?.paused ?? false);
+  /** Paused before the first progress event (while counting). */
+  private readonly pausedEarly = signal(false);
+  readonly paused = computed(() => this.progress()?.paused ?? this.pausedEarly());
   readonly percent = computed(() => {
     const p = this.progress();
     return p ? percent(p.processed, p.total) : 0;
@@ -48,13 +50,15 @@ export class ThumbsJobStore {
     this.counting.set({ found: 0, existing: 0 });
     this.progress.set(null);
     this.cancelled.set(false);
+    this.pausedEarly.set(false);
     this.errorList.set([]);
     this.error.set(null);
     try {
       const id = await this.api.startGenerateThumbs(categoryIds, (e) => {
         if (run === this.run) this.onEvent(e);
       });
-      if (run === this.run) this.jobId.set(id);
+      // `done` of an empty run may come before the answer (review 007 #8)
+      if (run === this.run && this.running()) this.jobId.set(id);
     } catch (e) {
       if (run !== this.run) return;
       this.error.set(toFsError(e));
@@ -93,6 +97,7 @@ export class ThumbsJobStore {
     const id = this.jobId();
     if (!id) return;
     // shown at once; the next event confirms it
+    this.pausedEarly.set(paused);
     this.progress.update((p) => (p ? { ...p, paused } : p));
     await this.api.pause(id, paused).catch(() => undefined);
   }

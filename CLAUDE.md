@@ -29,7 +29,10 @@
   Lesestand in `reading-state.json` + Balken am Cover. Design: `prompts/done/005-leser.design.md`.
 - **Prompt 006 (PDF)** ist fertig: `pdf/` mit `hayro` (reines Rust), Cover und Leser-Seiten, Schnellweg für Scan-PDFs
   (eingebettetes JPEG), Render-Threads mit Grenzen. Design: `prompts/done/006-pdf.design.md`.
-- Als Nächstes: **007** (Thumbnails im Stapel) oder **008** (Aktionen/Menü/Tastatur). Reihenfolge und Status: `prompts/README.md`.
+- **Prompt 007 (Thumbnails im Stapel)** ist fertig: schlanke Job-Engine `jobs/` (ein Lauf je Art, Pause, Abbruch,
+  Drosselung), fehlende Cover aller Größen mit niedriger Decoder-Priorität, Dialog + Toolbar-Anzeige. Design:
+  `prompts/done/007-thumbs-generieren.design.md`.
+- Als Nächstes: **008** (Aktionen/Menü/Tastatur). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -83,11 +86,13 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
                               CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
                               in styles.css), BookMenu, rein: filter-logic (+ .cases.json), series-filter, grid-math,
                               view-state, cover-retries
+  app/core/jobs/              JobsApi (Channel JobEvent), DTOs = Rust jobs/thumbs.rs
+  app/features/jobs/          ThumbsJobStore (Root), GenerateThumbsDialog, job-time (rein), Texte
   app/features/reader/        Leser (005): ReaderService (Root: Sitzung = Buchliste + Index, Lesestände, closedOn),
                               ReaderStore (je Leser: Buch, Seite, Größen, Einstellungen, Position speichern), Reader
                               (Ebene über der Kategorie-Ansicht, Tasten am document), rein: reader-logic, reader-settings
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
-  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi), Fixtures – nie im
+  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi, FakeJobsApi), Fixtures – nie im
                               Produktivcode importieren
   test-setup.ts               Vitest-Setup (ResizeObserver für jsdom, fnf G11)
 public/                       favicon.png
@@ -104,6 +109,7 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               FFI, fnf); Budget (Zeit/Abbruch), Grenzen; tests.rs mit Generatoren (cbz/cbt/cb7/cbr4)
   src/cover/                  choose (Titelseite), image (Decoder mit Limits, JPEG), sidecar (alte Thumbs lesen),
                               cache (App-Cache, 2 GiB), pool (LIFO), mod.rs (URL parsen, CoverService, Status)
+  src/jobs/                   Jobs (007): mod.rs (JobHub, Control, Reporter), thumbs.rs (fehlende Cover im Stapel)
   src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
                               Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
   src/reading_state.rs        reading-state.json (≤ 5 000 Bücher)
@@ -144,8 +150,9 @@ prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbei
 - **Veraltete Antworten verwerfen** (Request-Sequenz wie in `CategoryStore.open`) – bei Scan, Cover, Seiten.
 - **Commands nie synchron**: `async fn` + `spawn_blocking` für blockierende I/O; der Test
   `commands::command_rules` prüft das. Logik in reinen Modulen ohne Tauri, Command-Schicht dünn.
-- **Lange Operationen sind Jobs** (ab Prompt 007): Fortschritt über `tauri::ipc::Channel`, Abbruch-Token, nie auf dem
-  Async-Runtime-Thread blockieren.
+- **Lange Operationen sind Jobs** (`jobs/`, ab Prompt 007): `JobHub::start(kind)` (ein Lauf je Art), Fortschritt über
+  `tauri::ipc::Channel` mit `Reporter` (≤ 10/s), `Control` für Abbruch/Pause; nie auf dem Async-Runtime-Thread
+  blockieren. Hintergrund-Threads, die Bilder dekodieren, setzen `cover::image::set_low_priority(true)`.
 - **Bilder** (Cover, Seiten) kommen über ein eigenes **asynchrones URI-Schema** mit Tokens (ab 003), nie als
   Base64 über `invoke`, nie über einen HTTP-Server. Parallelität begrenzen (Semaphor, sonst 503).
 - **Fremde Dateien sind feindlich**: Archive und Bilder aus der Sammlung werden mit Grenzen gelesen (Einträge,

@@ -86,4 +86,16 @@ describe('ThumbsJobStore', () => {
     old({ kind: 'progress', progress: progress({ total: 99 }) });
     expect(store.progress()).toBeNull();
   });
+
+  it('pause while counting shows at once; a done before the id leaves no stale id', async () => {
+    const { store, api } = setup();
+    const started = store.start([]);
+    api.emit({ kind: 'done', progress: progress(), cancelled: false, errorList: [] });
+    await started;
+    expect(store.jobId()).toBeNull();
+    await store.start([]);
+    api.emit({ kind: 'counting', found: 1, existing: 0 });
+    await store.setPaused(true);
+    expect(store.paused()).toBe(true);
+  });
 });

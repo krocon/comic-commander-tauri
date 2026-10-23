@@ -46,6 +46,7 @@ fn lib(good: usize) -> Lib {
     Lib {
         target: Target {
             category_id: "c0000000000a1".into(),
+            title: "Comics".into(),
             base_dir: base.to_string_lossy().into_owned(),
             extensions: vec![".cbz".into()],
             dims: dims(),
@@ -182,12 +183,7 @@ fn pause_holds_the_run() {
     assert_eq!(t.join().unwrap(), 0, "covers made while paused");
     let (p, _, _) = done(&events);
     assert_eq!(p.generated, 7);
-    // while paused nothing was made, and the pause was reported
-    assert!(
-        events
-            .iter()
-            .any(|e| matches!(e, JobEvent::Progress { progress } if progress.paused))
-    );
+    // paused before the start: counting waits too (review 007 #4), nothing was made
     assert!(p.elapsed_ms < 300, "{}", p.elapsed_ms);
 }
 
@@ -198,5 +194,6 @@ fn an_unreadable_category_is_an_error_entry() {
     let (p, cancelled, errors) = done(&run_job(&l, &Control::default()));
     assert!(!cancelled);
     assert_eq!((p.total, p.errors), (0, 1));
-    assert_eq!(errors[0].name, "/does/not/exist/Comics");
+    // the title, not the folder (review 007 #5)
+    assert_eq!(errors[0].name, "Comics");
 }

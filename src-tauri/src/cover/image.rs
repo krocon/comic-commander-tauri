@@ -91,6 +91,11 @@ pub fn set_low_priority(low: bool) {
     LOW_PRIORITY.with(|l| l.set(low));
 }
 
+/// `true` on a thread marked with [`set_low_priority`] (the PDF render queue asks too).
+pub fn low_priority() -> bool {
+    LOW_PRIORITY.with(std::cell::Cell::get)
+}
+
 impl Permit {
     fn take() -> Permit {
         let p = permits();

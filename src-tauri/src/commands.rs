@@ -433,6 +433,7 @@ pub async fn start_generate_thumbs(
             .into_iter()
             .map(|c| thumbs::Target {
                 category_id: c.id,
+                title: c.title,
                 base_dir: c.base_dir,
                 extensions: c.book_extensions,
                 dims: c.thumbs_dims,
@@ -448,9 +449,18 @@ pub async fn start_generate_thumbs(
         std::thread::spawn(move || {
             // `running` frees the kind when the run is over
             let control = running.control.clone();
-            thumbs::run(&targets, &cache, &service, &control, threads, &|e| {
+            let sink = |e| {
                 let _ = on_event.send(e);
-            });
+            };
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                thumbs::run(&targets, &cache, &service, &control, threads, &sink)
+            }));
+            if outcome.is_err() {
+                // the UI must leave its running state (review 007 #1)
+                sink(JobEvent::Failed {
+                    error: FsError::new(FsErrorCode::Io, "the job failed", None),
+                });
+            }
             drop(running);
         });
         Ok(id)

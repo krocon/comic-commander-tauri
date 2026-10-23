@@ -32,7 +32,9 @@
     <div class="footer">
       <span class="error" role="alert">{{ errorText() }}</span>
       <button type="button" class="btn" (click)="close()">{{ t.close }}</button>
-      <button type="button" class="btn primary" (click)="start()">{{ t.start }}</button>
+      <button #startButton type="button" class="btn primary" (click)="start()">
+        {{ t.start }}
+      </button>
     </div>
   } @else {
     @let p = job.progress();
@@ -115,7 +117,7 @@
           {{ t.close }}
         </button>
       } @else {
-        <button type="button" class="btn" (click)="job.reset()">{{ t.again }}</button>
+        <button type="button" class="btn" (click)="again()">{{ t.again }}</button>
         <button type="button" class="btn primary" data-autofocus (click)="close()">
           {{ t.close }}
         </button>

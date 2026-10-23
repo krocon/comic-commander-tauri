@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { describeFsError } from '../../core/errors/fs-error';
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { Modal } from '../../shared/dialog/modal';
@@ -41,13 +49,22 @@ export class GenerateThumbsDialog {
     const p = this.job.progress();
     if (this.job.phase() !== 'done' || !p) return '';
     if (this.job.cancelled()) return this.t.cancelledMessage(p.generated);
-    if (p.total === 0) return this.t.nothingToDo;
+    // an unreadable category is an error, not „nothing to do“ (review 007 #5)
+    if (p.total === 0 && p.errors === 0) return this.t.nothingToDo;
     return this.t.doneMessage(p.generated);
   });
 
   protected start(): void {
     const s = this.scope();
     void this.job.start(s ? [s] : []);
+  }
+
+  private readonly startButton = viewChild<ElementRef<HTMLButtonElement>>('startButton');
+
+  /** Back to the form, the focus on „Start“ (E2E 007: it was lost with the old buttons). */
+  protected again(): void {
+    this.job.reset();
+    setTimeout(() => this.startButton()?.nativeElement.focus());
   }
 
   protected close(): void {

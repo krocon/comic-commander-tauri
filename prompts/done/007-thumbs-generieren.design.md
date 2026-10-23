@@ -1,6 +1,6 @@
 # Design 007 – Fehlende Thumbnails im Stapel erzeugen
 
-> Status: freigegeben 23.10.2026 (Marc: „arbeite wie bisher selbstständig“ – Empfehlungen gelten als freigegeben) ·
+> Status: umgesetzt · freigegeben 23.10.2026 (Marc: „arbeite wie bisher selbstständig“ – Empfehlungen gelten als freigegeben) ·
 > Branch `feat/thumbs-generieren` (auf `feat/pdf`, PDF-Cover gehören dazu) · Auftrag:
 > [`007-thumbs-generieren.md`](007-thumbs-generieren.md) · Vorlage: legacy §5
 
@@ -64,11 +64,25 @@ Cache-Einträge entstehen nur über `write_atomic` (003) – ein Abbruch hinterl
   Dialog (Start, Pause, Abbruch, Abschluss, Fehlerliste), Toolbar-Anzeige, Grid vergisst Fehlversuche.
 - Ende-zu-Ende: 1 000 Bücher, Grid scrollen und Leser während des Laufs, Abbruch und Fortsetzen.
 
+## Review (separater Agent, 23.10.2026)
+
+| # | Befund | Erledigt |
+|---|---|---|
+| 1 | Panik in einem Worker → der Pausen-Wächter läuft ewig, Job hängt, UI bleibt „läuft“ | Wächter zählt lebende Worker (Drop-Guard), `generate` in `catch_unwind`, `run` im Command in `catch_unwind` → `failed` |
+| 2 | Cache-Trim alle 500 Cover löscht die Ausgabe des Laufs | Job schreibt ohne Trim (`put_quiet`), trimmt einmal am Ende. Offen: Sammlung × Größen > 2 GiB (Grenze wird in 009 einstellbar) |
+| 3 | PDF-Cover des Jobs belegen beide Render-Threads | eigene Spur für Hintergrund: höchstens eine Hintergrund-Seite zugleich, längere Wartezeit; Test |
+| 4 | Abbruch/Pause erreichen den Walk und das Zählen nicht | Walk mit Abbruch-Flag, Pause im Zähl-Loop |
+| 5 | Unlesbare Kategorie als „nichts zu tun“, voller Pfad in der Liste | Meldung prüft Fehler; Name = Kategorietitel |
+| 6 | Seit dem Scan gelöschte Bücher als Fehler | `not_found` beim Zählen wird übergangen |
+| 7 | Abbruch als bleibender Fehler gemerkt? | geprüft: Abbruch ist `timeout`, wird nicht gemerkt |
+| 8 | Job-Id nach `done` | nur noch gesetzt, solange der Lauf läuft; Test |
+| 9 | Pause kurz vor Schluss hält bei 100 % | Worker prüfen zuerst, ob noch Arbeit da ist |
+
 ## Fortschritt
 
 - [x] Phase 1 Design
-- [ ] Phase 2 Rust
-- [ ] Phase 3 Frontend
-- [ ] Phase 4 Ende-zu-Ende
-- [ ] Phase 5 Doku
-- [ ] Phase 6 Review + Abschluss
+- [x] Phase 2 Rust
+- [x] Phase 3 Frontend
+- [x] Phase 4 Ende-zu-Ende (1 001 Bücher, Debug: Restzeit plausibel, Grid scrollt und Leser blättert während des Laufs, Pause, Abbruch → nur ganze Dateien, neuer Lauf setzt fort, Fehlerliste)
+- [x] Phase 5 Doku
+- [x] Phase 6 Review + Abschluss (`pnpm check` grün)
