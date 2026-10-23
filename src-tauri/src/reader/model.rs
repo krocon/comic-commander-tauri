@@ -25,6 +25,8 @@ pub struct OpenedBook {
     pub pages: Vec<PageInfo>,
     /// The remembered page (0-based) or `None` for a new book (E5).
     pub last_page: Option<usize>,
+    /// The remembered rotation of the book (0/90/180/270, design 014 E5) – set by the caller.
+    pub rotation: u16,
     /// The book is unpacked into the app cache (7z, solid RAR – E1).
     pub extracting: bool,
 }

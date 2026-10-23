@@ -300,9 +300,9 @@ pub async fn open_book(
         });
         let mut opened = reader(&app)?.open(&path, sink)?;
         let pages = opened.pages.len();
-        opened.last_page = with_reading(&app, |s| {
-            s.books.get(&book_id).map(|p| p.page).filter(|p| *p < pages)
-        })?;
+        let remembered = with_reading(&app, |s| s.books.get(&book_id).copied())?;
+        opened.last_page = remembered.map(|p| p.page).filter(|p| *p < pages);
+        opened.rotation = remembered.map_or(0, |p| p.rotation);
         Ok(opened)
     })
     .await
@@ -318,7 +318,7 @@ pub async fn close_book(app: AppHandle, token: String) -> Result<(), FsError> {
     .await
 }
 
-/// Remembers the page of a listed book (design 005 E5).
+/// Remembers the page and the rotation of a listed book (design 005 E5, 014 E5).
 #[tauri::command]
 pub async fn save_reading_position(
     app: AppHandle,
@@ -326,6 +326,7 @@ pub async fn save_reading_position(
     book_id: String,
     page: usize,
     pages: usize,
+    rotation: Option<u16>,
 ) -> Result<(), FsError> {
     blocking(move || {
         // only books the scan listed (no keys from the WebView)
@@ -348,7 +349,7 @@ pub async fn save_reading_position(
         let state = app.state::<AppState>();
         let mut guard = state.reading.lock().unwrap_or_else(|e| e.into_inner());
         let reading = guard.get_or_insert_with(|| ReadingState::load(&dir));
-        if reading.set(&book_id, page, pages, now) {
+        if reading.set(&book_id, page, pages, rotation.unwrap_or(0), now) {
             reading.save(&dir)?;
         }
         Ok(())

@@ -599,6 +599,7 @@ impl ReaderService {
             token: session.token.clone(),
             pages: infos,
             last_page: None,
+            rotation: 0,
             extracting: sequential,
         })
     }
@@ -658,6 +659,7 @@ impl ReaderService {
             token: session.token.clone(),
             pages: infos,
             last_page: None,
+            rotation: 0,
             extracting: false,
         })
     }
