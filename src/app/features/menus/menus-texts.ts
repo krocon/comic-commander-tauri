@@ -7,6 +7,7 @@ export const MENUS_TEXTS = {
   read: 'Read',
   help: 'Help',
   order: 'Order',
+  zoom: 'Zoom',
   paletteTitle: 'Command palette',
   palettePlaceholder: 'Type a command…',
   paletteEmpty: 'No command matches.',

@@ -20,6 +20,8 @@ export interface OpenedBook {
   pages: PageInfo[];
   /** Remembered page (0-based), `null` = new book. */
   lastPage: number | null;
+  /** Remembered rotation of the book in degrees clockwise: 0, 90, 180, 270 (design 014 E5). */
+  rotation: number;
   /** 7z / solid RAR: unpacked into the app cache (E1). */
   extracting: boolean;
 }
@@ -37,4 +39,6 @@ export interface ReadingPosition {
   page: number;
   pages: number;
   updatedMs: number;
+  /** Rotation of the book (design 014): 0, 90, 180, 270. */
+  rotation: number;
 }

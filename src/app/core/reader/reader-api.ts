@@ -29,6 +29,7 @@ export abstract class ReaderApi {
     bookId: string,
     page: number,
     pages: number,
+    rotation: number,
   ): Promise<void>;
   abstract loadReadingState(): Promise<Record<string, ReadingPosition>>;
   /** Returns the new state. */
@@ -56,8 +57,14 @@ export class TauriReaderApi extends ReaderApi {
     return retry > 0 ? `${url}?retry=${retry}` : url;
   }
 
-  savePosition(categoryId: string, bookId: string, page: number, pages: number): Promise<void> {
-    return call<void>('save_reading_position', { categoryId, bookId, page, pages });
+  savePosition(
+    categoryId: string,
+    bookId: string,
+    page: number,
+    pages: number,
+    rotation: number,
+  ): Promise<void> {
+    return call<void>('save_reading_position', { categoryId, bookId, page, pages, rotation });
   }
 
   loadReadingState(): Promise<Record<string, ReadingPosition>> {

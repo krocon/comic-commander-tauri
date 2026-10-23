@@ -12,13 +12,28 @@
   color: var(--color-text);
   outline: none;
 
-  &.idle .view {
+  &.cursor-idle .view {
     cursor: none;
   }
 }
 
-/* the toolbar floats over the page and hides when the pointer rests (design 005) */
+/* invisible zone at the top: pointing there brings the hidden bar back (design 014 E11) */
+.bar-zone {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: calc(var(--toolbar-height) + 16px);
+  pointer-events: none;
+
+  .idle & {
+    pointer-events: auto;
+  }
+}
+
+/* the toolbar floats over the page; while reading it fades out and comes back only when the
+   pointer reaches its zone or the keyboard reaches it (design 005, 014 E11) */
 .bar {
+  container: bar / inline-size;
   position: absolute;
   inset: 0 0 auto;
   z-index: 2;
@@ -29,24 +44,63 @@
   padding: 0 var(--space-3);
   background: var(--color-toolbar-overlay);
   backdrop-filter: blur(10px);
-  transition: opacity 0.2s;
+  transition: opacity 0.15s ease-out;
 
   .idle & {
     opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease-out;
   }
 
   &:focus-within {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 
-.btn.icon {
-  padding: 0 var(--space-2);
+/* groups of icons: a little room between them instead of lines */
+.group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-2);
+}
 
-  &[aria-pressed='true'] {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-accent-text);
+.zoom-narrow {
+  display: none;
+}
+
+.zoom-range {
+  width: 7rem;
+  margin: 0 var(--space-1);
+  accent-color: var(--color-accent);
+}
+
+.percent {
+  min-width: 3.6em;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* a narrow bar: the four zoom icons become one menu (E10), then the zoom slider and the title
+   go (keys and the menu still reach them) */
+@container bar (width < 920px) {
+  .zoom-wide {
+    display: none;
+  }
+
+  .zoom-narrow {
+    display: flex;
+  }
+}
+
+@container bar (width < 680px) {
+  .zoom-range,
+  .percent,
+  .title {
+    display: none;
   }
 }
 
@@ -89,24 +143,37 @@
   }
 }
 
-/* single page: fit width (scroll down a high page) or fit height (centred); auto margins centre
-   without making an overflowing side unreachable */
-.single {
-  display: flex;
-  align-items: flex-start;
+/* a large page can be dragged with the mouse (014 E4) */
+.view.pannable {
+  cursor: grab;
+}
+
+.view.panning {
+  cursor: grabbing;
+}
+
+/* the box a page needs (sizes from reader-logic `fitPage`, turned by 90° the sides swap); the
+   image inside keeps its own size and turns around its centre (014 E9) */
+.page-box {
+  position: relative;
+  flex: none;
 
   img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
     display: block;
-    flex: none;
-    width: 100%;
-    height: auto;
-    margin: 0 auto;
-  }
-
-  &.fit-height img {
-    width: auto;
-    height: 100%;
     max-width: none;
+    translate: -50% -50%;
+  }
+}
+
+/* single page: auto margins centre a small page without making an overflowing side
+   unreachable */
+.single {
+  display: flex;
+
+  .page-box {
     margin: auto;
   }
 
@@ -120,8 +187,6 @@
 
   .page {
     position: absolute;
-    left: 50%;
-    translate: -50% 0;
     display: block;
   }
 }
@@ -175,7 +240,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bar {
+  .bar,
+  .idle .bar {
     transition: none;
   }
 }

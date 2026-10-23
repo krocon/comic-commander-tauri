@@ -57,7 +57,10 @@ export class ReaderService {
   }
 
   /** A position just saved (the bar in the grid follows at once). */
-  remember(bookId: string, page: number, pages: number): void {
-    this.positions.update((p) => ({ ...p, [bookId]: { page, pages, updatedMs: Date.now() } }));
+  remember(bookId: string, page: number, pages: number, rotation = 0): void {
+    this.positions.update((p) => ({
+      ...p,
+      [bookId]: { page, pages, updatedMs: Date.now(), rotation },
+    }));
   }
 }

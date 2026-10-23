@@ -60,8 +60,24 @@ export function buildMenuModel(os: Os, categories: { id: string; title: string }
     a('reader.last'),
     sep,
     a('reader.toggleMode'),
-    a('reader.toggleFit'),
+    {
+      kind: 'submenu',
+      label: t.zoom,
+      items: [
+        a('reader.zoom.width'),
+        a('reader.zoom.height'),
+        a('reader.zoom.page'),
+        a('reader.zoom.full'),
+        sep,
+        a('reader.zoomIn'),
+        a('reader.zoomOut'),
+        a('reader.toggleZoomSlider'),
+      ],
+    },
+    a('reader.rotateLeft'),
+    a('reader.rotateRight'),
     a('reader.toggleRtl'),
+    a('reader.toggleToolbar'),
     a('reader.fullscreen'),
     sep,
     a('reader.nextBook'),
@@ -145,7 +161,21 @@ export function toSpec(menus: ResolvedMenu[]): MenuSpec {
   return { menus: menus.map((m) => ({ label: menuLabel(m.label), items: strip(m.items) })) };
 }
 
+/**
+ * The chord a menu shows for an action: the first one the native menu can take (with a modifier
+ * or an F key, `app_menu.rs`), else the first – e.g. `Mod+0` rather than `4` for „Full size“
+ * (design 014; digit keys always come first in a keymap object).
+ */
+export function menuChord(chords: readonly string[]): string {
+  const native = chords.find((c) => /(^|\+)(Mod|Ctrl|Alt)\+/.test(c) || /^F\d{1,2}$/.test(c));
+  return native ?? chords[0] ?? '';
+}
+
 /** Items that exclude each other (one category, one order) are radio items. */
 export function isRadio(id: string): boolean {
-  return id.startsWith('app.category.') || id.startsWith('view.sort.');
+  return (
+    id.startsWith('app.category.') ||
+    id.startsWith('view.sort.') ||
+    /^reader\.zoom\.(width|height|page|full)$/.test(id)
+  );
 }

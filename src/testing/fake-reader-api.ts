@@ -49,9 +49,18 @@ export class FakeReaderApi extends ReaderApi {
     return `page:${token}/${index}/${width}${retry ? `?retry=${retry}` : ''}`;
   }
 
-  savePosition(categoryId: string, bookId: string, page: number, pages: number): Promise<void> {
-    this.calls.push(`save ${categoryId}.${bookId} ${page}/${pages}`);
-    this.positions[bookId] = { page, pages, updatedMs: 0 };
+  savePosition(
+    categoryId: string,
+    bookId: string,
+    page: number,
+    pages: number,
+    rotation = 0,
+  ): Promise<void> {
+    // the rotation only shows when the book is turned (keeps the 005 expectations short)
+    this.calls.push(
+      `save ${categoryId}.${bookId} ${page}/${pages}${rotation ? ` r${rotation}` : ''}`,
+    );
+    this.positions[bookId] = { page, pages, updatedMs: 0, rotation };
     return Promise.resolve();
   }
 
@@ -81,6 +90,7 @@ export function pagesBook(
       height: null,
     })),
     lastPage: null,
+    rotation: 0,
     extracting: false,
     ...overrides,
   };

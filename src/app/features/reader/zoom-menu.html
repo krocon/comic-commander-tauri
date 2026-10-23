@@ -1,0 +1,54 @@
+<button
+  type="button"
+  class="btn icon menu-button"
+  aria-haspopup="menu"
+  aria-controls="zoom-menu"
+  [attr.aria-expanded]="open()"
+  [attr.aria-label]="t.zoomMode + ': ' + (current()?.label ?? t.custom)"
+  [title]="t.zoomMode + ': ' + (current()?.label ?? t.custom)"
+  (click)="toggle()"
+  (keydown)="onButtonKey($event)"
+>
+  @if (current(); as c) {
+    @if (c.icon) {
+      <i class="fa {{ c.icon }}" aria-hidden="true"></i>
+    } @else {
+      <span class="text-icon" aria-hidden="true">{{ t.fullSizeIcon }}</span>
+    }
+  } @else {
+    <i class="fa fa-search" aria-hidden="true"></i>
+  }
+  <i class="fa fa-caret-down caret" aria-hidden="true"></i>
+</button>
+@if (open()) {
+  <ul
+    id="zoom-menu"
+    class="menu"
+    role="menu"
+    tabindex="-1"
+    [attr.aria-label]="t.zoomMode"
+    (keydown)="onMenuKey($event)"
+  >
+    @for (c of choices(); track c.mode; let i = $index) {
+      <li
+        role="menuitemradio"
+        tabindex="-1"
+        [id]="itemId(i)"
+        [attr.aria-checked]="c.mode === mode()"
+        (click)="choose(i)"
+        (keydown.enter)="onItemEnter($event, i)"
+      >
+        <span class="check" aria-hidden="true">{{ c.mode === mode() ? '✓' : '' }}</span>
+        @if (c.icon) {
+          <i class="fa fa-fw {{ c.icon }}" aria-hidden="true"></i>
+        } @else {
+          <span class="text-icon fw" aria-hidden="true">{{ t.fullSizeIcon }}</span>
+        }
+        <span class="label">{{ c.label }}</span>
+        @if (c.key) {
+          <kbd aria-hidden="true">{{ c.key }}</kbd>
+        }
+      </li>
+    }
+  </ul>
+}
