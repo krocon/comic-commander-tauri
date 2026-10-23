@@ -47,6 +47,8 @@ import { KeyboardDispatcher } from '../../core/actions/keyboard-dispatcher';
 
 /** Height of the floating toolbar = padding above the first row (design 004 „Zielbild“). */
 export const GRID_TOP = 56;
+/** Height of the breadcrumb below the toolbar in a level (design 011) – `.crumbs` in the view. */
+export const CRUMBS_HEIGHT = 28;
 
 /** Pause before a failed cover is asked for again: n × this (tests set it small). */
 export const COVER_RETRY_MS = new InjectionToken<number>('COVER_RETRY_MS', {
@@ -104,6 +106,8 @@ export class CoverGrid {
   private readonly scrollbar = scrollbarWidth(inject(ElementRef).nativeElement.ownerDocument);
   private readonly dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
 
+  /** Padding above the first row: the toolbar, in a level also the breadcrumb (design 011). */
+  readonly top = computed(() => GRID_TOP + (this.store.crumbs().length ? CRUMBS_HEIGHT : 0));
   readonly layout = computed(() =>
     gridLayout(Math.max(0, this.hostWidth() - this.scrollbar), this.store.dim()),
   );
@@ -199,8 +203,9 @@ export class CoverGrid {
       const list = this.store.items();
       const layout = this.layout();
       const api = this.api();
+      const top = this.top();
       this.scan.phase();
-      untracked(() => this.applyModel(list, layout, api));
+      untracked(() => this.applyModel(list, layout, api, top));
     });
     // the cursor: repaint (frame)
     effect(() => {
@@ -275,8 +280,11 @@ export class CoverGrid {
     list: GridItem[],
     layout: { cols: number; coverWidth: number; coverHeight: number },
     api: TableApi | undefined,
+    top = GRID_TOP,
   ): void {
     const body = this.model.bodyModel;
+    body.firstRowPaddingTop = top;
+    this.model.paddingTop = top;
     body.items = list;
     body.filteredItems = list;
     body.coverWidth = layout.coverWidth;
@@ -325,7 +333,7 @@ export class CoverGrid {
       index,
       l.cols,
       l.coverHeight,
-      GRID_TOP,
+      this.top(),
       this.viewHeight(),
       this.scrollTop,
     );
@@ -407,11 +415,11 @@ export class CoverGrid {
       const l = this.layout();
       const i = this.store.cursor();
       x = (i % l.cols) * l.coverWidth + l.coverWidth / 3;
-      y = GRID_TOP + Math.floor(i / l.cols) * l.coverHeight - this.scrollTop + l.coverHeight / 3;
+      y = this.top() + Math.floor(i / l.cols) * l.coverHeight - this.scrollTop + l.coverHeight / 3;
     }
     // inside the grid (menu ≈ 16 × 12 rem)
     x = Math.max(4, Math.min(x, rect.width - 260));
-    y = Math.max(GRID_TOP, Math.min(y, rect.height - 200));
+    y = Math.max(this.top(), Math.min(y, rect.height - 200));
     this.menu.set({ item, x, y });
   }
 
@@ -468,7 +476,7 @@ export class CoverGrid {
     const move = (m: CursorMove) => ({
       run: () => {
         const l = this.layout();
-        this.store.move(m, l.cols, pageRows(this.viewHeight(), l.coverHeight, GRID_TOP));
+        this.store.move(m, l.cols, pageRows(this.viewHeight(), l.coverHeight, this.top()));
       },
     });
     const onBook = (action: BookAction) => ({

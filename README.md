@@ -30,6 +30,14 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   (`asterix obelix` = eins davon, `+asterix` = muss, `-album` = darf nicht), „Thumb size“ aus der Kategorie,
   Sortierung nach Ordner und Name, Dateiname, Datum oder Größe. Filter, Größe, Sortierung und Position merkt sich
   die App je Kategorie. Auf Retina werden automatisch die großen Cover geladen.
+- **Serien und Ordner**: drei Ansichten (Toolbar-Knöpfe oder `Ctrl/⌘ + Shift + L / S / D`) – alle Bücher, **nach
+  Serie** (eine Kachel je Serie mit Cover des ersten Bands, Anzahl und Lesefortschritt; Klick zeigt die Bände in
+  Nummernfolge) und **nach Ordner** (Breadcrumb, `Backspace` eine Ebene hoch). Serie und Nummer kommen aus der
+  **`ComicInfo.xml`** im Buch (ComicRack; wird nach dem Scan im Hintergrund gelesen und im Cache gehalten), sonst aus
+  dem Namen (`Serie 01 - Titel (Verlag 2015)`, `Serie #12`, `Serie Band 3`, `Spirou T01`, `Batman v2 012`,
+  `005_Bessy_…` im Ordner `Bessy`). Filter mit Feldern: `series:asterix`, `series:"im roten bereich"`, `year:1990-1999`,
+  `writer:`, `publisher:` (auch mit `+`/`-`); Sortierung „Series and number“. Bücher mit
+  `Manga=YesAndRightToLeft` liest der Leser von rechts nach links.
 - **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
   filtern, Pfad kopieren – mit den Tastenkürzeln daneben.
 - **Leser** (`Enter`/Doppelklick): Einzelseite oder fortlaufend; Zoom **Fit width, Fit height, Fit page, Full size**
@@ -58,7 +66,9 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | Taste | Funktion |
 |---|---|
 | Pfeiltasten, `Home`/`End`, `Bild ↑/↓` | Cursor im Raster |
-| `Enter` / Doppelklick | Buch lesen (auch PDF) |
+| `Enter` / Doppelklick | Buch lesen (auch PDF); Serie/Ordner öffnen (auch Klick) |
+| `Backspace`, `Alt + ↑`, `Esc` (Filter leer) | eine Ebene hoch (Serien-/Ordneransicht) |
+| `Ctrl/⌘ + Shift + L / S / D` | Ansicht: alle Bücher / nach Serie / nach Ordner |
 | `Leertaste`, `Shift+F10`, Rechtsklick | Aktionen für das Buch |
 | Tippen | springt in den Filter; `Esc` leert ihn |
 | `Ctrl/⌘ + F` | Filter |
@@ -79,14 +89,14 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `→` `↓` `n` `Leertaste` `Bild ↓` | weiter (hohe Seite: erst scrollen) |
 | `←` `↑` `b` `Shift+Leertaste` `Bild ↑` | zurück |
 | `Ctrl/⌘ + Pfeil`, `Home`/`End` | erste / letzte Seite (Manga: `←` = letzte) |
-| `S` / `M` | Einzelseite ⇄ fortlaufend / Manga (`←`/`→` und Klickdrittel gespiegelt) |
+| `S` / `M` | Einzelseite ⇄ fortlaufend / Manga (`←`/`→` und Klickdrittel gespiegelt; bei Manga laut ComicInfo nur für dieses Buch) |
 | `1` `2` `3` `4` | Fit width / Fit height / Fit page / Full size (auch `Ctrl/⌘ + 0`) |
 | `W` / `Shift+W` | nächster / vorheriger Zoom-Modus |
 | `+` / `-`, `Ctrl/⌘ + Mausrad` | Zoom in / out (frei) |
 | `Z` | Zoom-Regler zeigen |
 | `R` / `L` (`Shift+R`) | rechts / links drehen |
 | `T` | Toolbar immer zeigen |
-| `]` / `[` | nächstes / vorheriges Buch der gefilterten Liste |
+| `]` / `[` | nächstes / vorheriges Buch der gefilterten Liste (in einer Serie: nächster Band) |
 | `F11`, `⌘ + Ctrl + F` | Vollbild |
 | `Esc` | Vollbild verlassen, sonst zurück zum Raster (an dieselbe Stelle) |
 

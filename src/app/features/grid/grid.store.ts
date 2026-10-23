@@ -287,10 +287,11 @@ export class GridStore {
     this.dimIndex.set(next.i);
   }
 
-  /** Another view: its top level, the cursor on the tile of the book that had it. */
+  /** Another view: its top level, the cursor on the tile of the book that had it (a group: its first book). */
   setView(view: ViewMode): void {
     if (view === this.view()) return;
-    const book = this.focused();
+    const item = this.focusedItem();
+    const book = item?.kind === 'group' ? item.cover : (item?.book ?? null);
     this.view.set(view);
     this.level.set(null);
     this.focusOn(book ? this.tileOf(book) : null);

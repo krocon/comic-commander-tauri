@@ -285,6 +285,14 @@ describe('GridStore', () => {
       expect(grid.focusId()).toBe('s:saga');
     });
 
+    it('a group with the cursor keeps it on the tile of its first book in the other view', async () => {
+      const { grid } = await ready();
+      grid.setView('series');
+      grid.focusIndex(grid.items().findIndex((i) => i.id === 's:saga'));
+      grid.setView('folders');
+      expect(grid.focusId()).toBe('d:X');
+    });
+
     it('the filter works inside the views; series: filter', async () => {
       const { grid } = await ready();
       grid.setView('series');

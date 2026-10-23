@@ -38,6 +38,11 @@
 - **Prompt 014 (Zoom, Drehen, Leser-Toolbar)** ist fertig: Fit width/height/page, Full size, freier Zoom (Regler,
   `+`/`-`, Mausrad), Drehen je Buch (CSS, Lesestand), Zeilen-Lesen großer Seiten, dezente Toolbar mit Zoom-Menü in
   schmalen Fenstern, Aus-/Einblenden über die Zone oben. Design: `prompts/done/014-zoom-modi.design.md`.
+- **Prompt 011 (Metadaten, Serien, Ordner)** ist fertig: `comic_info.rs` liest `ComicInfo.xml` (quick-xml, Grenzen) in
+  einer Phase `meta` nach dem Scan, Metadaten im Scan-Cache (v3); im Frontend Serie/Nummer aus ComicInfo oder Name
+  (`book-info.ts` + Katalog), Ansichten flach/Serie/Ordner im selben Grid (`grouping.ts`, Ebenen, Breadcrumb), Filter
+  `series:`/`year:`/`writer:`/`publisher:`, Sortierung „Serie“, Manga aus ComicInfo. Design:
+  `prompts/done/011-metadaten-serien.design.md`.
 - Als Nächstes: **009** (Einstellungen, i18n). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -90,8 +95,9 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
                               (Menü-Button nach APG), book-order.ts (Intl.Collator, Sortierarten, NFC-Filterschlüssel)
   app/features/grid/          Cover-Grid (004): GridStore (Filter, Sortierung, Größe, Cursor, Aktionen, Ansichtszustand),
                               CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
-                              in styles.css), BookMenu, rein: filter-logic (+ .cases.json), series-filter, grid-math,
-                              view-state, cover-retries
+                              in styles.css), BookMenu, rein: filter-logic (+ .cases.json, Felder series:/year:),
+                              book-info (Serie/Nummer, + .cases.json), grouping (Ansichten, Ebenen), grid-math,
+                              view-state (v2), cover-retries
   app/core/actions/           Aktionen (008): action-catalog (Ids, Kontexte, Texte), keymap.{base,mac,other}.json +
                               keymap.ts (Override), shortcut.ts (Akkord/Anzeige je OS), ActionService (Handler,
                               enabled/checked), KeyboardDispatcher (der eine keydown-Listener), platform.ts (OS-Token)
@@ -130,6 +136,7 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
   src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
                               Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
   src/reading_state.rs        reading-state.json (≤ 5 000 Bücher)
+  src/comic_info.rs           ComicInfo.xml finden/lesen/parsen (011, quick-xml, fail-closed); Phase `meta` in scan_hub
   src/pdf/                    PDF (006): mod.rs (PdfBook, page_image, thumbnail), guard (Vorprüfung gegen Bomben),
                               fast (Schnellweg JPEG), render
                               (2 Threads, 64 MiB Stack, Zeitlimit), tests (PDF-Generator von Hand)

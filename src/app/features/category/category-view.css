@@ -103,13 +103,18 @@
 
 /* the level (design 011): below the toolbar */
 .crumbs {
-  padding: var(--space-1) var(--space-4);
+  /* = CRUMBS_HEIGHT of the grid: the first row starts below it */
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-4);
   background: var(--color-toolbar-overlay);
   backdrop-filter: blur(10px);
 
   ol {
     display: flex;
-    flex-wrap: wrap;
+    overflow: hidden;
+    white-space: nowrap;
     gap: var(--space-1);
     margin: 0;
     padding: 0;

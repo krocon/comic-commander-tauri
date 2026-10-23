@@ -1,6 +1,6 @@
 # Design 011 – Metadaten, Serien und Ordneransicht
 
-> Status: **freigegeben** 23.10.2026 (Marc: Fragen 1 ja, 2 ja, 3 „vermutlich ja“ – Empfehlungen gelten) · Branch `feat/metadaten-serien` · Auftrag:
+> Status: **umgesetzt** · freigegeben 23.10.2026 (Marc: Fragen 1 ja, 2 ja, 3 „vermutlich ja“ – Empfehlungen gelten) · Branch `feat/metadaten-serien` · Auftrag:
 > [`011-metadaten-serien.md`](011-metadaten-serien.md) · baut auf 002 (Scan, Scan-Cache, ScanHub), 003 (Bücher nach
 > Inhalt lesen), 004 (Cover-Grid, Filter, Sortierung, Ansichtszustand), 005 (Leser-Sitzung, Lesestand) und 008
 > (Aktionen, Keymaps, Menü) auf. Vorlage: legacy §6 (`extractSeriesFilter`).
@@ -259,6 +259,46 @@ Wie 000: 2 Rust (comic_info + Cache + ScanHub, Specs zuerst), 3 Frontend (book-i
 Renderer, Toolbar, Aktionen, Leser), 4 E2E, 5 Doku (architecture A47–A5x, DTOs, README, CLAUDE.md, Index), 6 Check +
 **Review durch einen separaten Agenten** (Schwerpunkt: XML-Parser und Archivzugriff gegen feindliche Dateien,
 Nebenläufigkeit der Phase `meta` im ScanHub).
+
+## Abweichungen bei der Umsetzung
+
+- **Aktions-Ids** `view.mode.flat|series|folders` statt `view.flat…` (Radio-Gruppe im Menü wie `view.sort.*`).
+- **E11 Manga**: `M` auf einem Buch mit `YesAndRightToLeft` schaltet **nur dieses Buch** (nicht gespeichert); bei
+  anderen Büchern wie bisher die Einstellung. Der Entwurf („bleibt RTL, solange die Einstellung aus ist“) hätte ein
+  solches Buch nie links-nach-rechts lesen lassen.
+- **Leere Ebene**: durch einen Filter leer → die Ebene bleibt (Hinweis „No book matches“, Breadcrumb/Backspace führen
+  hoch); nur wenn ein fertiger Scan keine Bücher der Ebene mehr kennt, geht es nach oben (auch beim Wiederherstellen).
+- **Breadcrumb** als Leiste unter der Toolbar; die erste Reihe rückt um `CRUMBS_HEIGHT` (28 px) nach unten
+  (`firstRowPaddingTop`/`paddingTop` des Cover-Grid-Modells sind öffentliche Felder – keine Lücke in der Table).
+- **`BookEntry.meta` geboxt** (`Option<Box<BookMeta>>`): sonst wuchs jeder Eintrag um ~200 Byte (clippy
+  `large_enum_variant` an `WalkEvent`).
+- **Magazin-Nummern** `01-2024` / `2024-05` als eine Nummer (Wert Jahr × 100 + Monat) – kam beim Katalog dazu
+  (Marcs „Make“-PDFs).
+- Ordnerkacheln öffnen beim **einfachen Klick** (wie Serien), Bücher weiter Klick = Menü, Doppelklick = Lesen.
+- Gruppen-Menü: „Open“, „Read first unread“, „Filter series“ (nur Serien).
+- `bookInfo()` für 50 000 Bücher beim ersten Gruppieren ≈ 340 ms (jsdom), danach ≈ 30 ms (WeakMap je Buchobjekt).
+
+## Ende-zu-Ende (Xvfb, Debug-Build, 23.10.2026)
+
+Testsammlung (Generator im Scratch-Ordner): Asterix 01/02/10 nur über Namen in `Frankobelgisch/Asterix/`, Saga #1–#3
+nur über ComicInfo mit Namen `abc123`/`def456`/`ghi789` (einer `YesAndRightToLeft`), Bessy `NNN_Bessy_…` im Ordner
+`Bessy` (ein CBR = ZIP, eins mit PNG-Seiten), `Hägar 🦸 01 (1973).cbz`, `Ümläute/Tiefer/Ordner/Watchmen.cbz`,
+kaputtes CBZ, PDF.
+
+- ComicInfo-Phase nach dem Scan: Cache v3 enthält Serie/Nummer/Jahr/Autor/Verlag bzw. `{}` ✓.
+- **Akzeptanz 1** ✓: Serienansicht zeigt 3 Serienkacheln (Asterix 3, Bessy 3, Saga 3) + Einzelbücher; Klick/`Enter`
+  öffnet die Bände in Nummernfolge (Saga #1, #2, #3 trotz anderer Dateinamen), `]` liest den nächsten Band.
+- **Akzeptanz 2** ✓: Saga-Bände zeigen Serie/Nummer aus der XML; Saga-Cover = Band #1.
+- Manga: Band #2 öffnet rechts-nach-links (Knopf aktiv), Band #3 wieder links-nach-rechts ✓.
+- Ordneransicht: Ordnerkacheln mit Zählern, Breadcrumb `All folders › Frankobelgisch › Asterix`, Klick auf
+  „All folders“ setzt den Cursor auf „Frankobelgisch“ ✓; `Backspace`/`Esc` eine Ebene hoch ✓; Ansicht und Ebene
+  über einen Neustart gemerkt ✓.
+- Filter `+series:saga +year:2013-2014` → 2, `year:1960-1969` → 3 ✓; Sortierung „Series and number“ ✓;
+  `Ctrl+Shift+L/S` ✓; Gruppenmenü per Leertaste ✓.
+- **Befund → behoben**: Breadcrumb verdeckte die oberste Reihe (s. Abweichungen).
+- **Befund → behoben** (roter Test zuerst): Ansichtswechsel mit dem Cursor auf einer Gruppe setzte ihn an den Anfang.
+- Nicht geprüft: helles Schema (die App startet dunkel, 004 Nachtrag), natives macOS-Menü, Marcs echte Sammlung und
+  NAS (Dauer der ComicInfo-Phase bei soliden CBRs → auf dem Mac messen).
 
 ## Offene Fragen an Marc
 
