@@ -1,6 +1,6 @@
 # Design 014 – Zoom, Drehen und Leser-Toolbar
 
-> Status: **Entwurf – wartet auf Freigabe** · 23.10.2026 · Branch `feat/zoom-drehen` · Auftrag:
+> Status: **umgesetzt** · freigegeben 23.10.2026 (Marc: „go“ – Empfehlungen gelten) · Branch `feat/zoom-drehen` · Auftrag:
 > [`014-zoom-modi.md`](014-zoom-modi.md) · baut auf 005 (E2 Seitenbreiten, E5 Lesestand, E10 Einstellungen), 006 (PDF)
 > und 008 (Aktionen, Keymaps, Menü) auf. Vorgabe Marc (23.10.): **E10 = vier sichtbare Icons, wenn der Platz reicht.**
 
@@ -193,11 +193,41 @@ auf einen Seitenwechsel – gleicher Timer). Einstellungen (ohne Drehung) wie bi
 
 Phase 2 (Rust, klein: Drehung im Lesestand) und 3 (Frontend, der Hauptteil) getrennt committen; 4–6 wie üblich.
 
+## Abweichungen bei der Umsetzung
+
+- **Menü-Kürzel**: Ziffern-Schlüssel stehen in JS-Objekten immer vorn (`"4"` vor `"Mod+0"`). Das Menü zeigt deshalb
+  über `menuChord()` den ersten Akkord, den das native Menü nehmen kann (Modifier/F-Taste) – „Full size ⌘0“. Tooltips
+  zeigen weiter den ersten Akkord („Full size (4)“).
+- **Zoom-Regler** rundet auf ganze Prozent (die Log-Skala liefert sonst 2,003 für „200 %“).
+- **Hot-Zone** (E11): Sie liegt im Zustand „ausgeblendet“ über der Seite; wer oben klickt, holt dabei zuerst die
+  Leiste (Zeigen geschieht schon beim Hineinfahren bzw. bei Touch beim Tippen). Klickdrittel gelten darunter.
+- **Schmale Leiste**: unter 680 px ohne Titel, Seitenzahl und Zoom-Regler, unter 520 px ohne Buch- und
+  Modus-Knöpfe (Tasten und Menü bleiben).
+- Die App startet dunkel (`index.html`), das helle Schema wird erst mit 009 umschaltbar – die neuen Farben
+  (`--color-icon-quiet*`) leiten sich von `--color-text` ab und folgen ihm.
+
+## Ende-zu-Ende (Xvfb, Debug-Build, 23.10.2026)
+
+Testsammlung: CBZ mit Umlaut + Emoji im Namen (Hochformat-Seiten JPEG/PNG/WebP, Doppelseite 2000 × 1500,
+4000 × 6000-Seite, kleine 600 × 900-Seite), CBR = ZIP im tiefen Ordner (Querformat), kaputtes CBZ, PDF (reportlab).
+
+- Fit width / height / page / Full size in Einzelseite und fortlaufend, auch PDF ✓; Fit width ohne waagrechten
+  Balken ✓; Full size der 4000 × 6000-Seite in voller Auflösung ✓.
+- Drehen rechts/links (Uhrzeigersinn, Maße getauscht, Fit page zeigt die gedrehte Seite ganz) ✓, auch PDF und
+  fortlaufend ✓.
+- Doppelseite in Full size: Leertaste liest rechts → nächste Zeile links → unten rechts → blättert ✓.
+- Toolbar blendet nach 2,5 s aus, Bewegung über der Seite holt sie nicht, die Zone oben schon ✓; schmales Fenster
+  zeigt das Zoom-Menü, ↑/Enter wählt ✓.
+- **Befund → behoben** (roter Test zuerst): der Wechsel Einzelseite → fortlaufend sprang an die Seite, die beim
+  Beginn der Einzelseite gezeigt war (seit 005), und ein später `placeSingle`-Frame setzte den Streifen auf 0.
+- **Befund → behoben**: Zoom-Menü-Knopf noch im normalen Knopf-Stil; bei 600 px wurde der Vollbild-Knopf abgeschnitten.
+- Nicht prüfbar im Container: Pinch auf dem Trackpad, natives macOS-Menü (`⌘0`), helles Schema (s. o.).
+
 ## Fortschritt
 
-- [x] Phase 1: Design (23.10.2026) – wartet auf Freigabe
-- [ ] Phase 2: Rust – Drehung im Lesestand
-- [ ] Phase 3: Frontend – Logik, Store, Einstellungen, Aktionen/Keymap/Menü, Seite, Toolbar
-- [ ] Phase 4: Ende-zu-Ende
-- [ ] Phase 5: Doku, Prompt nach `done/`
-- [ ] Phase 6: Abschlussprüfung + Bericht
+- [x] Phase 1: Design (23.10.2026), freigegeben
+- [x] Phase 2: Rust – Drehung im Lesestand (`d004236`)
+- [x] Phase 3: Frontend – Logik, Store, Einstellungen, Aktionen/Keymap/Menü, Seite, Toolbar (`802b69d`)
+- [x] Phase 4: Ende-zu-Ende, Befunde behoben (`6abf565`)
+- [x] Phase 5: Doku, Prompt nach `done/`
+- [x] Phase 6: Abschlussprüfung

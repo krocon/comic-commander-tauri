@@ -83,6 +83,9 @@
 | A41 | **Ein `keydown`-Listener** (`KeyboardDispatcher`): Akkord (`Mod` = ⌘/Ctrl, Shift zählt bei Satzzeichen nicht) → erste Aktion der Kontexte (`reader` › `grid` › `global`); Dialog offen → nichts; Textfelder nur `Mod`-Kürzel; Menüs/Listen/Fokusfalle behalten Element-Handler; Rückfall „Tippen → Filter“. Ein **Gate** im `ActionService` sperrt beim Lesen alles außer `reader.*` und Palette/About/Einstellungen/Beenden (Tasten, Menüs, Palette gleich); Klicks im nativen Menü ruhen bei offenem Dialog. Das WebView-Kontextmenü (Zurück, Neu laden, Untersuchen) ist außer in Textfeldern unterdrückt | keine verstreuten `document:keydown`; WebKitGTK zeigt es sonst bei Shift+F10 über dem Buchmenü | 008 E4–E6 |
 | A42 | **Keymaps als JSON** je Kontext (`keymap.base.json` + `keymap.mac.json`/`keymap.other.json`), Override `<app config>/keymap.json` (Rust prüft ≤ 64 KiB, ≤ 500 Aktionen, ≤ 8 Akkorde, Text; die Syntax normalisiert TS) ersetzt die Kürzel einer Aktion | Kürzel-Editor erst mit 009 | 008 E2, E7 |
 | A43 | **Ein Menümodell** (`menu-model.ts`, rein): macOS nativ über `set_app_menu` (Rust baut `tauri::menu` auf dem Main-Thread; App-, Bearbeiten-, Fenster-Menü vordefiniert; Klick → Ereignis `menu-action`; Zustände durch entprellten Neuaufbau), Windows/Linux HTML-Menüleiste nach APG (`F10`). Native Kürzel nur mit Modifier oder F-Taste | Menü-Kürzel fingen sonst Pfeile/Leertaste ab; Spec ist feindliche Eingabe (Größe, Tiefe, Ids, Texte) | 008 E8 |
+| A44 | **Leser-Zoom**: vier Einpassungen + freier Faktor (`zoom = { mode, factor }`, `custom` = fünfter Modus); eine reine Box-Berechnung (`fitPage`/`layoutPages`) für Einzelseite und fortlaufend; Fit height lässt breite Seiten seitlich scrollen, Fit page zeigt immer die ganze Seite; Full size = 1 Bildpixel je CSS-Pixel, URL-Breite 0. Zielbreite **je Seite** aus der Bildbreite × dpr (Stufen wie A30), beim freien Zoom erst 250 ms nach der letzten Änderung | „ganze Seite“ und „Höhe“ sind verschiedene Wünsche; Doppelseiten und Zoom > 100 % brauchen mehr als `max(B, H)` | 014 E2, E3, E6 |
+| A45 | **Drehen per CSS** (`rotate` des Bildes in einer Box mit getauschten Maßen), je Buch im Lesestand (`rotation` 0/90/180/270, `serde(default)`); Blättern/Klicks/Wischen bleiben bildschirmbezogen | keine neue URL-Variante, Cache und Vorausladen bleiben gültig | 014 E5, E8, E9 |
+| A46 | **Leser-Toolbar**: dezente Icon-Knöpfe (`.btn.quiet`, Farbe aus `--color-text`), Zoom-Gruppe oder Zoom-Menü (APG) per Container-Query auf `.bar`; blendet nach `BAR_IDLE_MS` aus (`pointer-events: none`) und kommt nur über eine Zone oben (Leiste + 16 px), Fokus oder `T` (fest) zurück; Mauszeiger über der Seite blendet getrennt aus | Comic ohne Ablenkung; Bewegung über der Seite soll nicht jedes Mal die Leiste holen | 014 E10, E11 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -98,7 +101,7 @@
 | `config_file::ConfigWarning` | `ConfigWarning` | `broken` / `unreadable` |
 | `model::AppInfo` | `AppInfo` in `about.models.ts` | |
 | `reader::model::{OpenedBook, PageInfo, PageDims, ReaderEvent}` | `core/reader/reader.models.ts` | `ReaderEvent` `tag = "kind"`: `dims`, `done`, `failed` |
-| `reading_state::ReadingPosition` | `ReadingPosition` | `{ page, pages, updatedMs }` |
+| `reading_state::ReadingPosition` | `ReadingPosition` | `{ page, pages, updatedMs, rotation }` (014: 0/90/180/270, alte Dateien → 0); `OpenedBook.rotation` ebenso |
 | `app_menu::{MenuSpec, TopMenu, MenuItemSpec}` (`tag = "kind"`) | `MenuSpec` in `core/menu/menu-api.ts` | Eintrag `action` (`id`, `label`, `accelerator?`, `enabled`, `checked?`), `separator`, `submenu` |
 | `keymap_file::KeymapOverrides` | `KeymapOverrides` in `core/menu/menu-api.ts` | `{ bindings: Record<actionId, chord[]>, warning }` |
 | `jobs::thumbs::{JobEvent, ThumbsProgress, ThumbError, ReadyBook}` | `core/jobs/jobs.models.ts` | `JobEvent` `tag = "kind"`: `counting`, `progress`, `done` (`cancelled`, `errorList` ≤ 1 000), `failed` |
@@ -123,7 +126,7 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `reveal_book` | `categoryId`, `bookId` | `void` | `unknown_book`, `not_found`, `program_not_found`, `io` |
 | `open_book` | `categoryId`, `bookId`, `onEvent: Channel<ReaderEvent>` | `OpenedBook` (PDF: Seiten „Seite N“ mit Größen, sofort `done`) | `unknown_book`, `not_found`, `archive_*` (PDF kaputt/verschlüsselt), `no_image`, `timeout` |
 | `close_book` | `token` | `void` | – |
-| `save_reading_position` | `categoryId`, `bookId`, `page`, `pages` | `void` | `unknown_book`, `io` |
+| `save_reading_position` | `categoryId`, `bookId`, `page`, `pages`, `rotation` (014, fehlend = 0) | `void` | `unknown_book`, `io` |
 | `load_reading_state` | – | `Record<bookId, ReadingPosition>` | – |
 | `toggle_fullscreen` | (Fenster) | `boolean` | `io` |
 | `start_generate_thumbs` | `categoryIds` (leer = alle), `onEvent: Channel<JobEvent>` | `string` (Job-Id) | `job_running`, `unknown_category` |
