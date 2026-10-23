@@ -61,7 +61,9 @@ fn missing_and_empty_fields() {
 
 #[test]
 fn names_without_case_and_first_value_wins() {
-    let m = parse(b"<comicinfo><SERIES>Saga</SERIES><series>Other</series><number>12a</number></comicinfo>");
+    let m = parse(
+        b"<comicinfo><SERIES>Saga</SERIES><series>Other</series><number>12a</number></comicinfo>",
+    );
     assert_eq!(m.series.as_deref(), Some("Saga"));
     assert_eq!(m.number.as_deref(), Some("12a"));
 }
@@ -80,7 +82,9 @@ fn entities_cdata_comments_and_white_space() {
 
 #[test]
 fn nested_elements_inside_a_field_are_ignored() {
-    let m = parse(b"<ComicInfo><Series>A<b>x</b>B</Series><Pages><Page Image=\"0\"/></Pages></ComicInfo>");
+    let m = parse(
+        b"<ComicInfo><Series>A<b>x</b>B</Series><Pages><Page Image=\"0\"/></Pages></ComicInfo>",
+    );
     assert_eq!(m.series.as_deref(), Some("AB"));
 }
 
@@ -113,14 +117,19 @@ fn encodings() {
 #[test]
 fn invalid_xml_gives_no_fields() {
     for bad in [
-        &b"<ComicInfo><Series>A</Series>"[..],                // not closed
-        b"<ComicInfo><Series>A</Title></ComicInfo>",          // wrong end
-        b"<Other><Series>A</Series></Other>",                 // other root
+        &b"<ComicInfo><Series>A</Series>"[..],       // not closed
+        b"<ComicInfo><Series>A</Title></ComicInfo>", // wrong end
+        b"<Other><Series>A</Series></Other>",        // other root
         b"<ComicInfo><Series>A</Series></ComicInfo><ComicInfo/>", // two roots
         b"\x00\x01\x02 garbage",
         b"<ComicInfo><Series>A</Series></ComicInfo></x>",
     ] {
-        assert_eq!(parse(bad), BookMeta::default(), "{}", String::from_utf8_lossy(bad));
+        assert_eq!(
+            parse(bad),
+            BookMeta::default(),
+            "{}",
+            String::from_utf8_lossy(bad)
+        );
     }
 }
 
@@ -128,9 +137,13 @@ fn invalid_xml_gives_no_fields() {
 fn doctype_entities_are_never_expanded() {
     // "billion laughs": the parser never expands DTD entities, so it is fast and the
     // reference stays unknown (dropped)
-    let mut x = String::from("<?xml version=\"1.0\"?><!DOCTYPE ComicInfo [<!ENTITY a \"aaaaaaaaaa\">");
+    let mut x =
+        String::from("<?xml version=\"1.0\"?><!DOCTYPE ComicInfo [<!ENTITY a \"aaaaaaaaaa\">");
     for i in 1..10 {
-        x.push_str(&format!("<!ENTITY a{i} \"{}\">", format!("&a{};", i - 1).repeat(10)));
+        x.push_str(&format!(
+            "<!ENTITY a{i} \"{}\">",
+            format!("&a{};", i - 1).repeat(10)
+        ));
     }
     x.push_str("]><ComicInfo><Series>X&a9;Y</Series></ComicInfo>");
     let t = Instant::now();
@@ -164,7 +177,10 @@ fn numbers_out_of_range_are_dropped() {
     assert_eq!(m.page_count, None);
     assert_eq!(m.number.as_deref(), Some("1234567890123456")); // cut to 16 characters
     let m = parse(b"<ComicInfo><Year> 2015 </Year><Volume>2</Volume><PageCount>100000</PageCount></ComicInfo>");
-    assert_eq!((m.year, m.volume, m.page_count), (Some(2015), Some(2), Some(100_000)));
+    assert_eq!(
+        (m.year, m.volume, m.page_count),
+        (Some(2015), Some(2), Some(100_000))
+    );
     assert_eq!(parse(b"<ComicInfo><Year>abc</Year></ComicInfo>").year, None);
 }
 
@@ -177,7 +193,8 @@ fn long_texts_are_cut_by_characters() {
 
 #[test]
 fn manga_values() {
-    let manga = |v: &str| parse(format!("<ComicInfo><Manga>{v}</Manga></ComicInfo>").as_bytes()).manga;
+    let manga =
+        |v: &str| parse(format!("<ComicInfo><Manga>{v}</Manga></ComicInfo>").as_bytes()).manga;
     assert_eq!(manga("Yes"), Some(Manga::Yes));
     assert_eq!(manga("YesAndRightToLeft"), Some(Manga::Rtl));
     assert_eq!(manga("no"), Some(Manga::No));
@@ -287,7 +304,10 @@ fn outcomes_of_failures() {
     let broken = d.path().join("broken.cbz");
     std::fs::write(&broken, b"PK\x03\x04 broken").unwrap();
     assert_eq!(outcome(&broken, None), Some(BookMeta::default()));
-    assert_eq!(outcome(&testdata("zip-aes.zip"), None), Some(BookMeta::default()));
+    assert_eq!(
+        outcome(&testdata("zip-aes.zip"), None),
+        Some(BookMeta::default())
+    );
     // not a book at all (unknown magic): lasting
     let text = d.path().join("text.cbz");
     std::fs::write(&text, b"just text").unwrap();

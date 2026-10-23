@@ -259,23 +259,33 @@ mod tests {
     fn meta_is_carried_over_for_unchanged_books_only() {
         use crate::comic_info::BookMeta;
         let meta = |s: &str| {
-            Some(BookMeta {
+            Some(Box::new(BookMeta {
                 series: Some(s.into()),
                 ..Default::default()
-            })
+            }))
         };
         let mut a = book("a", 1);
         a.meta = meta("A");
         let mut b = book("b", 1);
         b.meta = meta("B");
         let mut c = book("c", 1);
-        c.meta = Some(BookMeta::default());
+        c.meta = Some(Box::default());
         let old = vec![a, b, c, book("d", 1)];
-        let mut new = vec![book("a", 1), book("b", 2), book("c", 1), book("d", 1), book("e", 1)];
+        let mut new = vec![
+            book("a", 1),
+            book("b", 2),
+            book("c", 1),
+            book("d", 1),
+            book("e", 1),
+        ];
         carry_meta(&old, &mut new);
         assert_eq!(new[0].meta, meta("A"));
         assert_eq!(new[1].meta, None, "changed size: read again");
-        assert_eq!(new[2].meta, Some(BookMeta::default()), "read, nothing found: kept");
+        assert_eq!(
+            new[2].meta,
+            Some(Box::default()),
+            "read, nothing found: kept"
+        );
         assert_eq!(new[3].meta, None);
         assert_eq!(new[4].meta, None);
         // the metadata does not make a diff
@@ -286,11 +296,11 @@ mod tests {
     fn meta_round_trips_and_old_entries_without_it_load() {
         let dir = tempfile::tempdir().unwrap();
         let mut c = cache("/c", &[".cbz"]);
-        c.books[0].meta = Some(crate::comic_info::BookMeta {
+        c.books[0].meta = Some(Box::new(crate::comic_info::BookMeta {
             series: Some("Hägar".into()),
             year: Some(1973),
             ..Default::default()
-        });
+        }));
         write(dir.path(), &c).unwrap();
         let back = read(dir.path(), "/c", &exts(&[".cbz"])).unwrap();
         assert_eq!(back, c);

@@ -569,7 +569,7 @@ fn meta_pass(
         }
         let book = &mut cache.books[i];
         if let Some(meta) = comic_info::outcome(&PathBuf::from(&book.path), Some(cancel)) {
-            book.meta = Some(meta.clone());
+            book.meta = Some(Box::new(meta.clone()));
             let item = MetaItem {
                 id: book.id.clone(),
                 meta,
@@ -783,7 +783,9 @@ mod tests {
             .filter(|e| {
                 matches!(
                     e,
-                    ScanEvent::Meta { .. } | ScanEvent::MetaDone { .. } | ScanEvent::MetaProgress { .. }
+                    ScanEvent::Meta { .. }
+                        | ScanEvent::MetaDone { .. }
+                        | ScanEvent::MetaProgress { .. }
                 )
             })
             .cloned()
@@ -829,7 +831,8 @@ mod tests {
         if let Some(s) = series {
             entries.push((
                 "ComicInfo.xml",
-                format!("<ComicInfo><Series>{s}</Series><Number>7</Number></ComicInfo>").into_bytes(),
+                format!("<ComicInfo><Series>{s}</Series><Number>7</Number></ComicInfo>")
+                    .into_bytes(),
             ));
         }
         crate::book::tests::build::cbz(&p, &entries);
@@ -872,10 +875,10 @@ mod tests {
         assert_eq!(read[&asterix.id].series.as_deref(), Some("Asterix"));
         assert_eq!(asterix.meta.as_ref().unwrap().number.as_deref(), Some("7"));
         let hagar = books.iter().find(|b| b.name.starts_with("Hägar")).unwrap();
-        assert_eq!(hagar.meta, Some(BookMeta::default()));
+        assert_eq!(hagar.meta, Some(Box::default()));
         // an empty file is no book: lasting, read (empty)
         let leer = books.iter().find(|b| b.name == "leer.cbz").unwrap();
-        assert_eq!(leer.meta, Some(BookMeta::default()));
+        assert_eq!(leer.meta, Some(Box::default()));
 
         // second scan: everything known, no pass; `cached` carries the metadata
         let (sink2, log2) = recorder();
@@ -930,7 +933,10 @@ mod tests {
         assert_eq!(meta_done(&l2), [false]);
         let totals = meta_totals(&l2);
         assert_eq!(totals.len(), 1);
-        assert!(totals[0] < 20, "the second pass only reads the rest: {totals:?}");
+        assert!(
+            totals[0] < 20,
+            "the second pass only reads the rest: {totals:?}"
+        );
         // the second opener knows every book's metadata (sent at the end of the first pass
         // plus its own pass, or in its `cached`)
         let mut known = meta_read(&l2);
@@ -938,16 +944,18 @@ mod tests {
             if let ScanEvent::Cached { books, .. } | ScanEvent::CachedMore { books, .. } = e {
                 for b in books {
                     if let Some(m) = &b.meta {
-                        known.insert(b.id.clone(), m.clone());
+                        known.insert(b.id.clone(), (**m).clone());
                     }
                 }
             }
         }
         assert_eq!(known.len(), 20);
         assert!(
-            cached_books(cache.path(), lib.path())
-                .iter()
-                .all(|b| b.meta.as_ref().and_then(|m| m.series.as_deref()) == Some("S"))
+            cached_books(cache.path(), lib.path()).iter().all(|b| b
+                .meta
+                .as_ref()
+                .and_then(|m| m.series.as_deref())
+                == Some("S"))
         );
     }
 
@@ -969,10 +977,14 @@ mod tests {
         hub.cancel("c1");
         wait_idle(&hub);
         assert_eq!(meta_done(&l1), [true]);
-        assert_eq!(kinds(&l1).last(), Some(&"done"), "the walk itself was not cancelled");
+        assert_eq!(
+            kinds(&l1).last(),
+            Some(&"done"),
+            "the walk itself was not cancelled"
+        );
         let books = cached_books(cache.path(), lib.path());
         let with = books.iter().filter(|b| b.meta.is_some()).count();
-        assert!(with >= 1 && with < 20, "{with}");
+        assert!((1..20).contains(&with), "{with}");
         // the next scan reads the rest only
         let (s2, l2) = recorder();
         hub.open(cache.path(), "c1", target(lib.path()), s2);
@@ -1289,7 +1301,10 @@ mod tests {
             }],
         })
         .unwrap();
-        assert_eq!(e, r#"{"kind":"meta","items":[{"id":"00ff","meta":{"pageCount":3}}]}"#);
+        assert_eq!(
+            e,
+            r#"{"kind":"meta","items":[{"id":"00ff","meta":{"pageCount":3}}]}"#
+        );
         let e = serde_json::to_string(&ScanEvent::MetaProgress { done: 1, total: 2 }).unwrap();
         assert_eq!(e, r#"{"kind":"metaProgress","done":1,"total":2}"#);
         let e = serde_json::to_string(&ScanEvent::MetaDone { cancelled: false }).unwrap();

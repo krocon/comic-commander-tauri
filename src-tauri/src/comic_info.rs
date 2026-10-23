@@ -162,9 +162,16 @@ fn decode(data: &[u8]) -> String {
             let head = String::from_utf8_lossy(&data[..data.len().min(200)]).to_ascii_lowercase();
             let decl = head.find("?>").map_or("", |end| &head[..end]);
             let latin1 = decl.starts_with("<?xml")
-                && ["iso-8859-1", "iso8859-1", "latin1", "latin-1", "windows-1252", "cp1252"]
-                    .iter()
-                    .any(|e| decl.contains(&format!("\"{e}\"")) || decl.contains(&format!("'{e}'")));
+                && [
+                    "iso-8859-1",
+                    "iso8859-1",
+                    "latin1",
+                    "latin-1",
+                    "windows-1252",
+                    "cp1252",
+                ]
+                .iter()
+                .any(|e| decl.contains(&format!("\"{e}\"")) || decl.contains(&format!("'{e}'")));
             if latin1 {
                 data.iter().map(|&b| b as char).collect()
             } else {
@@ -192,7 +199,10 @@ fn clean(raw: &str, max: usize) -> Option<String> {
 }
 
 fn int_in(raw: &str, lo: i64, hi: i64) -> Option<i64> {
-    raw.trim().parse::<i64>().ok().filter(|n| (lo..=hi).contains(n))
+    raw.trim()
+        .parse::<i64>()
+        .ok()
+        .filter(|n| (lo..=hi).contains(n))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
