@@ -34,6 +34,7 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 | 011 | [011-metadaten-serien.md](011-metadaten-serien.md) | *optional*: ComicInfo.xml, Serie/Nummer, Serien- und Ordneransicht | 002, 004 | M | offen |
 | 012 | [012-release-distribution.md](012-release-distribution.md) | Version, Lizenzen (unRAR, PDF), Pakete je OS, CI-Vorlagen, Signierung vorbereiten | – | M | offen |
 | 013 | [013-feature-paritaet.md](013-feature-paritaet.md) | Matrix gegen comiccommander mit Testbelegen, Lücken → neue Prompts | 002–010 | S–M | offen |
+| 014 | [014-zoom-modi.md](014-zoom-modi.md) | Leser: Zoom-Modi (Fit width/height/page, Full size), Zoom-Regler, Drehen links/rechts, dezente Toolbar mit sanftem Aus-/Einblenden | 005, 006, 008 | M | offen |
 
 ## Folge-Ideen (noch ohne Prompt)
 
