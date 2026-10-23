@@ -92,6 +92,11 @@ export class GridStore {
   readonly view = signal<ViewMode>('flat');
   /** Opened series (key) or folder (NFC, `/`); `null` = the top of the view. */
   readonly level = signal<string | null>(null);
+  /**
+   * The filter of the series overview while a series is open: opening a series clears the
+   * filter (all its volumes), back on the overview it is in force again.
+   */
+  readonly outerFilter = signal<string | null>(null);
   /** Chosen size step (index into `dims()`). */
   readonly dimIndex = signal(0);
   /** Book with the keyboard cursor. */
@@ -197,7 +202,7 @@ export class GridStore {
       if (level === null || this.scan.phase() !== 'done') return;
       const all = this.scan.books();
       untracked(() => {
-        if (!levelExists(all, this.view(), level)) this.level.set(null);
+        if (!levelExists(all, this.view(), level)) this.setLevel(null);
       });
     });
     // back from the reader: the cursor on the book read last (design 005 E6)
@@ -232,6 +237,7 @@ export class GridStore {
       topId: this.topId(),
       view: this.view(),
       level: this.level(),
+      outerFilter: this.outerFilter(),
     };
   }
 
@@ -247,6 +253,9 @@ export class GridStore {
     this.sort.set(saved?.sort ?? 'path');
     this.view.set(saved?.view ?? 'flat');
     this.level.set(saved?.level ?? null);
+    this.outerFilter.set(
+      this.view() === 'series' && this.level() !== null ? (saved?.outerFilter ?? null) : null,
+    );
     this.dimIndex.set(saved?.dimIndex ?? c?.dimIndex ?? 0);
     this.focusId.set(saved?.focusId ?? null);
     this.topId.set(saved?.topId ?? null);
@@ -292,8 +301,8 @@ export class GridStore {
     if (view === this.view()) return;
     const item = this.focusedItem();
     const book = item?.kind === 'group' ? item.cover : (item?.book ?? null);
+    this.setLevel(null);
     this.view.set(view);
-    this.level.set(null);
     this.focusOn(book ? this.tileOf(book) : null);
   }
 
@@ -311,6 +320,25 @@ export class GridStore {
     return group?.id ?? null;
   }
 
+  /**
+   * Changes the level. Series view: opening a series keeps the filter of the overview aside and
+   * shows all volumes; back on the overview that filter is in force again.
+   */
+  private setLevel(level: string | null): void {
+    const from = this.level();
+    if (this.view() === 'series') {
+      if (from === null && level !== null) {
+        this.outerFilter.set(this.filterText());
+        this.applyFilterNow('');
+      } else if (level === null) {
+        const outer = this.outerFilter();
+        this.outerFilter.set(null);
+        if (outer !== null) this.applyFilterNow(outer);
+      }
+    }
+    this.level.set(level);
+  }
+
   private focusOn(id: string | null): void {
     this.focusId.set(id ?? this.items()[0]?.id ?? null);
     this.restoreTopId.set(this.focusId());
@@ -323,7 +351,7 @@ export class GridStore {
       this.read(item.book);
       return;
     }
-    this.level.set(item.key);
+    this.setLevel(item.key);
     this.focusOn(null);
   }
 
@@ -339,7 +367,7 @@ export class GridStore {
   goTo(level: string | null): void {
     const from = this.level();
     if (level === from) return;
-    this.level.set(level);
+    this.setLevel(level);
     let tile: string | null = null;
     if (from !== null && (level === null || from.startsWith(level + '/'))) {
       // the tile on the way down from `level` to where we came from

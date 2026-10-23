@@ -303,6 +303,45 @@ describe('GridStore', () => {
       expect(a && a.kind === 'group' && `${a.count}/${a.total}`).toBe('2/3');
     });
 
+    it('series: opening a series lifts the filter, the overview gets it back', async () => {
+      const { grid, categories, data } = await ready();
+      grid.setView('series');
+      grid.setFilter('10'); // typed, not yet applied (debounce)
+      grid.open(grid.items().find((i) => i.id === 's:asterix')!);
+      expect(grid.filterText()).toBe('');
+      expect(tiles(grid)).toEqual(['Asterix 01.cbz', 'Asterix 02.cbz', 'Asterix 10.cbz']);
+      // remembered across a category switch
+      await categories.select('c2');
+      TestBed.tick();
+      expect(JSON.parse(data.get('cc.view.c1')!)).toMatchObject({ filter: '', outerFilter: '10' });
+      await categories.select('c1');
+      TestBed.tick();
+      expect(grid.level()).toBe('asterix');
+      grid.up();
+      expect(grid.filterText()).toBe('10');
+      expect(grid.appliedFilter()).toBe('10');
+      expect(tiles(grid)).toEqual(['s:asterix']);
+      expect(grid.focusId()).toBe('s:asterix');
+      // a filter typed inside the series is dropped; breadcrumb and Esc way back the same
+      grid.open(grid.items()[0]);
+      grid.applyFilterNow('01');
+      grid.goTo(null);
+      expect(grid.filterText()).toBe('10');
+      // leaving the series by switching the view also brings the filter back
+      grid.open(grid.items()[0]);
+      grid.setView('flat');
+      expect(grid.filterText()).toBe('10');
+      expect(grid.outerFilter()).toBeNull();
+    });
+
+    it('folders keep the filter when a folder is opened', async () => {
+      const { grid } = await ready();
+      grid.setView('folders');
+      grid.applyFilterNow('asterix');
+      grid.open(grid.items()[0]);
+      expect(grid.filterText()).toBe('asterix');
+    });
+
     it('remembers view and level, leaves a level that is gone', async () => {
       const { grid, categories, data } = await ready();
       grid.setView('series');

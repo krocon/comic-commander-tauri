@@ -17,6 +17,7 @@ const state: ViewState = {
   topId: 'b',
   view: 'series',
   level: 'asterix',
+  outerFilter: 'ang',
 };
 
 describe('view-state (E9)', () => {
@@ -42,6 +43,7 @@ describe('view-state (E9)', () => {
       topId: null,
       view: 'flat',
       level: null,
+      outerFilter: null,
     });
     s.data.set('cc.view.c1', JSON.stringify({ v: 2, view: 'evil', level: 'x' }));
     expect(loadViewState('c1', s)?.view).toBe('flat');
@@ -73,6 +75,7 @@ describe('view-state (E9)', () => {
       topId: 't',
       view: 'flat',
       level: null,
+      outerFilter: null,
     });
   });
 });
