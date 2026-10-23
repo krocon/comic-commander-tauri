@@ -25,6 +25,9 @@ pub struct ReadingPosition {
     /// Pages of the book then.
     pub pages: usize,
     pub updated_ms: i64,
+    /// Rotation of the whole book in degrees clockwise: 0, 90, 180 or 270 (design 014 E5/E8).
+    #[serde(default)]
+    pub rotation: u16,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -33,6 +36,15 @@ pub struct ReadingState {
     pub version: u32,
     #[serde(default)]
     pub books: HashMap<String, ReadingPosition>,
+}
+
+/// A rotation the reader knows (design 014): anything else counts as 0.
+pub fn valid_rotation(rotation: u16) -> u16 {
+    if matches!(rotation, 90 | 180 | 270) {
+        rotation
+    } else {
+        0
+    }
 }
 
 /// A book id from the scan: 16 lowercase hex digits.
@@ -56,6 +68,9 @@ impl ReadingState {
         state
             .books
             .retain(|id, p| valid_book_id(id) && p.pages > 0 && p.page < p.pages);
+        for p in state.books.values_mut() {
+            p.rotation = valid_rotation(p.rotation);
+        }
         state.prune();
         state
     }
@@ -70,8 +85,16 @@ impl ReadingState {
         write_atomic(&file, &json).map_err(|e| FsError::from_io(&e, &file))
     }
 
-    /// Remembers `page` of `pages`; returns `false` (nothing changed) for nonsense.
-    pub fn set(&mut self, book_id: &str, page: usize, pages: usize, now_ms: i64) -> bool {
+    /// Remembers `page` of `pages` and the book's rotation (unknown → 0); returns `false`
+    /// (nothing changed) for nonsense.
+    pub fn set(
+        &mut self,
+        book_id: &str,
+        page: usize,
+        pages: usize,
+        rotation: u16,
+        now_ms: i64,
+    ) -> bool {
         if !valid_book_id(book_id) || pages == 0 || page >= pages {
             return false;
         }
@@ -81,6 +104,7 @@ impl ReadingState {
                 page,
                 pages,
                 updated_ms: now_ms,
+                rotation: valid_rotation(rotation),
             },
         );
         self.prune();
@@ -119,8 +143,8 @@ mod tests {
         let dir = d.path().join("Comic Commander ä 🦸");
         let mut s = ReadingState::load(&dir);
         assert!(s.books.is_empty());
-        assert!(s.set(A, 11, 48, 1000));
-        assert!(s.set(B, 0, 3, 2000));
+        assert!(s.set(A, 11, 48, 90, 1000));
+        assert!(s.set(B, 0, 3, 0, 2000));
         s.save(&dir).unwrap();
         let back = ReadingState::load(&dir);
         assert_eq!(back.books.len(), 2);
@@ -129,7 +153,8 @@ mod tests {
             ReadingPosition {
                 page: 11,
                 pages: 48,
-                updated_ms: 1000
+                updated_ms: 1000,
+                rotation: 90
             }
         );
         let raw = std::fs::read_to_string(dir.join(FILE_NAME)).unwrap();
@@ -140,10 +165,10 @@ mod tests {
     #[test]
     fn nonsense_is_refused() {
         let mut s = ReadingState::default();
-        assert!(!s.set("../../etc", 1, 2, 0));
-        assert!(!s.set("0123456789ABCDEF", 1, 2, 0));
-        assert!(!s.set(A, 2, 2, 0));
-        assert!(!s.set(A, 0, 0, 0));
+        assert!(!s.set("../../etc", 1, 2, 0, 0));
+        assert!(!s.set("0123456789ABCDEF", 1, 2, 0, 0));
+        assert!(!s.set(A, 2, 2, 0, 0));
+        assert!(!s.set(A, 0, 0, 0, 0));
         assert!(s.books.is_empty());
     }
 
@@ -151,7 +176,7 @@ mod tests {
     fn bounded_oldest_first() {
         let mut s = ReadingState::default();
         for i in 0..(MAX_BOOKS + 10) {
-            assert!(s.set(&format!("{i:016x}"), 0, 1, i as i64));
+            assert!(s.set(&format!("{i:016x}"), 0, 1, 0, i as i64));
         }
         assert_eq!(s.books.len(), MAX_BOOKS);
         assert!(!s.books.contains_key(&format!("{:016x}", 9)));
@@ -173,5 +198,26 @@ mod tests {
         .unwrap();
         let s = ReadingState::load(d.path());
         assert_eq!(s.books.keys().collect::<Vec<_>>(), [B]);
+    }
+
+    #[test]
+    fn rotation_old_files_and_nonsense() {
+        let d = tempfile::tempdir().unwrap();
+        // a file from before design 014 has no rotation; a hostile one has odd values
+        std::fs::write(
+            d.path().join(FILE_NAME),
+            format!(
+                r#"{{"version":1,"books":{{"{A}":{{"page":1,"pages":3,"updatedMs":1}},"{B}":{{"page":1,"pages":3,"updatedMs":1,"rotation":45}}}}}}"#
+            ),
+        )
+        .unwrap();
+        let s = ReadingState::load(d.path());
+        assert_eq!(s.books[A].rotation, 0);
+        assert_eq!(s.books[B].rotation, 0);
+        let mut s = ReadingState::default();
+        for (given, kept) in [(0, 0), (90, 90), (180, 180), (270, 270), (360, 0), (91, 0)] {
+            assert!(s.set(A, 0, 1, given, 0));
+            assert_eq!(s.books[A].rotation, kept, "{given}");
+        }
     }
 }

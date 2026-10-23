@@ -38,7 +38,7 @@ describe('ReaderService', () => {
   });
 
   it('loads and remembers positions', async () => {
-    api.positions = { abc: { page: 3, pages: 10, updatedMs: 1 } };
+    api.positions = { abc: { page: 3, pages: 10, updatedMs: 1, rotation: 0 } };
     await service.loadPositions();
     expect(service.positions()['abc'].page).toBe(3);
     service.remember('def', 1, 2);

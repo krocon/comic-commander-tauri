@@ -13,7 +13,18 @@ import { ReaderApi } from '../../core/reader/reader-api';
 import { PageInfo, ReaderEvent } from '../../core/reader/reader.models';
 import { BookEntry } from '../../core/scan/scan.models';
 import { VIEW_STATE_STORE } from '../grid/grid.store';
-import { ReaderFit, ReaderMode, startPage } from './reader-logic';
+import {
+  clampFactor,
+  FitMode,
+  nextZoom,
+  ReaderMode,
+  rotate,
+  Rotation,
+  startPage,
+  toRotation,
+  Zoom,
+  zoomStep,
+} from './reader-logic';
 import { loadReaderSettings, saveReaderSettings } from './reader-settings';
 import { READER_TEXTS } from './reader-texts';
 import { ReaderService } from './reader.service';
@@ -60,8 +71,12 @@ export class ReaderStore {
 
   private readonly initial = loadReaderSettings(this.settingsStore);
   readonly mode = signal<ReaderMode>(this.initial.mode);
-  readonly fit = signal<ReaderFit>(this.initial.fit);
+  readonly zoom = signal<Zoom>(this.initial.zoom);
   readonly rtl = signal(this.initial.rtl);
+  readonly zoomSlider = signal(this.initial.zoomSlider);
+  readonly toolbarPinned = signal(this.initial.toolbarPinned);
+  /** Rotation of the open book (design 014 E5/E8: per book, in the reading state). */
+  readonly rotation = signal<Rotation>(0);
   readonly fullscreen = signal(false);
 
   /** Text of the live region (throttled). */
@@ -73,8 +88,13 @@ export class ReaderStore {
   /** One `open` at a time: quick `]` presses must not open (and evict) books nobody waits for
    *  (review 005 #2). */
   private queue: Promise<void> = Promise.resolve();
-  private current: { categoryId: string; bookId: string; pages: number; saved: number } | null =
-    null;
+  private current: {
+    categoryId: string;
+    bookId: string;
+    pages: number;
+    saved: number;
+    savedRotation: Rotation;
+  } | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private announceTimer: ReturnType<typeof setTimeout> | undefined;
   private pendingAnnouncement: string | null = null;
@@ -86,7 +106,13 @@ export class ReaderStore {
       untracked(() => void this.load(categoryId, book));
     });
     effect(() => {
-      const s = { mode: this.mode(), fit: this.fit(), rtl: this.rtl() };
+      const s = {
+        mode: this.mode(),
+        zoom: this.zoom(),
+        rtl: this.rtl(),
+        zoomSlider: this.zoomSlider(),
+        toolbarPinned: this.toolbarPinned(),
+      };
       untracked(() => saveReaderSettings(s, this.settingsStore));
     });
     inject(DestroyRef).onDestroy(() => {
@@ -114,6 +140,7 @@ export class ReaderStore {
     this.pages.set([]);
     this.sizes.set([]);
     this.page.set(0);
+    this.rotation.set(0);
     if (!book) return;
     const run = () => this.openBook(seq, categoryId, book);
     this.queue = this.queue.then(run, run);
@@ -141,8 +168,16 @@ export class ReaderStore {
         ),
       );
       this.extracting.set(opened.extracting);
+      const rotation = toRotation(opened.rotation);
       this.page.set(start);
-      this.current = { categoryId, bookId: book.id, pages: n, saved: start };
+      this.rotation.set(rotation);
+      this.current = {
+        categoryId,
+        bookId: book.id,
+        pages: n,
+        saved: start,
+        savedRotation: rotation,
+      };
       this.phase.set('ready');
       this.announce(this.t.page(start + 1, n));
     } catch (e) {
@@ -192,6 +227,10 @@ export class ReaderStore {
     if (i === this.page()) return;
     this.page.set(i);
     this.announce(this.t.page(i + 1, n));
+    this.saveSoon();
+  }
+
+  private saveSoon(): void {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.saveNow(), this.saveDelay);
   }
@@ -229,8 +268,54 @@ export class ReaderStore {
     this.mode.update((m) => (m === 'single' ? 'continuous' : 'single'));
   }
 
-  toggleFit(): void {
-    this.fit.update((f) => (f === 'width' ? 'height' : 'width'));
+  // ---- zoom and rotation (design 014) ------------------------------------------------------
+
+  private zoomLabel(mode: FitMode): string {
+    const t = this.t;
+    return { width: t.fitWidth, height: t.fitHeight, page: t.fitPage, full: t.fullSize }[mode];
+  }
+
+  setZoomMode(mode: FitMode): void {
+    this.zoom.update((z) => ({ mode, factor: z.factor }));
+    this.announce(this.t.zoomIs(this.zoomLabel(mode)));
+  }
+
+  /** `W` / `Shift+W`: the next / previous fit. */
+  cycleZoom(dir: 1 | -1): void {
+    this.setZoomMode(nextZoom(this.zoom(), dir).mode as FitMode);
+  }
+
+  /** A free factor (slider, wheel, `+` / `-`) – the mode becomes `custom` (E6). */
+  setFactor(factor: number): void {
+    this.zoom.set({ mode: 'custom', factor: clampFactor(factor) });
+  }
+
+  /** One step from the effective factor of the page shown. */
+  zoomBy(dir: 1 | -1, effective: number): void {
+    const f = zoomStep(effective, dir);
+    this.setFactor(f);
+    this.announce(this.t.zoomIs(this.t.percent(Math.round(f * 100))));
+  }
+
+  rotate(dir: 1 | -1): void {
+    if (this.phase() !== 'ready') return;
+    const r = rotate(this.rotation(), dir);
+    this.rotation.set(r);
+    this.announce(this.t.rotated(r));
+    this.saveSoon();
+  }
+
+  toggleZoomSlider(): void {
+    this.zoomSlider.update((v) => !v);
+  }
+
+  toggleToolbar(): void {
+    this.toolbarPinned.update((v) => !v);
+  }
+
+  /** A text for the live region (throttled with the page announcements). */
+  say(text: string): void {
+    this.announce(text);
   }
 
   toggleRtl(): void {
@@ -270,10 +355,14 @@ export class ReaderStore {
     const c = this.current;
     if (!c || this.phase() !== 'ready') return;
     const page = this.page();
-    if (page === c.saved) return;
+    const rotation = this.rotation();
+    if (page === c.saved && rotation === c.savedRotation) return;
     c.saved = page;
-    this.service.remember(c.bookId, page, c.pages);
-    void this.api.savePosition(c.categoryId, c.bookId, page, c.pages).catch(() => undefined);
+    c.savedRotation = rotation;
+    this.service.remember(c.bookId, page, c.pages, rotation);
+    void this.api
+      .savePosition(c.categoryId, c.bookId, page, c.pages, rotation)
+      .catch(() => undefined);
   }
 
   /** Live region: at most one text per `ANNOUNCE_MS`, the last one wins. */

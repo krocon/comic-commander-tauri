@@ -35,6 +35,9 @@
 - **Prompt 008 (Aktionen, Menü, Tastatur)** ist fertig: Aktionskatalog + `ActionService`, ein `KeyboardDispatcher`,
   Keymaps je OS (JSON) + Override `keymap.json`, ein Menümodell (macOS nativ über `set_app_menu`, sonst HTML-Menüleiste
   nach APG), Befehlspalette, About. Design: `prompts/done/008-aktionen-menue-tastatur.design.md`.
+- **Prompt 014 (Zoom, Drehen, Leser-Toolbar)** ist fertig: Fit width/height/page, Full size, freier Zoom (Regler,
+  `+`/`-`, Mausrad), Drehen je Buch (CSS, Lesestand), Zeilen-Lesen großer Seiten, dezente Toolbar mit Zoom-Menü in
+  schmalen Fenstern, Aus-/Einblenden über die Zone oben. Design: `prompts/done/014-zoom-modi.design.md`.
 - Als Nächstes: **009** (Einstellungen, i18n). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -99,7 +102,8 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   app/features/jobs/          ThumbsJobStore (Root), GenerateThumbsDialog, job-time (rein), Texte
   app/features/reader/        Leser (005): ReaderService (Root: Sitzung = Buchliste + Index, Lesestände, closedOn),
                               ReaderStore (je Leser: Buch, Seite, Größen, Einstellungen, Position speichern), Reader
-                              (Ebene über der Kategorie-Ansicht, Aktionen im Kontext `reader`), rein: reader-logic, reader-settings
+                              (Ebene über der Kategorie-Ansicht, Aktionen im Kontext `reader`), ZoomMenu (APG, 014),
+                              rein: reader-logic (Zoom, Drehung, Boxen, Schritte), reader-settings
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
   testing/keyboard.ts         wireKeyboard(): Dispatcher wie in app.ts für Komponenten-Tests
   testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi, FakeJobsApi), Fixtures – nie im

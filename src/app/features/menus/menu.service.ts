@@ -3,7 +3,7 @@ import { ActionService } from '../../core/actions/action.service';
 import { MenuApi } from '../../core/menu/menu-api';
 import { DialogService } from '../../shared/dialog/dialog.service';
 import { CategoriesStore } from '../categories/categories.store';
-import { buildMenuModel, resolveMenu, ResolvedMenu, toSpec } from './menu-model';
+import { buildMenuModel, resolveMenu, ResolvedMenu, toSpec, menuChord } from './menu-model';
 
 /** Pause before the native menu is rebuilt after a change (states, categories). */
 const NATIVE_DEBOUNCE_MS = 150;
@@ -37,7 +37,7 @@ export class MenuService {
         label: (id) => this.actions.def(id)?.label ?? id,
         enabled: (id) => this.actions.enabled(id),
         checked: (id) => this.actions.checked(id),
-        chord: (id) => this.actions.chords(id)[0] ?? '',
+        chord: (id) => menuChord(this.actions.chords(id)),
       },
       os,
     );

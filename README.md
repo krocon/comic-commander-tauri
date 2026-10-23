@@ -8,8 +8,8 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 [files-and-folders-tauri](https://github.com/krocon/files-and-folders-tauri). Das Cover-Raster ist eine
 [GuiExpert Table](https://github.com/guiexperttable/mono) im Cover-Grid-Modus.
 
-> **Stand:** Prompt 008 – Cover-Grid, Leser (auch PDF), Thumbnails im Stapel, Menüleiste, Befehlspalette und
-> Tastaturkürzel. Fahrplan in [`prompts/README.md`](prompts/README.md).
+> **Stand:** Prompt 014 – Cover-Grid, Leser (auch PDF) mit Zoom und Drehen, Thumbnails im Stapel, Menüleiste,
+> Befehlspalette und Tastaturkürzel. Fahrplan in [`prompts/README.md`](prompts/README.md).
 
 ## Was funktioniert
 
@@ -32,9 +32,11 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   die App je Kategorie. Auf Retina werden automatisch die großen Cover geladen.
 - **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
   filtern, Pfad kopieren – mit den Tastenkürzeln daneben.
-- **Leser** (`Enter`/Doppelklick): Einzelseite (Breite oder Höhe einpassen; hohe Seiten erst bildschirmweise
-  scrollen, dann blättern) oder fortlaufend; Klick ins linke/rechte Drittel, Wischen, Schieberegler, Manga
-  (rechts → links), Vollbild. Seiten kommen direkt aus dem Buch – JPEG, PNG, WebP, GIF, BMP; 7z und solide RAR
+- **Leser** (`Enter`/Doppelklick): Einzelseite oder fortlaufend; Zoom **Fit width, Fit height, Fit page, Full size**
+  oder frei (Zoom-Regler, `+`/`-`, Strg/⌘ + Mausrad, Pinch); große Seiten erst bildschirmweise in Zeilen lesen, dann
+  blättern, mit der Maus ziehen; **drehen** links/rechts (je Buch gemerkt); Klick ins linke/rechte Drittel, Wischen,
+  Schieberegler, Manga (rechts → links), Vollbild. Die Toolbar mit dezenten Icons blendet beim Lesen aus und kommt
+  zurück, wenn die Maus an den oberen Rand geht (`T` hält sie fest). Seiten kommen direkt aus dem Buch – JPEG, PNG, WebP, GIF, BMP; 7z und solide RAR
   werden einmal in den App-Cache entpackt (begrenzt auf 1 GiB, älteste zuerst weg). Die letzte Seite je Buch wird
   gemerkt (`reading-state.json`), das Grid zeigt den Lesefortschritt als Balken am Cover.
 - **PDF**: Cover und Seiten, gerendert in Rust (`hayro`, ohne externe Programme); bei Scan-PDFs wird das eingebettete
@@ -77,7 +79,13 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `→` `↓` `n` `Leertaste` `Bild ↓` | weiter (hohe Seite: erst scrollen) |
 | `←` `↑` `b` `Shift+Leertaste` `Bild ↑` | zurück |
 | `Ctrl/⌘ + Pfeil`, `Home`/`End` | erste / letzte Seite (Manga: `←` = letzte) |
-| `S` / `W` / `M` | Einzelseite ⇄ fortlaufend / Breite ⇄ Höhe / Manga (`←`/`→` und Klickdrittel gespiegelt) |
+| `S` / `M` | Einzelseite ⇄ fortlaufend / Manga (`←`/`→` und Klickdrittel gespiegelt) |
+| `1` `2` `3` `4` | Fit width / Fit height / Fit page / Full size (auch `Ctrl/⌘ + 0`) |
+| `W` / `Shift+W` | nächster / vorheriger Zoom-Modus |
+| `+` / `-`, `Ctrl/⌘ + Mausrad` | Zoom in / out (frei) |
+| `Z` | Zoom-Regler zeigen |
+| `R` / `L` (`Shift+R`) | rechts / links drehen |
+| `T` | Toolbar immer zeigen |
 | `]` / `[` | nächstes / vorheriges Buch der gefilterten Liste |
 | `F11`, `⌘ + Ctrl + F` | Vollbild |
 | `Esc` | Vollbild verlassen, sonst zurück zum Raster (an dieselbe Stelle) |

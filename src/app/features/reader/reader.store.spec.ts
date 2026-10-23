@@ -171,14 +171,18 @@ describe('ReaderStore', () => {
     const s = setup();
     const store = await opened(s);
     store.toggleMode();
-    store.toggleFit();
+    store.setZoomMode('page');
     store.toggleRtl();
+    store.toggleZoomSlider();
+    store.toggleToolbar();
     TestBed.tick();
     expect(JSON.parse(s.data.get('cc.reader')!)).toEqual({
       v: 1,
       mode: 'continuous',
-      fit: 'height',
+      zoom: { mode: 'page', factor: 1 },
       rtl: true,
+      zoomSlider: true,
+      toolbarPinned: true,
     });
     await store.toggleFullscreen();
     expect(store.fullscreen()).toBe(true);
@@ -197,5 +201,51 @@ describe('ReaderStore', () => {
     TestBed.resetTestingModule();
     expect(s.api.calls).toContain('close tok1');
     expect(s.api.calls).toContain(`save c1.${s.list[0].id} 2/4`);
+  });
+
+  it('chooses, cycles and frees the zoom (design 014)', async () => {
+    const s = setup();
+    const store = await opened(s);
+    expect(store.zoom()).toEqual({ mode: 'width', factor: 1 });
+    store.cycleZoom(1);
+    expect(store.zoom().mode).toBe('height');
+    store.cycleZoom(-1);
+    store.cycleZoom(-1);
+    expect(store.zoom().mode).toBe('full');
+    await wait(5);
+    expect(store.announcement()).toBe('Zoom: Full size');
+    store.setFactor(2.4);
+    expect(store.zoom()).toEqual({ mode: 'custom', factor: 2.4 });
+    store.setFactor(50);
+    expect(store.zoom().factor).toBe(8);
+    // + / - step from the effective factor of the page shown
+    store.zoomBy(1, 0.37);
+    expect(store.zoom()).toEqual({ mode: 'custom', factor: 0.5 });
+    store.setZoomMode('page');
+    expect(store.zoom().mode).toBe('page');
+  });
+
+  it('turns the book, remembers it with the position and opens it turned', async () => {
+    const s = setup();
+    s.api.books.set(s.list[0].id, pagesBook(4, 'tok1', { rotation: 270 }));
+    s.api.books.set(s.list[1].id, pagesBook(4, 'tok2'));
+    const store = await opened(s);
+    expect(store.rotation()).toBe(270);
+    store.rotate(1);
+    expect(store.rotation()).toBe(0);
+    store.rotate(1);
+    expect(store.rotation()).toBe(90);
+    await wait(5);
+    // saved without a page turn, once
+    expect(s.api.calls.filter((c) => c.startsWith('save'))).toEqual([
+      `save c1.${s.list[0].id} 0/4 r90`,
+    ]);
+    expect(store.announcement()).toBe('Rotated 90°');
+    expect(s.service.positions()[s.list[0].id].rotation).toBe(90);
+    // the next book has its own rotation
+    store.nextBook();
+    TestBed.tick();
+    await wait();
+    expect(store.rotation()).toBe(0);
   });
 });

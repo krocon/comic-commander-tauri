@@ -1,4 +1,11 @@
-import { buildMenuModel, resolveMenu, toSpec, ActionLookup } from './menu-model';
+import {
+  buildMenuModel,
+  isRadio,
+  menuChord,
+  resolveMenu,
+  toSpec,
+  ActionLookup,
+} from './menu-model';
 
 const look = (over: Partial<ActionLookup> = {}): ActionLookup => ({
   label: (id) => `L:${id}`,
@@ -49,6 +56,39 @@ describe('menu model', () => {
     const spec = toSpec(r);
     expect(JSON.stringify(spec)).not.toContain('shortcut');
     expect(spec.menus[1].items[0]).toMatchObject({ accelerator: 'Mod+Shift+p' });
+  });
+
+  it('has a zoom submenu with radio fits and the rotation in Read (design 014)', () => {
+    const read = buildMenuModel('other', [])[3].items;
+    const zoom = read.find((n) => n.kind === 'submenu' && n.label === 'Zoom');
+    expect(
+      zoom && zoom.kind === 'submenu' && zoom.items.map((n) => ('id' in n ? n.id : '-')),
+    ).toEqual([
+      'reader.zoom.width',
+      'reader.zoom.height',
+      'reader.zoom.page',
+      'reader.zoom.full',
+      '-',
+      'reader.zoomIn',
+      'reader.zoomOut',
+      'reader.toggleZoomSlider',
+    ]);
+    const ids = JSON.stringify(read);
+    for (const id of ['reader.rotateLeft', 'reader.rotateRight', 'reader.toggleToolbar']) {
+      expect(ids).toContain(id);
+    }
+    expect(ids).not.toContain('toggleFit');
+    expect(isRadio('reader.zoom.page')).toBe(true);
+    expect(isRadio('reader.zoom.next')).toBe(false);
+    expect(isRadio('reader.toggleZoomSlider')).toBe(false);
+  });
+
+  it('shows the chord the native menu can take', () => {
+    expect(menuChord(['4', 'Mod+0'])).toBe('Mod+0');
+    expect(menuChord(['F11', 'x'])).toBe('F11');
+    expect(menuChord(['r', 'Shift+r'])).toBe('r');
+    expect(menuChord(['Mod+Ctrl+f', 'F11'])).toBe('Mod+Ctrl+f');
+    expect(menuChord([])).toBe('');
   });
 
   it('cleans labels for the native menu (a title with a newline must not break it, review 008 #4)', () => {

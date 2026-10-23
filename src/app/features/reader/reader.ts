@@ -17,39 +17,53 @@ import { describeFsError } from '../../core/errors/fs-error';
 import {
   anchorOf,
   Anchor,
-  aspects,
   clickZone,
   currentPage,
+  FitMode,
+  guessSizes,
   layoutPages,
+  pageWidth,
   prefetchPages,
   ReaderCommand,
   scrollTopOf,
-  step,
+  sliderToFactor,
+  factorToSlider,
+  snapFactor,
+  step2d,
   swipe,
   visibleRange,
-  widthBucket,
+  ZOOM_CYCLE,
 } from './reader-logic';
+import { ZOOM_ICONS, ZoomChoice, ZoomMenu } from './zoom-menu';
 import { READER_TEXTS } from './reader-texts';
 import { ReaderStore } from './reader.store';
 import { ReaderService } from './reader.service';
-import { ActionService } from '../../core/actions/action.service';
+import { ActionHandler, ActionService } from '../../core/actions/action.service';
 
 /** Pause before a failed page is asked for again: n × this (tests set it small). */
 export const PAGE_RETRY_MS = new InjectionToken<number>('PAGE_RETRY_MS', { factory: () => 1000 });
-/** The toolbar hides after this long without the pointer moving. */
+/** The toolbar (and the pointer over the page) hides after this long without movement. */
 export const BAR_IDLE_MS = new InjectionToken<number>('BAR_IDLE_MS', { factory: () => 2500 });
+/** A free zoom asks for sharper pages this long after the last change (014: not per pixel). */
+export const ZOOM_SETTLE_MS = new InjectionToken<number>('ZOOM_SETTLE_MS', {
+  factory: () => 250,
+});
+/** Travel (px) after which pressing on a large page drags it instead of clicking (014 E4). */
+const PAN_MIN = 4;
 /** Automatic retries of a page (503 when busy, a book still unpacking). */
 const MAX_RETRIES = 2;
 
 /**
- * The reader (design 005): a layer over the category view (E6) – single page (fit width or
- * height, first scroll then turn) or continuous (virtualised); keys, clicks into the outer
- * thirds, swipes; slider and „12 / 48“; next / previous book; full screen. A dialog for
+ * The reader (design 005, 014): a layer over the category view (E6) – single page or continuous
+ * (virtualised), four fits + free zoom, rotation per book, first scroll then turn; keys, clicks
+ * into the outer thirds, swipes, dragging large pages; slider and „12 / 48“; next / previous
+ * book; full screen; a quiet toolbar that fades out while reading. A dialog for
  * assistive technology (`role="dialog"`, focus stays inside, page changes announced).
  * Keys in one handler on the layer (CLAUDE.md §4: no scattered handlers).
  */
 @Component({
   selector: 'app-reader',
+  imports: [ZoomMenu],
   templateUrl: './reader.html',
   styleUrl: './reader.css',
   providers: [ReaderStore],
@@ -63,6 +77,7 @@ export class Reader {
   private readonly destroyRef = inject(DestroyRef);
   private readonly retryMs = inject(PAGE_RETRY_MS);
   private readonly idleMs = inject(BAR_IDLE_MS);
+  private readonly settleMs = inject(ZOOM_SETTLE_MS);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly t = READER_TEXTS;
 
@@ -74,10 +89,16 @@ export class Reader {
   private readonly scrollTop = signal(0);
   private readonly dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
 
-  /** Bar hidden (no pointer movement for a while, not hovered, no focus inside). */
+  /** Bar hidden (014 E11: no pointer in its zone for a while, no focus inside, not pinned). */
   protected readonly idle = signal(false);
+  /** Pointer over the page hidden (it rests). */
+  protected readonly cursorIdle = signal(false);
   private readonly overBar = signal(false);
+  /** Something in the bar is in use (zoom menu open, slider dragged): it stays. */
+  private readonly barBusy = signal(false);
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
+  private cursorTimer: ReturnType<typeof setTimeout> | undefined;
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Automatic retries per page; `failed` = given up (placeholder with „try again“). */
@@ -93,12 +114,35 @@ export class Reader {
   private anchor: Anchor | null = null;
   /** Continuous mode: scroll to the page once laid out (start, mode switch, slider). */
   private pendingJump: number | null = null;
-  private pointer: { x: number; y: number } | null = null;
+  /** Continuous mode: the anchor is this many px below the top of the view (zoom at a point). */
+  private anchorOffset = 0;
+  /** Where the view looks (fractions of the content) and at which view point (014: kept when
+   *  the zoom, the rotation or the window changes). */
+  private focusPoint = { fx: 0, fy: 0, px: 0, py: 0 };
+  private pointer: { x: number; y: number; left: number; top: number; id: number } | null = null;
+  private panned = false;
+  protected readonly panning = signal(false);
   private swiped = false;
 
-  protected readonly width = computed(() =>
-    widthBucket(this.viewWidth(), this.viewHeight(), this.dpr),
+  /** Sizes of all pages (unknown ones guessed). */
+  private readonly sizes = computed(() =>
+    guessSizes(
+      Array.from({ length: this.store.pageCount() }, (_, i) => this.store.sizes()[i] ?? null),
+    ),
   );
+  /** The zoom the page URLs follow: a free zoom only after it settled (014 Anforderung 13). */
+  private readonly settledZoom = signal(this.store.zoom());
+  /** Target width per page (014: from the box, replaces 005's one width). */
+  private readonly widths = computed(() => {
+    const z = this.settledZoom();
+    return layoutPages(
+      this.sizes(),
+      this.viewWidth(),
+      this.viewHeight(),
+      z,
+      this.store.rotation(),
+    ).boxes.map((b) => pageWidth(b, this.dpr, z));
+  });
   protected readonly bookName = computed(() => this.store.book()?.name ?? '');
   protected readonly errorText = computed(() => {
     const e = this.store.error();
@@ -107,21 +151,54 @@ export class Reader {
   protected readonly pageLabel = computed(() =>
     this.t.page(this.store.page() + 1, this.store.pageCount()),
   );
-  protected readonly ratio = computed(() => {
-    const s = this.store.sizes()[this.store.page()];
-    return s ? `${s.width} / ${s.height}` : null;
-  });
-
   protected readonly layout = computed(() =>
     layoutPages(
-      aspects(
-        Array.from({ length: this.store.pageCount() }, (_, i) => this.store.sizes()[i] ?? null),
-      ),
+      this.sizes(),
       this.viewWidth(),
       this.viewHeight(),
-      this.store.fit(),
+      this.store.zoom(),
+      this.store.rotation(),
     ),
   );
+  /** The box of the page shown (single mode, effective zoom). */
+  protected readonly fit = computed(() => this.layout().boxes[this.store.page()] ?? null);
+  /** Width of the continuous strip: pages wider than the view scroll sideways. */
+  protected readonly trackWidth = computed(() =>
+    Math.max(this.viewWidth(), this.layout().maxWidth),
+  );
+  /** Larger than the view: the mouse can drag it (014 E4; continuous: only sideways). */
+  protected readonly pannable = computed(() => {
+    if (this.store.mode() === 'continuous') return this.trackWidth() > this.viewWidth() + 1;
+    const f = this.fit();
+    return !!f && (f.width > this.viewWidth() + 1 || f.height > this.viewHeight() + 1);
+  });
+  /** Effective factor of the page shown, in % (the zoom slider, 014 E7). */
+  protected readonly percent = computed(() => Math.round((this.fit()?.scale ?? 1) * 100));
+  protected readonly sliderValue = computed(() => factorToSlider(this.fit()?.scale ?? 1));
+  /** The effective factor of the last fit mode: the slider snaps to it (E7). */
+  private lastFitFactor = 1;
+
+  /** The four fits of the toolbar with their shortcuts from the keymap. */
+  protected readonly zoomChoices = computed<ZoomChoice[]>(() => {
+    this.actions.keymap();
+    const label = {
+      width: this.t.fitWidth,
+      height: this.t.fitHeight,
+      page: this.t.fitPage,
+      full: this.t.fullSize,
+    };
+    return ZOOM_CYCLE.map((mode) => ({
+      mode,
+      label: label[mode],
+      key: this.actions.shortcut(`reader.zoom.${mode}`),
+      icon: ZOOM_ICONS[mode],
+    }));
+  });
+  /** Tooltip text with the shortcut of an action. */
+  protected tip(label: string, actionId: string): string {
+    this.actions.keymap();
+    return this.t.withKey(label, this.actions.shortcut(actionId));
+  }
   protected readonly visible = computed(() => {
     if (this.store.mode() !== 'continuous') return [];
     const l = this.layout();
@@ -139,6 +216,8 @@ export class Reader {
   constructor() {
     const el = this.host.nativeElement;
     if (typeof ResizeObserver !== 'undefined') {
+      // the view without its scroll bars (014: else fit width makes a horizontal bar on
+      // Linux/Windows); the host until the view exists
       const ro = new ResizeObserver((entries) => {
         const r = entries[0]?.contentRect;
         if (r) {
@@ -146,7 +225,11 @@ export class Reader {
           this.viewHeight.set(Math.floor(r.height));
         }
       });
-      ro.observe(el);
+      effect(() => {
+        const v = this.view()?.nativeElement;
+        ro.disconnect();
+        ro.observe(v ?? el);
+      });
       inject(DestroyRef).onDestroy(() => ro.disconnect());
     }
     afterNextRender(() => {
@@ -158,6 +241,8 @@ export class Reader {
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.idleTimer);
+      clearTimeout(this.cursorTimer);
+      clearTimeout(this.settleTimer);
       clearTimeout(this.noticeTimer);
       this.retryTimers.forEach((t) => clearTimeout(t));
       this.prefetched = [];
@@ -175,7 +260,39 @@ export class Reader {
         this.anchor = null;
         this.pendingJump = this.store.page();
         this.enterAtEnd = false;
+        this.wake();
         if (this.store.phase() === 'ready') setTimeout(() => this.focusView());
+      });
+    });
+    // the page URLs follow a free zoom only after it settled; fits at once
+    effect(() => {
+      const z = this.store.zoom();
+      untracked(() => {
+        clearTimeout(this.settleTimer);
+        if (z.mode !== 'custom') {
+          this.settledZoom.set(z);
+          return;
+        }
+        this.settleTimer = setTimeout(() => this.settledZoom.set(z), this.settleMs);
+      });
+    });
+    // the factor of a fit, for the slider's snap (E7)
+    effect(() => {
+      const f = this.fit();
+      if (f && this.store.zoom().mode !== 'custom') this.lastFitFactor = f.scale;
+    });
+    // single mode: zoom, rotation or window changed on the same page – keep where the view looks
+    let shown = '';
+    effect(() => {
+      const f = this.fit();
+      if (this.store.mode() !== 'single' || !f) return;
+      const page = this.store.page();
+      const key = `${page}:${f.width}x${f.height}`;
+      untracked(() => {
+        const samePage = shown.startsWith(`${page}:`);
+        if (key === shown) return;
+        shown = key;
+        if (samePage) requestAnimationFrame(() => this.keepFocus());
       });
     });
     // single mode: a new page starts at its top (or its end after turning back)
@@ -197,19 +314,19 @@ export class Reader {
       untracked(() => setTimeout(() => this.focusView()));
     });
     effect(() => {
-      // leaving continuous: the next switch jumps to the page shown
-      if (this.store.mode() === 'single') {
-        untracked(() => {
-          this.anchor = null;
-          this.pendingJump = this.store.page();
-        });
-      }
+      // switching to continuous: start at the page shown then (not the one shown when the
+      // single mode began – found in the 014 E2E test); leaving it: forget its anchor
+      const mode = this.store.mode();
+      untracked(() => {
+        this.anchor = null;
+        if (mode === 'continuous') this.pendingJump = this.store.page();
+      });
     });
     // load ahead
     effect(() => {
       const page = this.store.page();
       const n = this.store.pageCount();
-      const w = this.width();
+      const w = this.widths();
       this.store.token();
       untracked(() => this.prefetch(page, n, w));
     });
@@ -227,12 +344,12 @@ export class Reader {
 
   protected src(index: number): string | null {
     if (this.failed()[index]) return null;
-    return this.store.pageUrl(index, this.width(), this.retries()[index] ?? 0);
+    return this.store.pageUrl(index, this.widths()[index] ?? 0, this.retries()[index] ?? 0);
   }
 
-  private prefetch(page: number, n: number, width: number): void {
+  private prefetch(page: number, n: number, widths: readonly number[]): void {
     this.prefetched = prefetchPages(page, n).flatMap((i) => {
-      const url = this.store.pageUrl(i, width);
+      const url = this.store.pageUrl(i, widths[i] ?? 0);
       if (!url || typeof Image === 'undefined') return [];
       const img = new Image();
       img.decoding = 'async';
@@ -253,9 +370,37 @@ export class Reader {
 
   private placeSingle(): void {
     const v = this.view()?.nativeElement;
-    if (!v) return;
-    v.scrollLeft = this.store.rtl() ? v.scrollWidth : 0;
+    // a late frame after switching to continuous must not move the strip
+    if (!v || this.store.mode() !== 'single') return;
+    // start of the first row (manga: right); after turning back the end of the last row
+    const right = this.store.rtl() !== this.enterAtEnd;
+    v.scrollLeft = right ? v.scrollWidth : 0;
     v.scrollTop = this.enterAtEnd ? v.scrollHeight : 0;
+    this.noteFocus();
+  }
+
+  /** Remembers where the view looks: its centre (or `point`, zoom at the pointer). */
+  private noteFocus(point?: { x: number; y: number }): void {
+    const v = this.view()?.nativeElement;
+    if (!v) return;
+    const px = point?.x ?? v.clientWidth / 2;
+    const py = point?.y ?? v.clientHeight / 2;
+    this.focusPoint = {
+      fx: v.scrollWidth > 0 ? (v.scrollLeft + px) / v.scrollWidth : 0,
+      fy: v.scrollHeight > 0 ? (v.scrollTop + py) / v.scrollHeight : 0,
+      px,
+      py,
+    };
+  }
+
+  /** Scrolls so that the remembered place is at the remembered view point again. */
+  private keepFocus(): void {
+    const v = this.view()?.nativeElement;
+    if (!v) return;
+    const f = this.focusPoint;
+    v.scrollLeft = Math.max(0, f.fx * v.scrollWidth - f.px);
+    if (this.store.mode() === 'single') v.scrollTop = Math.max(0, f.fy * v.scrollHeight - f.py);
+    this.noteFocus();
   }
 
   private placeContinuous(): void {
@@ -263,22 +408,30 @@ export class Reader {
     if (!v) return;
     const boxes = this.layout().boxes;
     let top: number;
+    let jumped = false;
     if (this.pendingJump !== null) {
       top = boxes[Math.min(this.pendingJump, boxes.length - 1)]?.top ?? 0;
       this.pendingJump = null;
+      jumped = true;
     } else if (this.anchor) {
-      top = scrollTopOf(boxes, this.anchor);
+      top = Math.max(0, scrollTopOf(boxes, this.anchor) - this.anchorOffset);
     } else {
       return;
     }
     v.scrollTop = top;
     this.scrollTop.set(top);
     this.anchor = anchorOf(boxes, top);
+    this.anchorOffset = 0;
+    // sideways: a jump starts at the reading side, else the same place of the strip (014)
+    if (jumped) v.scrollLeft = this.store.rtl() ? v.scrollWidth : 0;
+    else requestAnimationFrame(() => this.keepFocus());
   }
 
   protected onScroll(): void {
     const v = this.view()?.nativeElement;
-    if (!v || this.store.mode() !== 'continuous') return;
+    if (!v) return;
+    this.noteFocus();
+    if (this.store.mode() !== 'continuous') return;
     const top = v.scrollTop;
     this.scrollTop.set(top);
     const boxes = this.layout().boxes;
@@ -296,22 +449,23 @@ export class Reader {
     this.store.goTo(index);
   }
 
-  /** One step: scroll inside a high page (or the continuous strip), else turn. */
+  /** One step: scroll through a large page (rows, 014 Anforderung 4) or the strip, else turn. */
   private turn(dir: 1 | -1): void {
     const v = this.view()?.nativeElement;
-    if (this.store.mode() === 'continuous') {
-      if (!v) return;
-      const s = step(dir, v.scrollTop, v.clientHeight, v.scrollHeight);
-      if (s.kind === 'scroll') v.scrollTo({ top: s.top });
+    const s = v
+      ? step2d(
+          dir,
+          { left: v.scrollLeft, top: v.scrollTop },
+          { width: v.clientWidth, height: v.clientHeight },
+          { width: v.scrollWidth, height: v.scrollHeight },
+          this.store.rtl(),
+        )
+      : null;
+    if (s?.kind === 'scroll') {
+      v!.scrollTo({ left: s.left, top: s.top });
       return;
     }
-    if (v) {
-      const s = step(dir, v.scrollTop, v.clientHeight, v.scrollHeight);
-      if (s.kind === 'scroll') {
-        v.scrollTo({ top: s.top });
-        return;
-      }
-    }
+    if (this.store.mode() === 'continuous') return;
     this.enterAtEnd = dir < 0;
     if (dir > 0) this.store.next();
     else this.store.prev();
@@ -331,8 +485,6 @@ export class Reader {
         return this.jump(this.store.pageCount() - 1);
       case 'toggleMode':
         return this.store.toggleMode();
-      case 'toggleFit':
-        return this.store.toggleFit();
       case 'toggleRtl':
         return this.store.toggleRtl();
       case 'nextBook':
@@ -386,7 +538,25 @@ export class Reader {
           ...page('toggleMode'),
           checked: () => this.store.mode() === 'continuous',
         },
-        'reader.toggleFit': { ...page('toggleFit'), checked: () => this.store.fit() === 'height' },
+        // zoom and rotation (design 014)
+        ...this.zoomActions(ready),
+        'reader.zoom.next': { run: () => this.store.cycleZoom(1), enabled: ready },
+        'reader.zoom.prev': { run: () => this.store.cycleZoom(-1), enabled: ready },
+        'reader.zoomIn': { run: () => this.zoomBy(1), enabled: ready },
+        'reader.zoomOut': { run: () => this.zoomBy(-1), enabled: ready },
+        'reader.toggleZoomSlider': {
+          run: () => this.store.toggleZoomSlider(),
+          checked: () => this.store.zoomSlider(),
+        },
+        'reader.rotateLeft': { run: () => this.store.rotate(-1), enabled: ready },
+        'reader.rotateRight': { run: () => this.store.rotate(1), enabled: ready },
+        'reader.toggleToolbar': {
+          run: () => {
+            this.store.toggleToolbar();
+            this.wake();
+          },
+          checked: () => this.store.toolbarPinned(),
+        },
         'reader.toggleRtl': { ...page('toggleRtl'), checked: () => this.store.rtl() },
         'reader.fullscreen': { ...any('fullscreen'), checked: () => this.store.fullscreen() },
         'reader.nextBook': any('nextBook'),
@@ -395,6 +565,72 @@ export class Reader {
       },
       this.destroyRef,
     );
+  }
+
+  private zoomActions(ready: () => boolean): Record<string, ActionHandler> {
+    const out: Record<string, ActionHandler> = {};
+    for (const mode of ZOOM_CYCLE) {
+      out[`reader.zoom.${mode}`] = {
+        run: () => this.setZoomMode(mode),
+        enabled: ready,
+        checked: () => this.store.zoom().mode === mode,
+      };
+    }
+    return out;
+  }
+
+  protected setZoomMode(mode: FitMode): void {
+    this.store.setZoomMode(mode);
+  }
+
+  /** `+` / `-`: one step from the effective factor, around the middle of the view. */
+  private zoomBy(dir: 1 | -1): void {
+    this.noteFocus();
+    this.store.zoomBy(dir, this.fit()?.scale ?? 1);
+  }
+
+  /** Mod+wheel / pinch (014 E1): zoom around the pointer. */
+  protected onWheel(e: WheelEvent): void {
+    if (!(e.ctrlKey || e.metaKey) || this.store.phase() !== 'ready') return;
+    e.preventDefault();
+    const v = this.view()?.nativeElement;
+    if (!v) return;
+    const rect = v.getBoundingClientRect();
+    const point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    this.noteFocus(point);
+    if (this.store.mode() === 'continuous') {
+      const boxes = this.layout().boxes;
+      this.anchor = anchorOf(boxes, v.scrollTop + point.y);
+      this.anchorOffset = point.y;
+    }
+    const k = Math.exp(-Math.max(-50, Math.min(50, e.deltaY)) * 0.01);
+    this.store.setFactor((this.fit()?.scale ?? 1) * k);
+  }
+
+  /** The zoom slider (014 E7): logarithmic, snaps to 100 % and the last fit. */
+  protected onZoomSlider(e: Event): void {
+    // whole percents: the slider's log scale gives 2.003 for „200 %“
+    const raw =
+      Math.round(sliderToFactor(Number((e.target as HTMLInputElement).value)) * 100) / 100;
+    const f = snapFactor(raw, [1, this.lastFitFactor]);
+    this.noteFocus();
+    this.store.setFactor(f);
+  }
+
+  /** End of dragging the zoom slider: say the factor once. */
+  protected onZoomSliderDone(): void {
+    this.barBusy.set(false);
+    this.store.say(this.t.zoomIs(this.t.percent(this.percent())));
+    this.wake();
+  }
+
+  protected onZoomSliderStart(): void {
+    this.barBusy.set(true);
+  }
+
+  protected onZoomMenuOpen(open: boolean): void {
+    this.barBusy.set(open);
+    if (!open) this.wake();
   }
 
   private trapFocus(e: KeyboardEvent): void {
@@ -426,20 +662,61 @@ export class Reader {
     const rect = v.getBoundingClientRect();
     const zone = clickZone(e.clientX - rect.left, rect.width, this.store.rtl());
     if (zone === null) {
-      this.wake();
+      // the middle shows or hides the bar (touch has no hover, 014 Anforderung 20)
+      if (this.idle()) this.wake();
+      else this.hideBar();
       return;
     }
     this.turn(zone === 'next' ? 1 : -1);
   }
 
+  /** Content wider than the view: dragging moves it, swiping does not turn (014 E4). */
+  private overflowsSideways(): boolean {
+    const v = this.view()?.nativeElement;
+    return !!v && v.scrollWidth > v.clientWidth + 1;
+  }
+
   protected onPointerDown(e: PointerEvent): void {
-    this.pointer = { x: e.clientX, y: e.clientY };
+    const v = this.view()?.nativeElement;
+    this.panned = false;
+    this.pointer = {
+      x: e.clientX,
+      y: e.clientY,
+      left: v?.scrollLeft ?? 0,
+      top: v?.scrollTop ?? 0,
+      id: e.pointerId,
+    };
+  }
+
+  protected onPointerMove(e: PointerEvent): void {
+    this.wakeCursor();
+    const p = this.pointer;
+    const v = this.view()?.nativeElement;
+    // touch scrolls by itself; the mouse drags a page larger than the view
+    if (!p || !v || e.pointerType !== 'mouse' || p.id !== e.pointerId) return;
+    if (!this.pannable()) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    if (!this.panned && Math.hypot(dx, dy) < PAN_MIN) return;
+    if (!this.panned) {
+      this.panned = true;
+      this.panning.set(true);
+      v.setPointerCapture?.(e.pointerId);
+    }
+    v.scrollLeft = p.left - dx;
+    v.scrollTop = p.top - dy;
   }
 
   protected onPointerUp(e: PointerEvent): void {
     const p = this.pointer;
     this.pointer = null;
-    if (!p || this.store.mode() !== 'single') return;
+    if (this.panned) {
+      this.panned = false;
+      this.panning.set(false);
+      this.swiped = true; // no click after dragging
+      return;
+    }
+    if (!p || this.store.mode() !== 'single' || this.overflowsSideways()) return;
     const dir = swipe(e.clientX - p.x, e.clientY - p.y, this.store.rtl());
     if (dir === null) return;
     this.swiped = true;
@@ -489,20 +766,43 @@ export class Reader {
     if (s && book) void this.books.openExternal(s.categoryId, book.id).catch(() => undefined);
   }
 
-  // ---- bar --------------------------------------------------------------------------------
+  // ---- bar (014 E11) -----------------------------------------------------------------------
 
+  /** Shows the bar; it hides again after a rest – unless it is pointed at, focused, in use or
+   *  pinned (then the next `wake` tries again). */
   protected wake(): void {
     this.idle.set(false);
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(() => {
-      const root = this.root()?.nativeElement;
-      const focusInBar = !!root?.querySelector('.bar')?.contains(root.ownerDocument.activeElement);
-      if (!this.overBar() && !focusInBar) this.idle.set(true);
+      if (!this.barNeeded()) this.idle.set(true);
     }, this.idleMs);
+  }
+
+  private barNeeded(): boolean {
+    const root = this.root()?.nativeElement;
+    const focusInBar = !!root?.querySelector('.bar')?.contains(root.ownerDocument.activeElement);
+    return this.overBar() || focusInBar || this.barBusy() || this.store.toolbarPinned();
+  }
+
+  private hideBar(): void {
+    clearTimeout(this.idleTimer);
+    if (!this.barNeeded()) this.idle.set(true);
+  }
+
+  /** The pointer moves over the page: show it (not the bar), hide it again after a rest. */
+  protected wakeCursor(): void {
+    this.cursorIdle.set(false);
+    clearTimeout(this.cursorTimer);
+    this.cursorTimer = setTimeout(() => this.cursorIdle.set(true), this.idleMs);
   }
 
   protected setOverBar(over: boolean): void {
     this.overBar.set(over);
-    if (over) this.wake();
+    this.wake();
+  }
+
+  /** Focus left the bar: it may hide after the rest. */
+  protected onBarFocusOut(): void {
+    this.wake();
   }
 }

@@ -5,19 +5,23 @@
   aria-modal="true"
   tabindex="-1"
   [attr.aria-label]="t.readerLabel(bookName())"
-  [class.idle]="idle() && store.phase() === 'ready'"
+  [class.idle]="idle() && store.phase() === 'ready' && !store.toolbarPinned()"
+  [class.cursor-idle]="cursorIdle() && store.phase() === 'ready'"
   (keydown)="onRootKey($event)"
-  (pointermove)="wake()"
+  (pointermove)="wakeCursor()"
 >
+  <!-- the zone above the page that brings the hidden bar back (design 014 E11) -->
+  <div class="bar-zone" aria-hidden="true" (pointerenter)="wake()" (pointermove)="wake()"></div>
   <header
     class="bar"
     (pointerenter)="setOverBar(true)"
     (pointerleave)="setOverBar(false)"
     (focusin)="wake()"
+    (focusout)="onBarFocusOut()"
   >
     <button
       type="button"
-      class="btn icon"
+      class="btn quiet"
       [attr.aria-label]="t.back"
       [title]="t.back + ' (' + t.backKey + ')'"
       (click)="store.close()"
@@ -43,79 +47,146 @@
       }}</span>
     }
     <span class="spacer"></span>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.prevBook"
-      [title]="t.prevBook"
-      (click)="store.prevBook()"
-    >
-      <i class="fa fa-step-backward" aria-hidden="true"></i>
-    </button>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.nextBook"
-      [title]="t.nextBook"
-      (click)="store.nextBook()"
-    >
-      <i class="fa fa-step-forward" aria-hidden="true"></i>
-    </button>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.modeContinuous"
-      [attr.aria-pressed]="store.mode() === 'continuous'"
-      [title]="store.mode() === 'continuous' ? t.modeSingle : t.modeContinuous"
-      (click)="store.toggleMode()"
-    >
-      <i
-        class="fa"
-        [class.fa-file-image-o]="store.mode() === 'single'"
-        [class.fa-bars]="store.mode() === 'continuous'"
-        aria-hidden="true"
-      ></i>
-    </button>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.fitHeight"
-      [attr.aria-pressed]="store.fit() === 'height'"
-      [title]="store.fit() === 'height' ? t.fitWidth : t.fitHeight"
-      (click)="store.toggleFit()"
-    >
-      <i
-        class="fa"
-        [class.fa-arrows-h]="store.fit() === 'width'"
-        [class.fa-arrows-v]="store.fit() === 'height'"
-        aria-hidden="true"
-      ></i>
-    </button>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.manga"
-      [attr.aria-pressed]="store.rtl()"
-      [title]="t.manga"
-      (click)="store.toggleRtl()"
-    >
-      <i class="fa fa-exchange" aria-hidden="true"></i>
-    </button>
-    <button
-      type="button"
-      class="btn icon"
-      [attr.aria-label]="t.fullscreen"
-      [attr.aria-pressed]="store.fullscreen()"
-      [title]="t.fullscreen"
-      (click)="store.toggleFullscreen()"
-    >
-      <i
-        class="fa"
-        [class.fa-expand]="!store.fullscreen()"
-        [class.fa-compress]="store.fullscreen()"
-        aria-hidden="true"
-      ></i>
-    </button>
+    <div class="group books">
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.prevBook"
+        [title]="t.prevBook"
+        (click)="store.prevBook()"
+      >
+        <i class="fa fa-step-backward" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.nextBook"
+        [title]="t.nextBook"
+        (click)="store.nextBook()"
+      >
+        <i class="fa fa-step-forward" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="group modes">
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.modeContinuous"
+        [attr.aria-pressed]="store.mode() === 'continuous'"
+        [title]="store.mode() === 'continuous' ? t.modeSingle : t.modeContinuous"
+        (click)="store.toggleMode()"
+      >
+        <i
+          class="fa"
+          [class.fa-file-image-o]="store.mode() === 'single'"
+          [class.fa-bars]="store.mode() === 'continuous'"
+          aria-hidden="true"
+        ></i>
+      </button>
+    </div>
+    <!-- zoom (design 014): four icons when there is room, else one icon with a menu (E10) -->
+    <div class="group zoom-wide" role="group" [attr.aria-label]="t.zoom">
+      @for (c of zoomChoices(); track c.mode) {
+        <button
+          type="button"
+          class="btn quiet"
+          [attr.aria-label]="c.label"
+          [attr.aria-pressed]="store.zoom().mode === c.mode"
+          [title]="t.withKey(c.label, c.key)"
+          [disabled]="store.phase() !== 'ready'"
+          (click)="setZoomMode(c.mode)"
+        >
+          @if (c.icon) {
+            <i class="fa {{ c.icon }}" aria-hidden="true"></i>
+          } @else {
+            <span class="text-icon" aria-hidden="true">{{ t.fullSizeIcon }}</span>
+          }
+        </button>
+      }
+    </div>
+    <app-zoom-menu
+      class="group zoom-narrow"
+      [mode]="store.zoom().mode"
+      [choices]="zoomChoices()"
+      (chosen)="setZoomMode($event)"
+      (openChange)="onZoomMenuOpen($event)"
+    />
+    <div class="group zoom-slider">
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.zoomSlider"
+        [attr.aria-pressed]="store.zoomSlider()"
+        [title]="tip(t.zoomSlider, 'reader.toggleZoomSlider')"
+        (click)="store.toggleZoomSlider()"
+      >
+        <i class="fa fa-search" aria-hidden="true"></i>
+      </button>
+      @if (store.zoomSlider() && store.phase() === 'ready') {
+        <input
+          class="zoom-range"
+          type="range"
+          min="0"
+          max="1000"
+          [value]="sliderValue()"
+          [attr.aria-label]="t.zoom"
+          [attr.aria-valuetext]="t.percent(percent())"
+          (input)="onZoomSlider($event)"
+          (pointerdown)="onZoomSliderStart()"
+          (change)="onZoomSliderDone()"
+        />
+        <span class="percent" aria-hidden="true">{{ t.percent(percent()) }}</span>
+      }
+    </div>
+    <div class="group">
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.rotateLeft"
+        [title]="tip(t.rotateLeft, 'reader.rotateLeft')"
+        [disabled]="store.phase() !== 'ready'"
+        (click)="store.rotate(-1)"
+      >
+        <i class="fa fa-rotate-left" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.rotateRight"
+        [title]="tip(t.rotateRight, 'reader.rotateRight')"
+        [disabled]="store.phase() !== 'ready'"
+        (click)="store.rotate(1)"
+      >
+        <i class="fa fa-rotate-right" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="group">
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.manga"
+        [attr.aria-pressed]="store.rtl()"
+        [title]="t.manga"
+        (click)="store.toggleRtl()"
+      >
+        <i class="fa fa-exchange" aria-hidden="true"></i>
+      </button>
+      <button
+        type="button"
+        class="btn quiet"
+        [attr.aria-label]="t.fullscreen"
+        [attr.aria-pressed]="store.fullscreen()"
+        [title]="t.fullscreen"
+        (click)="store.toggleFullscreen()"
+      >
+        <i
+          class="fa"
+          [class.fa-expand]="!store.fullscreen()"
+          [class.fa-compress]="store.fullscreen()"
+          aria-hidden="true"
+        ></i>
+      </button>
+    </div>
   </header>
 
   @switch (store.phase()) {
@@ -140,21 +211,31 @@
           #view
           class="view single"
           tabindex="0"
-          [class.fit-height]="store.fit() === 'height'"
+          [class.pannable]="pannable()"
+          [class.panning]="panning()"
           [attr.aria-label]="pageLabel()"
           (click)="onViewClick($event)"
           (pointerdown)="onPointerDown($event)"
+          (pointermove)="onPointerMove($event)"
           (pointerup)="onPointerUp($event)"
+          (pointercancel)="onPointerUp($event)"
+          (wheel)="onWheel($event)"
+          (scroll)="onScroll()"
         >
           @if (src(store.page()); as url) {
-            <img
-              [src]="url"
-              [alt]="pageLabel()"
-              [style.aspect-ratio]="ratio()"
-              draggable="false"
-              (load)="onLoad($event, store.page())"
-              (error)="onError(store.page())"
-            />
+            @let f = fit();
+            <div class="page-box" [style.width.px]="f?.width" [style.height.px]="f?.height">
+              <img
+                [src]="url"
+                [alt]="pageLabel()"
+                [style.width.px]="f?.imgWidth"
+                [style.height.px]="f?.imgHeight"
+                [style.rotate.deg]="store.rotation()"
+                draggable="false"
+                (load)="onLoad($event, store.page())"
+                (error)="onError(store.page())"
+              />
+            </div>
           } @else {
             <div class="page-failed">
               <p>{{ t.pageFailed }}</p>
@@ -176,29 +257,44 @@
           class="view continuous"
           tabindex="0"
           [attr.aria-label]="pageLabel()"
+          [class.pannable]="pannable()"
+          [class.panning]="panning()"
           (scroll)="onScroll()"
           (click)="onViewClick($event)"
+          (pointerdown)="onPointerDown($event)"
+          (pointermove)="onPointerMove($event)"
+          (pointerup)="onPointerUp($event)"
+          (pointercancel)="onPointerUp($event)"
+          (wheel)="onWheel($event)"
         >
-          <div class="track" [style.height.px]="layout().total">
+          <div class="track" [style.width.px]="trackWidth()" [style.height.px]="layout().total">
             @for (i of visible(); track i) {
               @let box = layout().boxes[i];
               @if (src(i); as url) {
-                <img
-                  class="page"
-                  [src]="url"
-                  [alt]="t.page(i + 1, store.pageCount())"
+                <div
+                  class="page page-box"
                   [style.top.px]="box.top"
+                  [style.left.px]="(trackWidth() - box.width) / 2"
                   [style.width.px]="box.width"
                   [style.height.px]="box.height"
-                  decoding="async"
-                  draggable="false"
-                  (load)="onLoad($event, i)"
-                  (error)="onError(i)"
-                />
+                >
+                  <img
+                    [src]="url"
+                    [alt]="t.page(i + 1, store.pageCount())"
+                    [style.width.px]="box.imgWidth"
+                    [style.height.px]="box.imgHeight"
+                    [style.rotate.deg]="store.rotation()"
+                    decoding="async"
+                    draggable="false"
+                    (load)="onLoad($event, i)"
+                    (error)="onError(i)"
+                  />
+                </div>
               } @else {
                 <div
                   class="page page-failed"
                   [style.top.px]="box.top"
+                  [style.left.px]="(trackWidth() - box.width) / 2"
                   [style.width.px]="box.width"
                   [style.height.px]="box.height"
                 >

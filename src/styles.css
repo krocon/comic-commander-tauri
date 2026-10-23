@@ -30,6 +30,9 @@
   /* reader (design 005): pages on a dark ground in both schemes, like the grid */
   --color-reader-bg: #1b1e24;
   --color-reader-text: #d6d9df;
+  /* quiet icons of the reader's toolbar (design 014): the text colour, dimmed */
+  --color-icon-quiet: color-mix(in srgb, var(--color-text) 72%, transparent);
+  --color-icon-quiet-hover: color-mix(in srgb, var(--color-text) 10%, transparent);
   --color-progress: #60a5fa;
 
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
@@ -149,6 +152,56 @@ body {
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
+}
+
+/* quiet icon buttons (reader toolbar, design 014): no frame, dimmed until hovered or focused;
+   pressed = accent icon with a fine underline instead of a filled face */
+.btn.quiet {
+  position: relative;
+  min-width: var(--control-height);
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-icon-quiet);
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    background: var(--color-icon-quiet-hover);
+    color: var(--color-text);
+  }
+
+  &[aria-pressed='true'],
+  &[aria-expanded='true'] {
+    color: var(--color-accent);
+  }
+
+  &[aria-pressed='true']::after {
+    content: '';
+    position: absolute;
+    right: 25%;
+    bottom: 3px;
+    left: 25%;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--color-accent);
+  }
+}
+
+/* an icon made of text where Font Awesome 4.5 has none („1:1“) */
+.text-icon {
+  display: inline-block;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+
+  &.fw {
+    width: 1.28571429em;
+    text-align: center;
+  }
 }
 
 input[type='checkbox'],
