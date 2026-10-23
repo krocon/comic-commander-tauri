@@ -46,6 +46,11 @@ impl CoverCache {
         self.dir.join(&key[..2]).join(format!("{key}.jpg"))
     }
 
+    /// A thumbnail exists (without reading it).
+    pub fn contains(&self, key: &str) -> bool {
+        self.file(key).is_file()
+    }
+
     pub fn get(&self, key: &str) -> Option<Vec<u8>> {
         let file = self.file(key);
         let data = fs::read(&file).ok()?;
@@ -58,6 +63,12 @@ impl CoverCache {
             let _ = f.set_modified(SystemTime::now());
         }
         Some(data)
+    }
+
+    /// Writes without the periodic trim – the batch job trims once at its end (review 007 #2:
+    /// a run must not evict the covers it just made).
+    pub fn put_quiet(&self, key: &str, data: &[u8]) -> io::Result<()> {
+        write_atomic(&self.file(key), data)
     }
 
     pub fn put(&self, key: &str, data: &[u8]) -> io::Result<()> {

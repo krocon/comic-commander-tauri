@@ -8,8 +8,11 @@ import {
 } from '@angular/core';
 import { CategoriesStore } from '../categories/categories.store';
 import { CATEGORY_TEXTS } from './category-texts';
+import { JOBS_TEXTS } from '../jobs/jobs-texts';
+import { DialogService } from '../../shared/dialog/dialog.service';
 
-type Item = { kind: 'category'; id: string } | { kind: 'manage' } | { kind: 'import' };
+type Item =
+  { kind: 'category'; id: string } | { kind: 'manage' } | { kind: 'import' } | { kind: 'thumbs' };
 
 /**
  * Menu button of the toolbar (WAI-ARIA APG „menu button“): the categories as
@@ -27,6 +30,8 @@ type Item = { kind: 'category'; id: string } | { kind: 'manage' } | { kind: 'imp
 export class CategoryMenu {
   protected readonly store = inject(CategoriesStore);
   protected readonly t = CATEGORY_TEXTS;
+  protected readonly jt = JOBS_TEXTS;
+  private readonly dialogs = inject(DialogService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly open = signal(false);
@@ -35,6 +40,7 @@ export class CategoryMenu {
     ...this.store.categories().map((c) => ({ kind: 'category' as const, id: c.id })),
     { kind: 'manage' },
     { kind: 'import' },
+    { kind: 'thumbs' },
   ]);
 
   protected toggle(): void {
@@ -105,6 +111,7 @@ export class CategoryMenu {
     if (!item) return;
     if (item.kind === 'category') void this.store.select(item.id);
     else if (item.kind === 'manage') this.store.openManage();
+    else if (item.kind === 'thumbs') this.dialogs.show('thumbs');
     else void this.store.startImport();
   }
 

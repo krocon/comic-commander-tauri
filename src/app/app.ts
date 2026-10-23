@@ -3,13 +3,14 @@ import { CategoriesDialog } from './features/categories/categories-dialog';
 import { CategoriesStore } from './features/categories/categories.store';
 import { ImportDialog } from './features/categories/import-dialog';
 import { CategoryView } from './features/category/category-view';
+import { GenerateThumbsDialog } from './features/jobs/generate-thumbs-dialog';
 import { Reader } from './features/reader/reader';
 import { ReaderService } from './features/reader/reader.service';
 import { DialogService } from './shared/dialog/dialog.service';
 
 @Component({
   selector: 'app-root',
-  imports: [CategoryView, CategoriesDialog, ImportDialog, Reader],
+  imports: [CategoryView, CategoriesDialog, ImportDialog, GenerateThumbsDialog, Reader],
   template: `
     <!-- the reader lies over the mounted category view (design 005 E6) -->
     <app-category-view class="shell" [inert]="reader.session() !== null" />
@@ -22,6 +23,9 @@ import { DialogService } from './shared/dialog/dialog.service';
       }
       @case ('import') {
         <app-import-dialog />
+      }
+      @case ('thumbs') {
+        <app-generate-thumbs-dialog />
       }
     }
   `,

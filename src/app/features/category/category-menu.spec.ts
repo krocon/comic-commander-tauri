@@ -52,7 +52,7 @@ describe('CategoryMenu', () => {
     expect(document.activeElement).toBe(button);
   });
 
-  it('Escape closes, End reaches „Import old config…“, Manage opens the dialog', async () => {
+  it('Escape closes, End reaches „Generate thumbnails…“, Manage opens the dialog', async () => {
     const { el, update, key } = await render();
     const button = el.querySelector('.menu-button') as HTMLButtonElement;
     button.click();
@@ -63,6 +63,9 @@ describe('CategoryMenu', () => {
     button.click();
     await update();
     key(document.activeElement!, 'End');
+    await update();
+    expect(document.activeElement?.textContent).toContain('Generate thumbnails');
+    key(document.activeElement!, 'ArrowUp');
     await update();
     expect(document.activeElement?.textContent).toContain('Import old config');
     key(document.activeElement!, 'ArrowUp');
@@ -90,6 +93,17 @@ describe('CategoryMenu', () => {
       x.getAttribute('aria-checked'),
     );
     expect(checked).toEqual(['true', 'false']);
-    expect(el.querySelectorAll('[role=menuitem]').length).toBe(2);
+    expect(el.querySelectorAll('[role=menuitem]').length).toBe(3);
+  });
+
+  it('opens the thumbnail dialog (design 007)', async () => {
+    const { el, update, key } = await render();
+    (el.querySelector('.menu-button') as HTMLButtonElement).click();
+    await update();
+    key(document.activeElement!, 'End');
+    await update();
+    key(document.activeElement!, 'Enter');
+    await update();
+    expect(TestBed.inject(DialogService).open()).toBe('thumbs');
   });
 });

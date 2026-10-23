@@ -14,6 +14,8 @@ import { BooksApi } from '../../core/books/books-api';
 import { FakeBooksApi } from '../../../testing/fake-books-api';
 import { FILTER_DEBOUNCE_MS, GridStore, VIEW_STATE_STORE } from '../grid/grid.store';
 import { ReaderApi } from '../../core/reader/reader-api';
+import { JobsApi } from '../../core/jobs/jobs-api';
+import { FakeJobsApi } from '../../../testing/fake-jobs-api';
 import { FakeReaderApi } from '../../../testing/fake-reader-api';
 
 const flush = () => new Promise((r) => setTimeout(r));
@@ -27,6 +29,7 @@ async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provi
       { provide: CoversApi, useClass: FakeCoversApi },
       { provide: BooksApi, useClass: FakeBooksApi },
       { provide: ReaderApi, useClass: FakeReaderApi },
+      { provide: JobsApi, useClass: FakeJobsApi },
       { provide: VIEW_STATE_STORE, useValue: null },
       { provide: FILTER_DEBOUNCE_MS, useValue: 1 },
       ...providers,

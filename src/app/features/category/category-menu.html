@@ -65,5 +65,16 @@
       <i class="fa fa-fw fa-download" aria-hidden="true"></i>
       <span class="label">{{ t.importOld }}</span>
     </li>
+    <li
+      role="menuitem"
+      tabindex="-1"
+      [id]="itemId(store.categories().length + 2)"
+      (click)="choose(store.categories().length + 2)"
+      (keydown.enter)="onItemEnter($event, store.categories().length + 2)"
+    >
+      <span class="check" aria-hidden="true"></span>
+      <i class="fa fa-fw fa-picture-o" aria-hidden="true"></i>
+      <span class="label">{{ jt.menuItem }}</span>
+    </li>
   </ul>
 }

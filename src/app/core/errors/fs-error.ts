@@ -22,6 +22,7 @@ export type FsErrorCode =
   | 'busy'
   | 'unknown_book'
   | 'program_not_found'
+  | 'job_running'
   /** Frontend only: no Tauri backend (e.g. `pnpm start` in a browser). */
   | 'backend_unavailable'
   /** Frontend only: something that is no `FsError` was thrown. */
@@ -53,6 +54,7 @@ const KNOWN: readonly FsErrorCode[] = [
   'busy',
   'unknown_book',
   'program_not_found',
+  'job_running',
   'backend_unavailable',
   'unknown',
 ];
@@ -113,6 +115,8 @@ export function describeFsError(error: FsError): string {
       return 'The book is no longer in the list – scan the category again.';
     case 'program_not_found':
       return 'The file manager could not be started.';
+    case 'job_running':
+      return 'This job is running already.';
     case 'backend_unavailable':
       return 'The desktop backend is not available (running in a browser?).';
     case 'unknown':

@@ -1,0 +1,127 @@
+<app-modal [heading]="t.thumbsTitle" width="38rem" (closed)="close()">
+  @if (job.phase() === 'idle' || job.phase() === 'failed') {
+    <p class="intro">{{ t.thumbsIntro }}</p>
+    <fieldset>
+      <legend>{{ t.scope }}</legend>
+      @for (c of categories.categories(); track c.id; let first = $first) {
+        <label>
+          <input
+            type="radio"
+            name="scope"
+            [value]="c.id"
+            [checked]="scope() === c.id"
+            [attr.data-autofocus]="scope() === c.id ? '' : null"
+            (change)="scope.set(c.id)"
+          />
+          <i [class]="'fa fa-fw fa-' + c.icon" aria-hidden="true"></i>
+          {{ c.title }}
+        </label>
+      }
+      <label>
+        <input
+          type="radio"
+          name="scope"
+          value=""
+          [checked]="scope() === ''"
+          [attr.data-autofocus]="scope() === '' ? '' : null"
+          (change)="scope.set('')"
+        />
+        {{ t.allCategories }}
+      </label>
+    </fieldset>
+    <div class="footer">
+      <span class="error" role="alert">{{ errorText() }}</span>
+      <button type="button" class="btn" (click)="close()">{{ t.close }}</button>
+      <button #startButton type="button" class="btn primary" (click)="start()">
+        {{ t.start }}
+      </button>
+    </div>
+  } @else {
+    @let p = job.progress();
+    <div class="status" role="status" aria-live="polite">
+      @if (job.phase() === 'starting' || job.phase() === 'counting') {
+        {{ t.counting(job.counting().found, job.counting().existing) }}
+      } @else if (job.phase() === 'done') {
+        {{ resultText() }}
+      } @else if (job.paused()) {
+        {{ t.paused }}
+      }
+    </div>
+    @if (job.phase() === 'starting' || job.phase() === 'counting') {
+      <progress [attr.aria-label]="t.progressLabel"></progress>
+    } @else if (p) {
+      <progress
+        [attr.aria-label]="t.progressLabel"
+        [max]="p.total || 1"
+        [value]="p.processed"
+        [attr.aria-valuetext]="job.percent() + ' %'"
+      ></progress>
+      <dl class="stats">
+        <div>
+          <dt>{{ t.progressLabel }}</dt>
+          <dd>{{ t.counts(p.processed, p.total) }} ({{ job.percent() }} %)</dd>
+        </div>
+        <div>
+          <dt>{{ t.generated }}</dt>
+          <dd>{{ p.generated }}</dd>
+        </div>
+        <div>
+          <dt>{{ t.skipped }}</dt>
+          <dd>{{ p.skipped }}</dd>
+        </div>
+        <div>
+          <dt>{{ t.errors }}</dt>
+          <dd [class.warn]="p.errors > 0">{{ p.errors }}</dd>
+        </div>
+        <div>
+          <dt>{{ t.elapsed }}</dt>
+          <dd>{{ duration(p.elapsedMs) }}</dd>
+        </div>
+        @if (job.remainingMs(); as left) {
+          <div>
+            <dt>{{ t.remaining }}</dt>
+            <dd>{{ duration(left) }}</dd>
+          </div>
+        }
+      </dl>
+      @if (job.running() && p.currentFile) {
+        <p class="current" [title]="p.currentFile">{{ t.current }}: {{ p.currentFile }}</p>
+      }
+    }
+    @if (job.phase() === 'done' && job.errorList().length) {
+      <details>
+        <summary>{{ t.errorListTitle(job.errorList().length) }}</summary>
+        <ul class="errors">
+          @for (e of job.errorList(); track $index) {
+            <li>
+              <span class="name">{{ e.name }}</span> – {{ describe({ code: e.code, message: '' }) }}
+            </li>
+          }
+        </ul>
+      </details>
+    }
+    <div class="footer">
+      @if (job.running()) {
+        <button
+          type="button"
+          class="btn"
+          [disabled]="!job.jobId()"
+          (click)="job.setPaused(!job.paused())"
+        >
+          {{ job.paused() ? t.resume : t.pause }}
+        </button>
+        <button type="button" class="btn" [disabled]="!job.jobId()" (click)="job.cancel()">
+          {{ t.cancel }}
+        </button>
+        <button type="button" class="btn primary" data-autofocus (click)="close()">
+          {{ t.close }}
+        </button>
+      } @else {
+        <button type="button" class="btn" (click)="again()">{{ t.again }}</button>
+        <button type="button" class="btn primary" data-autofocus (click)="close()">
+          {{ t.close }}
+        </button>
+      }
+    </div>
+  }
+</app-modal>

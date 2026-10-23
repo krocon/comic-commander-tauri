@@ -9,6 +9,8 @@ use crate::book_registry::BookRegistry;
 use crate::categories::{self, CategoriesConfig, CategoriesLoaded, Category};
 use crate::cover::{self, CoverService, Reply};
 use crate::error::{FsError, FsErrorCode};
+use crate::jobs::JobHub;
+use crate::jobs::thumbs::{self, JobEvent};
 use crate::legacy_import::{self, LegacyImport};
 use crate::model::AppInfo;
 use crate::reader::model::{OpenedBook, ReaderEvent};
@@ -38,6 +40,8 @@ pub struct AppState {
     reader: OnceLock<Arc<ReaderService>>,
     /// Reading positions, loaded on first use (design 005 E5); one writer at a time.
     reading: Mutex<Option<ReadingState>>,
+    /// Background jobs (design 007).
+    jobs: JobHub,
 }
 
 /// Runs blocking work off the async runtime.
@@ -403,6 +407,90 @@ pub fn serve_page(app: &AppHandle, url_path: &str) -> Reply {
     }
 }
 
+/// Makes the missing covers of the given categories (empty = all) in the background
+/// (design 007); progress arrives as events, the id names the run for pause/cancel.
+#[tauri::command]
+pub async fn start_generate_thumbs(
+    app: AppHandle,
+    category_ids: Vec<String>,
+    on_event: Channel<JobEvent>,
+) -> Result<String, FsError> {
+    blocking(move || {
+        let all = current_categories(&app)?.categories;
+        let chosen: Vec<Category> = if category_ids.is_empty() {
+            all
+        } else {
+            category_ids
+                .iter()
+                .map(|id| {
+                    all.iter().find(|c| c.id == *id).cloned().ok_or_else(|| {
+                        FsError::new(FsErrorCode::UnknownCategory, "unknown category", None)
+                    })
+                })
+                .collect::<Result<_, _>>()?
+        };
+        let targets: Vec<thumbs::Target> = chosen
+            .into_iter()
+            .map(|c| thumbs::Target {
+                category_id: c.id,
+                title: c.title,
+                base_dir: c.base_dir,
+                extensions: c.book_extensions,
+                dims: c.thumbs_dims,
+            })
+            .collect();
+        let running = app.state::<AppState>().jobs.start(thumbs::KIND)?;
+        let id = running.id.clone();
+        let cache = cache_dir(&app)?;
+        let service = covers(&app)?;
+        let threads = cover::pool::default_threads(
+            std::thread::available_parallelism().map_or(2, |n| n.get()),
+        );
+        std::thread::spawn(move || {
+            // `running` frees the kind when the run is over
+            let control = running.control.clone();
+            let sink = |e| {
+                let _ = on_event.send(e);
+            };
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                thumbs::run(&targets, &cache, &service, &control, threads, &sink)
+            }));
+            if outcome.is_err() {
+                // the UI must leave its running state (review 007 #1)
+                sink(JobEvent::Failed {
+                    error: FsError::new(FsErrorCode::Io, "the job failed", None),
+                });
+            }
+            drop(running);
+        });
+        Ok(id)
+    })
+    .await
+}
+
+/// Pauses / resumes a job (unknown id: it is over).
+#[tauri::command]
+pub async fn pause_job(app: AppHandle, job_id: String, paused: bool) -> Result<(), FsError> {
+    blocking(move || {
+        if let Some(c) = app.state::<AppState>().jobs.control(&job_id) {
+            c.set_paused(paused);
+        }
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn cancel_job(app: AppHandle, job_id: String) -> Result<(), FsError> {
+    blocking(move || {
+        if let Some(c) = app.state::<AppState>().jobs.control(&job_id) {
+            c.cancel();
+        }
+        Ok(())
+    })
+    .await
+}
+
 /// The cover service of the app (created on first use).
 pub fn covers(app: &AppHandle) -> Result<Arc<CoverService>, FsError> {
     let state = app.state::<AppState>();
@@ -459,6 +547,6 @@ mod command_rules {
                 count += 1;
             }
         }
-        assert!(count >= 15);
+        assert!(count >= 18);
     }
 }

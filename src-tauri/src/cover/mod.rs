@@ -126,11 +126,21 @@ pub fn remembered(code: FsErrorCode) -> bool {
 }
 
 pub fn make_thumbnail(book: &Path, width: u32, height: u32) -> Result<Vec<u8>, FsError> {
+    make_thumbnail_with(book, width, height, None)
+}
+
+/// [`make_thumbnail`] with a cancel flag (batch job, design 007).
+pub fn make_thumbnail_with(
+    book: &Path,
+    width: u32,
+    height: u32,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<Vec<u8>, FsError> {
     // PDF: page 1, embedded JPEG or rendered (design 006 E6)
     if book::detect(book)? == book::Container::Pdf {
         return crate::pdf::thumbnail(book, width, height);
     }
-    let budget = Budget::new(TIME_LIMIT, None);
+    let budget = Budget::new(TIME_LIMIT, cancel);
     let (container, entries) = book::list(book, &budget)?;
     let cover = choose::cover(&entries)
         .ok_or_else(|| FsError::new(FsErrorCode::NoImage, "no image in the book", Some(book)))?;
@@ -139,7 +149,85 @@ pub fn make_thumbnail(book: &Path, width: u32, height: u32) -> Result<Vec<u8>, F
     image::thumbnail_jpeg(&data, width, height, book)
 }
 
+/// What the batch job sees for a book and a size (design 007 E5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoverState {
+    /// In the cache or as a sidecar of the old app.
+    Present,
+    Missing,
+    /// Failed before in this session (not opened again).
+    Failed(FsErrorCode),
+}
+
+fn cache_key_of(book: &Path, dim: &ThumbsDim) -> Result<String, FsError> {
+    let meta = std::fs::metadata(book).map_err(|e| FsError::from_io(&e, book))?;
+    if !meta.is_file() {
+        return Err(FsError::new(
+            FsErrorCode::NotFound,
+            "not a file",
+            Some(book),
+        ));
+    }
+    let modified_ms = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_millis() as i64);
+    Ok(cache::key(
+        book,
+        meta.len(),
+        modified_ms,
+        dim.width,
+        dim.height,
+    ))
+}
+
 impl CoverService {
+    /// Cover of `book` in size `dim`: there, missing or failed before (blocking, no decoding).
+    pub fn state(&self, book: &Path, dim: &ThumbsDim) -> Result<CoverState, FsError> {
+        let key = cache_key_of(book, dim)?;
+        if self.cache.contains(&key) || sidecar::exists(book, &dim.name_extension) {
+            return Ok(CoverState::Present);
+        }
+        Ok(
+            match self
+                .failures
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&key)
+            {
+                Some(code) => CoverState::Failed(*code),
+                None => CoverState::Missing,
+            },
+        )
+    }
+
+    /// Makes the cover of `book` in size `dim` now, on the calling thread (the batch job,
+    /// design 007): into the cache, failures remembered like `serve` does.
+    pub fn generate(
+        &self,
+        book: &Path,
+        dim: &ThumbsDim,
+        cancel: Option<&std::sync::atomic::AtomicBool>,
+    ) -> Result<(), FsError> {
+        let key = cache_key_of(book, dim)?;
+        match make_thumbnail_with(book, dim.width, dim.height, cancel) {
+            Ok(data) => self
+                .cache
+                .put_quiet(&key, &data)
+                .map_err(|e| FsError::from_io(&e, book)),
+            Err(e) => {
+                if remembered(e.code) {
+                    self.failures
+                        .lock()
+                        .unwrap_or_else(|p| p.into_inner())
+                        .insert(key, e.code);
+                }
+                Err(e)
+            }
+        }
+    }
+
     pub fn new(cache_dir: &Path, threads: usize) -> Arc<Self> {
         Arc::new(Self {
             cache: CoverCache::new(cache_dir, cache::DEFAULT_LIMIT),

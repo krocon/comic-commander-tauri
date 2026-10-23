@@ -18,6 +18,7 @@
 //! - [`pdf`]           PDF books: pages, sizes, fast way for scans, rendering with hayro (design 006)
 //! - [`reader`]        open books, pages in reading order, page cache, scheme `ccpage` (design 005)
 //! - [`reading_state`] last page per book in `reading-state.json` (design 005 E5)
+//! - [`jobs`]          slim job engine (one run per kind, cancel, pause, throttled events); missing covers (design 007)
 //! - [`about`]         data for the About dialog (version, platform)
 //! - [`commands`]      thin Tauri command layer (validate, `spawn_blocking`, never synchronous)
 
@@ -30,6 +31,7 @@ pub mod config_file;
 pub mod cover;
 pub mod error;
 pub mod fs_atomic;
+pub mod jobs;
 pub mod legacy_import;
 pub mod model;
 pub mod opener;
@@ -123,6 +125,9 @@ pub fn run() {
             commands::save_reading_position,
             commands::load_reading_state,
             commands::toggle_fullscreen,
+            commands::start_generate_thumbs,
+            commands::pause_job,
+            commands::cancel_job,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -50,6 +50,13 @@ export class CoverRetries {
     this.pending.add(handle);
   }
 
+  /** The cover exists now (batch job, design 007 E6): a fresh chance at once. */
+  forget(url: string): boolean {
+    const known = this.failures.delete(url);
+    this.waiting.delete(url);
+    return known;
+  }
+
   dispose(): void {
     this.pending.forEach((h) => this.timers.clear(h));
     this.pending.clear();

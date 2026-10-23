@@ -20,7 +20,8 @@ pub const MAX_QUEUE: usize = 16;
 type Job = Box<dyn FnOnce() + Send>;
 
 struct Queue {
-    jobs: Mutex<VecDeque<Job>>,
+    /// (normal, low priority) – background work never takes both threads (review 007 #3).
+    jobs: Mutex<(VecDeque<Job>, VecDeque<Job>, usize)>,
     ready: Condvar,
     workers: AtomicUsize,
 }
@@ -28,7 +29,7 @@ struct Queue {
 fn queue() -> &'static Queue {
     static Q: OnceLock<Queue> = OnceLock::new();
     let q = Q.get_or_init(|| Queue {
-        jobs: Mutex::new(VecDeque::new()),
+        jobs: Mutex::new((VecDeque::new(), VecDeque::new(), 0)),
         ready: Condvar::new(),
         workers: AtomicUsize::new(0),
     });
@@ -50,16 +51,27 @@ fn queue() -> &'static Queue {
 fn work() {
     let q = queue();
     loop {
-        let job = {
+        let (job, low) = {
             let mut jobs = q.jobs.lock().unwrap_or_else(|e| e.into_inner());
             loop {
-                if let Some(j) = jobs.pop_front() {
-                    break j;
+                if let Some(j) = jobs.0.pop_front() {
+                    break (j, false);
+                }
+                // at most one background page at a time: the other thread stays for the user
+                if jobs.2 == 0
+                    && let Some(j) = jobs.1.pop_front()
+                {
+                    jobs.2 += 1;
+                    break (j, true);
                 }
                 jobs = q.ready.wait(jobs).unwrap_or_else(|e| e.into_inner());
             }
         };
         job();
+        if low {
+            q.jobs.lock().unwrap_or_else(|e| e.into_inner()).2 -= 1;
+            q.ready.notify_all();
+        }
     }
 }
 
@@ -68,6 +80,12 @@ pub fn run<T: Send + 'static>(
     limit: Duration,
     f: impl FnOnce() -> Result<T, FsError> + Send + 'static,
 ) -> Result<T, FsError> {
+    // background pages wait behind each other (one at a time): more patience
+    let limit = if crate::cover::image::low_priority() {
+        limit * 6
+    } else {
+        limit
+    };
     let (tx, rx) = mpsc::channel();
     // set when the caller gave up: a job not started yet is dropped with its book (review 006 #3)
     let abandoned = Arc::new(AtomicBool::new(false));
@@ -91,15 +109,20 @@ pub fn run<T: Send + 'static>(
             return Err(FsError::new(FsErrorCode::Io, "no PDF render thread", None));
         }
         let mut jobs = q.jobs.lock().unwrap_or_else(|e| e.into_inner());
-        if jobs.len() >= MAX_QUEUE {
+        if crate::cover::image::low_priority() {
+            // bounded by the job's own threads
+            jobs.1.push_back(job);
+            q.ready.notify_all();
+        } else if jobs.0.len() >= MAX_QUEUE {
             return Err(FsError::new(
                 FsErrorCode::Busy,
                 "too many PDF pages waiting",
                 None,
             ));
+        } else {
+            jobs.0.push_back(job);
+            q.ready.notify_all();
         }
-        jobs.push_back(job);
-        q.ready.notify_one();
     }
     match rx.recv_timeout(limit) {
         Ok(outcome) => outcome,
@@ -142,5 +165,34 @@ mod tests {
             run(Duration::from_secs(10), || Ok(deep(50_000))).unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn background_pages_leave_a_thread_for_the_user() {
+        // review 007 #3: one background page at a time, normal pages pass it
+        use std::time::Instant;
+        let slow = std::thread::spawn(|| {
+            crate::cover::image::set_low_priority(true);
+            run(Duration::from_secs(10), || {
+                std::thread::sleep(Duration::from_millis(400));
+                Ok(Instant::now())
+            })
+            .unwrap()
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        let second = std::thread::spawn(|| {
+            crate::cover::image::set_low_priority(true);
+            run(Duration::from_secs(10), || Ok(Instant::now())).unwrap()
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        let t = Instant::now();
+        run(Duration::from_secs(5), || Ok(())).unwrap();
+        assert!(
+            t.elapsed() < Duration::from_millis(300),
+            "{:?}",
+            t.elapsed()
+        );
+        let (a, b) = (slow.join().unwrap(), second.join().unwrap());
+        assert!(b >= a, "the second background page waited for the first");
     }
 }
