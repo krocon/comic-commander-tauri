@@ -30,6 +30,25 @@
         </button>
       }
     </div>
+    <div class="views" role="radiogroup" [attr.aria-label]="g.viewLabel">
+      @for (m of viewModes; track m) {
+        <button
+          type="button"
+          class="btn icon"
+          role="radio"
+          [attr.data-view]="m"
+          [attr.aria-checked]="grid.view() === m"
+          [attr.aria-label]="g.views[m]"
+          [title]="g.views[m]"
+          [tabindex]="grid.view() === m ? 0 : -1"
+          [class.on]="grid.view() === m"
+          (click)="grid.setView(m)"
+          (keydown)="onViewKey($event, m)"
+        >
+          <i [class]="'fa fa-' + viewIcons[m]" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
     @if (grid.dims().length > 1) {
       <label class="select">
         <span class="visually-hidden">{{ g.thumbSize }}</span>
@@ -70,6 +89,10 @@
   }
   @if (store.scanning() && store.firstScan()) {
     <button type="button" class="btn" (click)="store.cancel()">{{ t.cancel }}</button>
+  } @else if (store.metaProgress()) {
+    <button type="button" class="btn" [title]="t.stopInfo" (click)="store.cancel()">
+      {{ t.cancel }}
+    </button>
   }
   <span class="status" role="status" aria-live="polite" [class.warn]="warn()">{{ status() }}</span>
   @if (job.running()) {
@@ -106,6 +129,21 @@
 </header>
 
 <div class="notes" [class.floating]="showGrid()">
+  @if (showGrid() && grid.crumbs().length) {
+    <nav class="crumbs" [attr.aria-label]="g.levelNav">
+      <ol>
+        @for (c of grid.crumbs(); track c.level; let last = $last) {
+          <li>
+            @if (last) {
+              <span aria-current="location">{{ c.label }}</span>
+            } @else {
+              <button type="button" class="link" (click)="goTo(c.level)">{{ c.label }}</button>
+            }
+          </li>
+        }
+      </ol>
+    </nav>
+  }
   @if (categories.warning()) {
     <p class="note warn">{{ t.configBroken }}</p>
   }
@@ -125,7 +163,7 @@
   @if (categories.active() && store.phase() === 'done' && store.books().length === 0) {
     <p class="note">{{ t.noBooks(categories.active()!.bookExtensions) }}</p>
   }
-  @if (showGrid() && grid.filtered().length === 0) {
+  @if (showGrid() && grid.items().length === 0) {
     <p class="note">{{ g.noMatch }}</p>
   }
 </div>

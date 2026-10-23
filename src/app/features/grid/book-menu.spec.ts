@@ -2,11 +2,12 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { book } from '../../../testing/fixtures';
 import { BookAction, BookMenu } from './book-menu';
+import { GridItem } from './grouping';
 
 @Component({
   imports: [BookMenu],
   template: `<app-book-menu
-    [book]="b"
+    [item]="item()"
     [x]="10"
     [y]="20"
     (chosen)="chosen.set($event)"
@@ -15,6 +16,7 @@ import { BookAction, BookMenu } from './book-menu';
 })
 class Host {
   readonly b = book('x.cbz', { name: 'Hägar <b>1</b>.cbz' });
+  readonly item = signal<GridItem>({ kind: 'book', id: this.b.id, book: this.b });
   readonly chosen = signal<BookAction | null>(null);
   readonly closed = signal(false);
 }
@@ -60,5 +62,30 @@ describe('BookMenu', () => {
     host.closed.set(false);
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(host.closed()).toBe(true);
+  });
+
+  it('a group: open, read first unread, filter series – no file actions (design 011)', async () => {
+    const fixture = TestBed.createComponent(Host);
+    const cover = book('A/Asterix 01.cbz');
+    fixture.componentInstance.item.set({
+      kind: 'group',
+      group: 'series',
+      id: 's:asterix',
+      key: 'asterix',
+      label: 'Asterix',
+      cover,
+      count: 2,
+      total: 2,
+      read: 0,
+      progress: null,
+      newestMs: 0,
+    });
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[role="menu"]')!.getAttribute('aria-label')).toBe(
+      'Actions for Asterix',
+    );
+    const labels = [...el.querySelectorAll('[role="menuitem"] span')].map((i) => i.textContent);
+    expect(labels).toEqual(['Open', 'Read first unread', 'Filter series']);
   });
 });

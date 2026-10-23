@@ -440,6 +440,7 @@ dependencies = [
  "image",
  "lzma-rust2",
  "open",
+ "quick-xml",
  "serde",
  "serde_json",
  "sevenz-rust2",

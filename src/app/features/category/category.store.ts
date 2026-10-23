@@ -38,6 +38,8 @@ export class CategoryStore {
   readonly scannedAt = signal<number | null>(null);
   readonly stats = signal<ScanStats | null>(null);
   readonly progress = signal<{ books: number; dirs: number } | null>(null);
+  /** The ComicInfo pass after the scan (design 011), `null` = none runs. */
+  readonly metaProgress = signal<{ done: number; total: number } | null>(null);
   readonly error = signal<FsError | null>(null);
   readonly cacheKept = signal(false);
 
@@ -59,6 +61,7 @@ export class CategoryStore {
     this.error.set(null);
     this.cacheKept.set(false);
     this.progress.set(null);
+    this.metaProgress.set(null);
     if (!id) {
       this.phase.set('idle');
       return;
@@ -79,7 +82,8 @@ export class CategoryStore {
 
   async cancel(): Promise<void> {
     const id = this.categoryId();
-    if (id && this.scanning()) await this.api.cancel(id);
+    // also the ComicInfo pass after the scan (review 011 #2)
+    if (id && (this.scanning() || this.metaProgress())) await this.api.cancel(id);
   }
 
   /** The collected diff parts in one step (one sort). */
@@ -92,7 +96,14 @@ export class CategoryStore {
     const kept = this.books()
       .filter((b) => !removed.has(b.path))
       .map((b) => changed.get(b.path) ?? b);
-    this.books.set(sortBooks([...kept, ...d.added]));
+    // a book already shown is replaced, not doubled (review 011 #1)
+    const added = new Map(d.added.map((b) => [b.path, b]));
+    const merged = kept.map((b) => {
+      const a = added.get(b.path);
+      if (a) added.delete(b.path);
+      return a ?? b;
+    });
+    this.books.set(sortBooks([...merged, ...added.values()]));
   }
 
   /** Shows the parts so far; the whole cache sorted once. */
@@ -103,6 +114,25 @@ export class CategoryStore {
     } else if (!this.replacing) {
       this.books.set([...this.cacheParts]);
     }
+  }
+
+  /** Metadata of books by id: new objects (keys and caches per object stay right). */
+  private applyMeta(items: readonly { id: string; meta: BookEntry['meta'] }[]): void {
+    const byId = new Map(items.map((i) => [i.id, i.meta] as const));
+    const update = (list: BookEntry[]) => {
+      let changed = false;
+      const next = list.map((b) => {
+        const meta = byId.get(b.id);
+        if (meta === undefined) return b;
+        changed = true;
+        return { ...b, meta };
+      });
+      return changed ? next : list;
+    };
+    this.cacheParts = update(this.cacheParts);
+    const books = this.books();
+    const next = update(books);
+    if (next !== books) this.books.set(next);
   }
 
   private apply(seq: number, e: ScanEvent): void {
@@ -156,6 +186,15 @@ export class CategoryStore {
       case 'cancelled':
         this.progress.set(null);
         this.phase.set('cancelled');
+        break;
+      case 'metaProgress':
+        this.metaProgress.set(e.done < e.total ? { done: e.done, total: e.total } : null);
+        break;
+      case 'meta':
+        this.applyMeta(e.items);
+        break;
+      case 'metaDone':
+        this.metaProgress.set(null);
         break;
       case 'failed':
         this.error.set(e.error);

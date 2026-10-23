@@ -16,6 +16,7 @@ import { CategoriesStore } from '../categories/categories.store';
 import { CoverGrid, GRID_TOP } from '../grid/cover-grid';
 import { GRID_TEXTS } from '../grid/grid-texts';
 import { GridStore } from '../grid/grid.store';
+import { VIEW_MODES, ViewMode } from '../grid/grouping';
 import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
@@ -53,6 +54,12 @@ export class CategoryView {
   protected readonly g = GRID_TEXTS;
   protected readonly gridTop = GRID_TOP;
   protected readonly sortModes = SORT_MODES;
+  protected readonly viewModes = VIEW_MODES;
+  protected readonly viewIcons: Record<ViewMode, string> = {
+    flat: 'th',
+    series: 'clone',
+    folders: 'folder-o',
+  };
   private readonly coverGrid = viewChild(CoverGrid);
   private readonly filterInput = viewChild<ElementRef<HTMLInputElement>>('filterInput');
 
@@ -84,6 +91,8 @@ export class CategoryView {
       }
       case 'done': {
         const parts = [t.books(s.books().length)];
+        const m = s.metaProgress();
+        if (m) parts.push(t.readingInfo(m.done, m.total));
         if (s.scannedAt() !== null) parts.push(t.updated(s.scannedAt()!, this.now()));
         const st = s.stats();
         if (st?.unreadableDirs) parts.push(t.unreadableDirs(st.unreadableDirs));
@@ -149,8 +158,33 @@ export class CategoryView {
     }
   }
 
+  /** Esc in the grid: the filter first, then one level up (design 011). */
   protected onGridEscape(): void {
     if (this.grid.filterText()) this.grid.applyFilterNow('');
+    else this.grid.up();
+  }
+
+  /** The view group (radio group, APG): arrows move and choose. */
+  protected onViewKey(event: KeyboardEvent, current: ViewMode): void {
+    const i = VIEW_MODES.indexOf(current);
+    const step =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? -1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = VIEW_MODES[(i + step + VIEW_MODES.length) % VIEW_MODES.length];
+    this.grid.setView(next);
+    const host = (event.currentTarget as HTMLElement).parentElement;
+    host?.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus();
+  }
+
+  protected goTo(level: string | null): void {
+    this.grid.goTo(level);
+    this.coverGrid()?.focus();
   }
 
   protected onSizeChange(event: Event): void {
@@ -185,6 +219,11 @@ export class CategoryView {
       enabled: grid,
       checked: () => this.grid.sort() === m,
     });
+    const view = (m: ViewMode) => ({
+      run: () => this.grid.setView(m),
+      enabled: grid,
+      checked: () => this.grid.view() === m,
+    });
     this.actions.registerAll(
       {
         'app.rescan': {
@@ -200,8 +239,12 @@ export class CategoryView {
         },
         'view.sizeUp': { run: () => this.grid.stepDim(1), enabled: grid },
         'view.sizeDown': { run: () => this.grid.stepDim(-1), enabled: grid },
+        'view.mode.flat': view('flat'),
+        'view.mode.series': view('series'),
+        'view.mode.folders': view('folders'),
         'view.sort.path': sort('path'),
         'view.sort.name': sort('name'),
+        'view.sort.series': sort('series'),
         'view.sort.date': sort('date'),
         'view.sort.size': sort('size'),
         'view.toTop': { run: () => this.toTop(), enabled: grid },

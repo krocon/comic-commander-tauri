@@ -8,8 +8,11 @@ use std::cmp::Ordering;
 
 pub const IMAGE_EXT: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "bmp"];
 
+/// Name segments; `.` and `..` are no names – `./p01.jpg` of `tar -cf b.cbt .` is a page
+/// (review 011 #4).
 fn parts(name: &str) -> impl Iterator<Item = &str> {
-    name.split(['/', '\\']).filter(|p| !p.is_empty())
+    name.split(['/', '\\'])
+        .filter(|p| !p.is_empty() && *p != "." && *p != "..")
 }
 
 /// An image page (not hidden, not macOS resource fork junk).
@@ -83,6 +86,16 @@ mod tests {
             pick(&["001.jpg", "extras/deep/Cover.JPG"]).as_deref(),
             Some("extras/deep/Cover.JPG")
         );
+    }
+
+    #[test]
+    fn dot_segments_are_no_hidden_parts() {
+        // `tar -cf book.cbt .` (review 011 #4)
+        assert_eq!(
+            pick(&["./p02.jpg", "./p01.jpg", "./.hidden.jpg"]).as_deref(),
+            Some("./p01.jpg")
+        );
+        assert_eq!(pick(&["../x/p01.jpg"]).as_deref(), Some("../x/p01.jpg"));
     }
 
     #[test]

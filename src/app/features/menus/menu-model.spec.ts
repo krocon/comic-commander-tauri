@@ -80,6 +80,8 @@ describe('menu model', () => {
     expect(ids).not.toContain('toggleFit');
     expect(isRadio('reader.zoom.page')).toBe(true);
     expect(isRadio('reader.zoom.next')).toBe(false);
+    expect(isRadio('view.mode.series')).toBe(true); // design 011
+    expect(isRadio('grid.levelUp')).toBe(false);
     expect(isRadio('reader.toggleZoomSlider')).toBe(false);
   });
 

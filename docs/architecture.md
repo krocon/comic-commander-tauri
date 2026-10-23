@@ -24,8 +24,9 @@
 │ cover/  Wahl, Decoder, Sidecars, Plattencache, LIFO-Pool, Schema cccover                        │
 │ reader/ Sitzungen (Token), Seiten direkt oder entpackt, Schema ccpage   reading_state.rs (005)  │
 │ pdf/    hayro: Seiten, Schnellweg eingebettete JPEGs, Render-Threads (006)                       │
+│ comic_info.rs  ComicInfo.xml finden + lesen (quick-xml, Grenzen), Phase `meta` im ScanHub (011)  │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
- Dateien:  <app config>/categories.json        <app cache>/scans/<fnv64(baseDir+Endungen)>.json
+ Dateien:  <app config>/categories.json        <app cache>/scans/<fnv64(baseDir+Endungen)>.json (+ ComicInfo, 011)
            <app cache>/covers/<xx>/<fnv64(Pfad, Größe, mtime, B×H)>.jpg
            <app cache>/pages/<fnv64(Pfad, Größe, mtime)>/00000.img … complete.json     (005, 1 GiB)
            <app config>/reading-state.json                                              (005)
@@ -86,6 +87,12 @@
 | A44 | **Leser-Zoom**: vier Einpassungen + freier Faktor (`zoom = { mode, factor }`, `custom` = fünfter Modus); eine reine Box-Berechnung (`fitPage`/`layoutPages`) für Einzelseite und fortlaufend; Fit height lässt breite Seiten seitlich scrollen, Fit page zeigt immer die ganze Seite; Full size = 1 Bildpixel je CSS-Pixel, URL-Breite 0. Zielbreite **je Seite** aus der Bildbreite × dpr (Stufen wie A30), beim freien Zoom erst 250 ms nach der letzten Änderung | „ganze Seite“ und „Höhe“ sind verschiedene Wünsche; Doppelseiten und Zoom > 100 % brauchen mehr als `max(B, H)` | 014 E2, E3, E6 |
 | A45 | **Drehen per CSS** (`rotate` des Bildes in einer Box mit getauschten Maßen), je Buch im Lesestand (`rotation` 0/90/180/270, `serde(default)`); Blättern/Klicks/Wischen bleiben bildschirmbezogen | keine neue URL-Variante, Cache und Vorausladen bleiben gültig | 014 E5, E8, E9 |
 | A46 | **Leser-Toolbar**: dezente Icon-Knöpfe (`.btn.quiet`, Farbe aus `--color-text`), Zoom-Gruppe oder Zoom-Menü (APG) per Container-Query auf `.bar`; blendet nach `BAR_IDLE_MS` aus (`pointer-events: none`) und kommt nur über eine Zone oben (Leiste + 16 px), Fokus oder `T` (fest) zurück; Mauszeiger über der Seite blendet getrennt aus | Comic ohne Ablenkung; Bewegung über der Seite soll nicht jedes Mal die Leiste holen | 014 E10, E11 |
+| A47 | **ComicInfo.xml** mit `quick-xml` 0.42 (schon im Baum über `plist`): Eintrag `ComicInfo.xml` ohne Groß-/Kleinschreibung, nicht versteckt/`__MACOSX`, flachster; ≤ 1 MiB, Budget wie Cover (20 s, 512 MiB übersprungen); nur direkte Kinder von `ComicInfo`, Tiefe ≤ 32, keine DTD-Entitäten; ungültig → leer (fail-closed). Felder Series, Number, Volume, Title, Year, Writer, Publisher, PageCount, Manga mit Grenzen | Bücher sind feindlich; ein eigener Parser müsste CDATA/Entitäten/BOM selbst richtig machen | 011 E1 |
+| A48 | **Phase `meta` nach `done`** im selben Scan-Thread: nur Bücher ohne Metadaten (`meta: None`), unveränderte übernehmen sie aus dem alten Cache (`carry_meta`); Ereignisse `metaProgress` (≤ 4/s), `meta` (alle 500 ms, ≤ 2000), `metaDone`; Cache alle 10 s und am Ende. Höchstens `MAX_META_PASSES` (1) Phasen gleichzeitig. Ein neuer Öffner bricht die Phase ab und kommt über `queued` (bekommt den finalen Cache, dann neuer Walk; die bisherigen Abonnenten gehen mit, der Rest folgt); bleibende Fehler und Zeitlimit → leer, I/O/Abbruch → nächster Scan. Abbrechbar über `cancel_scan`. Scan-Cache `VERSION = 3`, `BookEntry.meta` geboxt | Cover kommen meist aus Cache/Sidecar und öffnen das Buch nicht; UI ist nach dem Walk sofort fertig | 011 E3 |
+| A49 | **Serie/Nummer im Frontend** (`book-info.ts`, rein, Katalog `book-info.cases.json`): ComicInfo feldweise vor dem Namen, sonst Ordnername (Name beginnt mit der Nummer); Schlüssel NFC/klein/`_` = Leerzeichen | Heuristik ändern, ohne Caches ungültig zu machen; ersetzt `extractSeriesFilter` | 011 E4, E5 |
+| A50 | **Ansichten im selben Cover-Grid**: flach, nach Serie (Gruppe ab 2 Büchern), nach Ordner (`/`-Segmente von `relPath`, nur Anzeige, NFC); Kachel = Buch oder Gruppe (`GridItem`, Ids `s:`/`d:`), Ebene + Breadcrumb im `GridStore`, Leser bekommt die Bücher der Ebene; Ansichtszustand v2 (`view`, `level`) | ein Grid, ein Cursor, eine Tastatur | 011 E2, E6, E7 |
+| A51 | **Filter-Felder** `series:`, `year:` (Jahr/Bereich), `writer:`, `publisher:`, Werte in `"…"`, `+`/`-`; unbekannte Felder bleiben Wörter; Sortierung `series` (Band → Nummer numerisch, `1.5`, `12a`, `01-2024`) | abwärts kompatibel zu 004 | 011 E8, E9 |
+| A52 | **Manga aus ComicInfo**: `YesAndRightToLeft` → rechts-nach-links; `M` schaltet bei so einem Buch nur dieses Buch (nicht gespeichert), sonst die Einstellung | Einstellung bleibt für alle anderen Bücher richtig | 011 E11 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -93,9 +100,10 @@
 | Rust | TypeScript | Hinweis |
 |---|---|---|
 | `model::BookFormat` (`lowercase`) | `BookFormat` in `scan.models.ts` | `'cbz' \| 'cbr' \| 'cb7' \| 'cbt' \| 'pdf'` |
-| `model::BookEntry` | `BookEntry` | `path` opak, `relPath` nur Anzeige/Filter/Sortierung, `id` = `fnv64(path)` hex (003; Scan-Cache `VERSION = 2`) |
+| `model::BookEntry` | `BookEntry` | `path` opak, `relPath` nur Anzeige/Filter/Sortierung, `id` = `fnv64(path)` hex (003), `meta?` (011; Scan-Cache `VERSION = 3`) |
+| `comic_info::{BookMeta, Manga}` | `BookMeta` in `scan.models.ts` | alle Felder optional, leere weggelassen; fehlt = noch nicht gelesen, `{}` = nichts gefunden; `manga` `no`/`yes`/`rtl` |
 | `model::ScanStats` | `ScanStats` | |
-| `scan_hub::ScanEvent` (`tag = "kind"`) | `ScanEvent` | `cached` (+`complete`), `cachedMore`, `started`, `batch`, `progress`, `diff`, `done`, `cancelled`, `failed`; Bücher je Ereignis ≤ `MESSAGE_BOOKS` (2000) |
+| `scan_hub::ScanEvent` (`tag = "kind"`) | `ScanEvent` | `cached` (+`complete`), `cachedMore`, `started`, `batch`, `progress`, `diff`, `done`, `cancelled`, `failed`, nach `done` `metaProgress`/`meta` (`items: [{id, meta}]`)/`metaDone` (011); Bücher je Ereignis ≤ `MESSAGE_BOOKS` (2000) |
 | `categories::{Category, ThumbsDim, CategoriesConfig, CategoriesLoaded}` | `categories.models.ts` | Feldnamen wie die alte `config.json` |
 | `legacy_import::{LegacyImport, ImportNote}` | `categories.models.ts` | `ImportNote.index = null` = Kategorie ausgelassen |
 | `config_file::ConfigWarning` | `ConfigWarning` | `broken` / `unreadable` |
@@ -233,6 +241,7 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 | `image` 0.25 (`jpeg png gif webp bmp`) | Rust | dekodieren mit Limits, verkleinern, JPEG | 003 |
 | `hayro` 0.8 (+ `hayro-interpret`, `hayro-syntax`, `vello_cpu`, eingebettete Standard-Fonts aus PDFium/Foxit, BSD) – Lizenzen in 012 nach `docs/licenses.md` | Rust | PDF: Seiten zählen, Größen, Schnellweg, rendern | 006 |
 | `flate2` 1 (schon über `zip` im Baum) | Rust | PDF-Streams vorab begrenzt entpacken (Bomben, Review 006 #1) | 006 |
+| `quick-xml` 0.42 (`default-features = false`, über `plist` schon im Baum) | Rust | `ComicInfo.xml` lesen (A47) | 011 |
 | `open` 5 (wie fnf) | Rust | Buch mit der Standard-App öffnen (`that_detached`, ohne Shell) | 004 |
 | `vitest`, `jsdom`, `eslint`, `angular-eslint`, `typescript-eslint`, `prettier` | dev | Tests, Lint, Format | 001 |
 

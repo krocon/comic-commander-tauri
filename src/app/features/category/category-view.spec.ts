@@ -191,7 +191,7 @@ describe('CategoryView', () => {
     );
     expect(selects).toEqual([
       ['200 × 300', '800 × 1200'],
-      ['Folder and name', 'File name', 'Newest first', 'Largest first'],
+      ['Folder and name', 'File name', 'Series and number', 'Newest first', 'Largest first'],
     ]);
     const grid = fixture.debugElement.injector.get(GridStore);
     expect(grid.dimIndex()).toBe(1);

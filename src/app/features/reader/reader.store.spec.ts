@@ -248,4 +248,30 @@ describe('ReaderStore', () => {
     await wait();
     expect(store.rotation()).toBe(0);
   });
+
+  it('a book with ComicInfo „YesAndRightToLeft“ reads right to left; M switches it alone (011 E11)', async () => {
+    const s = setup();
+    s.list[1] = { ...s.list[1], meta: { manga: 'rtl' } };
+    const store = await opened(s);
+    expect(store.rtl()).toBe(false);
+    s.service.move(1);
+    TestBed.tick();
+    await wait();
+    expect(store.bookRtl()).toBe(true);
+    expect(store.rtl()).toBe(true);
+    store.toggleRtl();
+    expect(store.rtl()).toBe(false);
+    expect(store.rtlSetting()).toBe(false);
+    TestBed.tick();
+    expect(JSON.parse(s.data.get('cc.reader') ?? '{"rtl":false}').rtl).toBe(false);
+    // the next book: the setting again, the override is gone
+    s.service.move(1);
+    TestBed.tick();
+    await wait();
+    expect(store.rtl()).toBe(false);
+    s.service.move(-1);
+    TestBed.tick();
+    await wait();
+    expect(store.rtl()).toBe(true);
+  });
 });

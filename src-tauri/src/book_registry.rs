@@ -78,6 +78,7 @@ mod tests {
             format: BookFormat::Cbz,
             size: 1,
             modified_ms: None,
+            meta: None,
         }
     }
 

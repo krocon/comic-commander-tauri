@@ -9,11 +9,12 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { BookEntry } from '../../core/scan/scan.models';
+import { bookInfo } from './book-info';
+import { GridItem } from './grouping';
 import { GRID_TEXTS } from './grid-texts';
 import { ActionService } from '../../core/actions/action.service';
 
-export type BookAction = 'read' | 'open' | 'reveal' | 'series' | 'copy';
+export type BookAction = 'read' | 'open' | 'reveal' | 'series' | 'copy' | 'readGroup';
 
 interface Item {
   action: BookAction;
@@ -30,12 +31,15 @@ const ACTION_OF: Record<BookAction, string> = {
   reveal: 'book.reveal',
   series: 'book.filterSeries',
   copy: 'book.copyPath',
+  readGroup: '',
 };
 
 /**
  * Actions on one book (design 004): a menu (WAI-ARIA APG) at the cover. ↑/↓/Home/End move,
  * Enter/Space choose, Esc or a click outside closes – the grid gets the focus back. „Read“ can be
  * disabled (`canRead`); since prompt 006 every book can be read.
+ *
+ * A group (design 011): open, read the first unread book, filter the series – no file actions.
  */
 @Component({
   selector: 'app-book-menu',
@@ -44,7 +48,7 @@ const ACTION_OF: Record<BookAction, string> = {
       class="menu"
       role="menu"
       tabindex="-1"
-      [attr.aria-label]="t.bookMenu(book().name)"
+      [attr.aria-label]="label()"
       [style.left.px]="x()"
       [style.top.px]="y()"
       (keydown)="onKey($event)"
@@ -72,7 +76,7 @@ const ACTION_OF: Record<BookAction, string> = {
   host: { '(document:pointerdown)': 'onDocumentPointer($event)' },
 })
 export class BookMenu {
-  readonly book = input.required<BookEntry>();
+  readonly item = input.required<GridItem>();
   readonly x = input(0);
   readonly y = input(0);
   readonly canRead = input(true);
@@ -84,21 +88,52 @@ export class BookMenu {
   private readonly focused = signal(0);
 
   private readonly actions = inject(ActionService);
+  protected readonly label = computed(() => {
+    const i = this.item();
+    return i.kind === 'book' ? this.t.bookMenu(i.book.name) : this.t.groupMenu(i.label);
+  });
   protected readonly items = computed<Item[]>(() =>
-    this.baseItems().map((i) => ({ ...i, shortcut: this.actions.shortcut(ACTION_OF[i.action]) })),
+    this.baseItems().map((i) => ({
+      ...i,
+      shortcut: ACTION_OF[i.action] ? this.actions.shortcut(ACTION_OF[i.action]) : '',
+    })),
   );
-  private readonly baseItems = computed<Omit<Item, 'shortcut'>[]>(() => [
-    {
-      action: 'read',
-      label: this.t.read,
-      icon: 'book',
-      disabled: !this.canRead(),
-    },
-    { action: 'open', label: this.t.openExternal, icon: 'external-link', disabled: false },
-    { action: 'reveal', label: this.t.reveal, icon: 'folder-open-o', disabled: false },
-    { action: 'series', label: this.t.filterSeries, icon: 'filter', disabled: false },
-    { action: 'copy', label: this.t.copyPath, icon: 'clipboard', disabled: false },
-  ]);
+  private readonly baseItems = computed<Omit<Item, 'shortcut'>[]>(() => {
+    const it = this.item();
+    if (it.kind === 'group') {
+      return [
+        { action: 'read', label: this.t.openGroup, icon: 'folder-open-o', disabled: false },
+        { action: 'readGroup', label: this.t.readGroup, icon: 'book', disabled: false },
+        ...(it.group === 'series'
+          ? [
+              {
+                action: 'series' as const,
+                label: this.t.filterSeries,
+                icon: 'filter',
+                disabled: false,
+              },
+            ]
+          : []),
+      ];
+    }
+    return [
+      {
+        action: 'read',
+        label: this.t.read,
+        icon: 'book',
+        disabled: !this.canRead(),
+      },
+      { action: 'open', label: this.t.openExternal, icon: 'external-link', disabled: false },
+      { action: 'reveal', label: this.t.reveal, icon: 'folder-open-o', disabled: false },
+      {
+        action: 'series',
+        label: this.t.filterSeries,
+        icon: 'filter',
+        disabled: bookInfo(it.book).series === null,
+      },
+      { action: 'copy', label: this.t.copyPath, icon: 'clipboard', disabled: false },
+    ];
+  });
 
   constructor() {
     afterNextRender(() => this.focus(this.items().findIndex((i) => !i.disabled)));

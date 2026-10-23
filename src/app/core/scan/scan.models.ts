@@ -7,6 +7,21 @@ import { FsError } from '../errors/fs-error';
 /** Container kind by extension (`.zip` → `cbz` …, design 002 E3). */
 export type BookFormat = 'cbz' | 'cbr' | 'cb7' | 'cbt' | 'pdf';
 
+/** `ComicInfo.xml` of a book (design 011) – mirror of Rust `comic_info::BookMeta`. */
+export interface BookMeta {
+  series?: string;
+  /** As written (`1`, `01`, `1.5`, `12a`). */
+  number?: string;
+  volume?: number;
+  title?: string;
+  year?: number;
+  writer?: string;
+  publisher?: string;
+  pageCount?: number;
+  /** `rtl` = `YesAndRightToLeft`. */
+  manga?: 'no' | 'yes' | 'rtl';
+}
+
 export interface BookEntry {
   /** `fnv64(path)` as 16 hex digits – addresses the book in cover URLs (design 003 E1). */
   id: string;
@@ -18,6 +33,8 @@ export interface BookEntry {
   format: BookFormat;
   size: number;
   modifiedMs: number | null;
+  /** ComicInfo (design 011): missing = not read yet, `{}` = read, nothing found. */
+  meta?: BookMeta;
 }
 
 export interface ScanStats {
@@ -42,4 +59,8 @@ export type ScanEvent =
   | { kind: 'diff'; added: BookEntry[]; removed: string[]; changed: BookEntry[] }
   | { kind: 'done'; scannedAt: number; stats: ScanStats }
   | { kind: 'cancelled' }
-  | { kind: 'failed'; error: FsError; cacheKept: boolean };
+  | { kind: 'failed'; error: FsError; cacheKept: boolean }
+  /** ComicInfo pass after `done` (design 011 E3). */
+  | { kind: 'metaProgress'; done: number; total: number }
+  | { kind: 'meta'; items: { id: string; meta: BookMeta }[] }
+  | { kind: 'metaDone'; cancelled: boolean };

@@ -35,13 +35,24 @@ export function buildMenuModel(os: Os, categories: { id: string; title: string }
   const view: MenuNode[] = [
     a('app.palette'),
     sep,
+    a('view.mode.flat'),
+    a('view.mode.series'),
+    a('view.mode.folders'),
+    a('grid.levelUp'),
+    sep,
     a('view.focusFilter'),
     a('view.sizeUp'),
     a('view.sizeDown'),
     {
       kind: 'submenu',
       label: t.order,
-      items: [a('view.sort.path'), a('view.sort.name'), a('view.sort.date'), a('view.sort.size')],
+      items: [
+        a('view.sort.path'),
+        a('view.sort.name'),
+        a('view.sort.series'),
+        a('view.sort.date'),
+        a('view.sort.size'),
+      ],
     },
     sep,
     a('view.toTop'),
@@ -176,6 +187,7 @@ export function isRadio(id: string): boolean {
   return (
     id.startsWith('app.category.') ||
     id.startsWith('view.sort.') ||
+    id.startsWith('view.mode.') ||
     /^reader\.zoom\.(width|height|page|full)$/.test(id)
   );
 }

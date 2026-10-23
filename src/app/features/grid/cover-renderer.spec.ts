@@ -2,9 +2,10 @@ import { AreaModelIf } from '@guiexpert/table';
 import { book } from '../../../testing/fixtures';
 import { BookEntry } from '../../core/scan/scan.models';
 import { CoverRenderer } from './cover-renderer';
+import { GridItem, GroupItem } from './grouping';
 
 function render(
-  b: BookEntry | undefined,
+  b: BookEntry | GridItem | undefined,
   src: string | null,
   focused = false,
   progress: number | null = null,
@@ -16,10 +17,31 @@ function render(
     isFocused: () => focused,
     coverHeight: () => 300,
     progress: () => progress,
+    title: (i) => (i.kind === 'book' ? i.book.relPath : i.label),
   });
   const cell = document.createElement('div');
-  const cleanup = r.render(cell, 0, 0, 'body', {} as AreaModelIf, b);
+  const item: GridItem | undefined =
+    b === undefined || 'kind' in b ? b : { kind: 'book', id: b.id, book: b };
+  const cleanup = r.render(cell, 0, 0, 'body', {} as AreaModelIf, item);
   return { cell, failed, cleanup };
+}
+
+function group(over: Partial<GroupItem> = {}): GroupItem {
+  const cover = book('A/Asterix 01.cbz');
+  return {
+    kind: 'group',
+    group: 'series',
+    id: 's:asterix',
+    key: 'asterix',
+    label: 'Asterix',
+    cover,
+    count: 12,
+    total: 12,
+    read: 0,
+    progress: null,
+    newestMs: 0,
+    ...over,
+  };
 }
 
 describe('CoverRenderer', () => {
@@ -63,5 +85,28 @@ describe('CoverRenderer', () => {
       '.cc-progress > div',
     ) as HTMLElement;
     expect(full.style.width).toBe('100%');
+  });
+
+  it('draws a group: cover of the first book, count, name as text (design 011)', () => {
+    const evil = group({ label: '<b onclick="x()">Serie</b>', count: 3, total: 12 });
+    const { cell, failed } = render(evil, 'cccover://c1.a.0', true, 0.5);
+    const tile = cell.querySelector('.cc-cover') as HTMLElement;
+    expect(tile.classList.contains('cc-group')).toBe(true);
+    expect(tile.classList.contains('cc-series')).toBe(true);
+    expect(tile.classList.contains('cc-focus')).toBe(true);
+    expect(cell.querySelector('.cc-count')!.textContent).toBe('3/12');
+    expect(cell.querySelector('.cc-name')!.textContent).toBe('<b onclick="x()">Serie</b>');
+    expect(cell.querySelector('.cc-name b')).toBeNull();
+    expect(tile.title).toBe(evil.label);
+    expect((cell.querySelector('.cc-progress > div') as HTMLElement).style.width).toBe('50%');
+    cell.querySelector('img')!.dispatchEvent(new Event('error'));
+    expect(failed).toEqual([evil.cover.id]);
+  });
+
+  it('a folder tile has a folder icon, all books = one number', () => {
+    const { cell } = render(group({ group: 'folder', id: 'd:A', label: 'A' }), null);
+    expect(cell.querySelector('.cc-folder')).not.toBeNull();
+    expect(cell.querySelector('.cc-name .fa-folder')).not.toBeNull();
+    expect(cell.querySelector('.cc-count')!.textContent).toBe('12');
   });
 });

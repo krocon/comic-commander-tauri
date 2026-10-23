@@ -1,7 +1,7 @@
 # Prompt 011: Metadaten, Serien und Ordneransicht
 
 > Braucht: 002, 004 · Umfang: M · Branch `feat/metadaten-serien` · **optional** (über die Vorlage hinaus)
-> Gemeinsame Regeln: [`000-arbeitsweise.md`](000-arbeitsweise.md). Vorlage: legacy §6 (`extractSeriesFilter`).
+> Gemeinsame Regeln: [`000-arbeitsweise.md`](../000-arbeitsweise.md). Vorlage: legacy §6 (`extractSeriesFilter`).
 
 ## Ziel
 

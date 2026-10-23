@@ -29,6 +29,7 @@ export const READER_TEXTS = {
   rotated: (deg: number) => `Rotated ${deg}°`,
   withKey: (label: string, key: string) => (key ? `${label} (${key})` : label),
   manga: 'Right to left (M)',
+  mangaFromInfo: 'Right to left – the book says so (ComicInfo) (M)',
   fullscreen: 'Full screen (F11)',
   nextBook: 'Next book (])',
   prevBook: 'Previous book ([)',

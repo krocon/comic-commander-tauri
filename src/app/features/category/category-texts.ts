@@ -28,6 +28,10 @@ export const CATEGORY_TEXTS = {
   books: (n: number) => count(n, 'book', 'books'),
   updated: (ms: number, now: number) => `updated ${relativeTime(ms, now)}`,
   refreshing: 'refreshing…',
+  /** Design 011: the ComicInfo pass after the scan. */
+  stopInfo: 'Stop reading ComicInfo (goes on with the next scan)',
+  readingInfo: (done: number, total: number) =>
+    `ComicInfo ${done.toLocaleString('en')} / ${total.toLocaleString('en')}`,
   scanning: (books: number, dirs: number) =>
     `Scanning… ${count(books, 'book', 'books')} in ${count(dirs, 'folder', 'folders')}`,
   cancelled: (n: number) => `Scan cancelled – ${count(n, 'book', 'books')} found so far`,

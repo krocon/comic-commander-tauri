@@ -232,4 +232,62 @@ describe('CategoryStore', () => {
     emit({ kind: 'batch', books: books('a 1.cbz') });
     expect(rels(store)[0]).toBe('a 1.cbz');
   });
+
+  it('ComicInfo: metaProgress, meta replaces books by id, metaDone (design 011)', async () => {
+    const { store, api } = setup();
+    await store.open('c1');
+    const { emit } = api.last;
+    const [a, b] = books('a.cbz', 'b.cbz');
+    emit({ kind: 'cached', books: [a, b], scannedAt: 1, stats: stats(), complete: true });
+    emit({ kind: 'started', firstScan: false });
+    emit({ kind: 'done', scannedAt: 2, stats: stats() });
+    emit({ kind: 'metaProgress', done: 0, total: 2 });
+    expect(store.metaProgress()).toEqual({ done: 0, total: 2 });
+    // the pass can be stopped (review 011 #2)
+    await store.cancel();
+    expect(api.cancelled).toEqual(['c1']);
+    const before = store.books();
+    emit({ kind: 'meta', items: [{ id: b.id, meta: { series: 'Saga', number: '1' } }] });
+    expect(store.books()[1].meta).toEqual({ series: 'Saga', number: '1' });
+    expect(store.books()[1]).not.toBe(before[1]);
+    expect(store.books()[0]).toBe(before[0]);
+    // unknown ids change nothing
+    const same = store.books();
+    emit({ kind: 'meta', items: [{ id: 'nope', meta: {} }] });
+    expect(store.books()).toBe(same);
+    emit({ kind: 'metaProgress', done: 2, total: 2 });
+    expect(store.metaProgress()).toBeNull();
+    emit({ kind: 'metaProgress', done: 1, total: 2 });
+    emit({ kind: 'metaDone', cancelled: true });
+    expect(store.metaProgress()).toBeNull();
+    expect(store.phase()).toBe('done');
+  });
+
+  it('a diff that adds a book already shown does not double it (review 011 #1)', async () => {
+    const { store, api } = setup();
+    await store.open('c1');
+    const { emit } = api.last;
+    emit({
+      kind: 'cached',
+      books: books('a.cbz', 'b.cbz'),
+      scannedAt: 1,
+      stats: stats(),
+      complete: true,
+    });
+    emit({ kind: 'started', firstScan: false });
+    emit({ kind: 'diff', added: books('b.cbz', 'c.cbz'), removed: [], changed: [] });
+    emit({ kind: 'done', scannedAt: 2, stats: stats() });
+    expect(rels(store)).toEqual(['a.cbz', 'b.cbz', 'c.cbz']);
+  });
+
+  it('meta of a cache still arriving in parts is kept', async () => {
+    const { store, api } = setup();
+    await store.open('c1');
+    const { emit } = api.last;
+    const [a, b] = books('a.cbz', 'b.cbz');
+    emit({ kind: 'cached', books: [a], scannedAt: 1, stats: stats(), complete: false });
+    emit({ kind: 'meta', items: [{ id: a.id, meta: { year: 1990 } }] });
+    emit({ kind: 'cachedMore', books: [b], complete: true });
+    expect(store.books().map((x) => x.meta?.year)).toEqual([1990, undefined]);
+  });
 });
