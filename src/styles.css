@@ -33,7 +33,7 @@
   /* quiet icons of the reader's toolbar (design 014): the text colour, dimmed */
   --color-icon-quiet: color-mix(in srgb, var(--color-text) 72%, transparent);
   --color-icon-quiet-hover: color-mix(in srgb, var(--color-text) 10%, transparent);
-  --color-progress: #60a5fa;
+  --color-progress: #0098db;
   /* group tiles (design 011) */
   --color-badge-bg: rgb(15 18 25 / 78%);
   --color-badge-text: #ffffff;
@@ -76,9 +76,9 @@
     --color-toolbar-overlay: rgb(22 25 32 / 80%);
     --color-reader-bg: #08090b;
     --color-reader-text: #d6d9df;
-    --color-progress: #60a5fa;
-    --color-badge-bg: rgb(96 165 250 / 92%);
-    --color-badge-text: #0b1220;
+    --color-progress: #0098db;
+    --color-badge-bg: #0098db;
+    --color-badge-text: #fff;
     --color-group-edge: rgb(255 255 255 / 30%);
     --color-group-edge-2: rgb(255 255 255 / 14%);
     --color-group-shade: rgb(0 0 0 / 85%);
@@ -106,9 +106,9 @@
   --color-toolbar-overlay: rgb(22 25 32 / 80%);
   --color-reader-bg: #08090b;
   --color-reader-text: #d6d9df;
-  --color-progress: #60a5fa;
-  --color-badge-bg: rgb(96 165 250 / 92%);
-  --color-badge-text: #0b1220;
+  --color-progress: #0098db;
+  --color-badge-bg: #0098db;
+  --color-badge-text: #fff;
   --color-group-edge: rgb(255 255 255 / 30%);
   --color-group-edge-2: rgb(255 255 255 / 14%);
   --color-group-shade: rgb(0 0 0 / 85%);
@@ -293,7 +293,7 @@ input[type='radio'] {
     top: 14px;
     right: 14px;
     z-index: 2;
-    min-width: 1.6em;
+    min-width: 32px;
     padding: 1px 6px;
     border-radius: 999px;
     background: var(--color-badge-bg);
