@@ -9,6 +9,8 @@ export interface CoverCellContext {
   isFocused(book: BookEntry): boolean;
   /** Height of a cover – row 0 is higher (padding below the floating toolbar). */
   coverHeight(): number;
+  /** Part read (0…1) or `null` (never opened) – design 005 E5. */
+  progress(book: BookEntry): number | null;
 }
 
 /**
@@ -53,6 +55,15 @@ export class CoverRenderer implements CellRendererIf {
       img.addEventListener('error', onError, { once: true });
       img.src = src;
       cover.appendChild(img);
+    }
+    const progress = this.ctx.progress(book);
+    if (progress !== null) {
+      const bar = doc.createElement('div');
+      bar.className = 'cc-progress';
+      const fill = doc.createElement('div');
+      fill.style.width = `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%`;
+      bar.appendChild(fill);
+      cover.appendChild(bar);
     }
     cellDiv.appendChild(cover);
     return () => img?.removeEventListener('error', onError);

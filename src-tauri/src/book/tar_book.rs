@@ -4,7 +4,8 @@
 //! choose a cover). Only regular files are listed.
 
 use super::{
-    Budget, Entry, MAX_ENTRIES, MAX_TAR_META, archive_error, read_limited, too_large, too_many,
+    Budget, Entry, MAX_ENTRIES, MAX_TAR_META, OnRead, Take, archive_error, fatal, read_limited,
+    take_from, too_large, too_many,
 };
 use crate::error::FsError;
 use std::fs::File;
@@ -89,4 +90,28 @@ pub(super) fn read(
         Ok(false)
     })?;
     data.ok_or_else(|| archive_error("entry not found", path))
+}
+
+/// One pass in book order.
+pub(super) fn read_many(
+    path: &Path,
+    wanted: &[usize],
+    take: Take,
+    budget: &Budget<'_>,
+    on: OnRead<'_>,
+) -> Result<(), FsError> {
+    let mut left: std::collections::HashSet<usize> = wanted.iter().copied().collect();
+    walk(path, budget, &mut |pos, e| {
+        if !left.remove(&pos) {
+            return Ok(true);
+        }
+        let size = e.size();
+        let outcome = take_from(e, size, take, budget, path);
+        if let Err(err) = &outcome
+            && fatal(err)
+        {
+            return Err(err.clone());
+        }
+        Ok(on(pos, outcome) && !left.is_empty())
+    })
 }

@@ -3,13 +3,19 @@ import { CategoriesDialog } from './features/categories/categories-dialog';
 import { CategoriesStore } from './features/categories/categories.store';
 import { ImportDialog } from './features/categories/import-dialog';
 import { CategoryView } from './features/category/category-view';
+import { Reader } from './features/reader/reader';
+import { ReaderService } from './features/reader/reader.service';
 import { DialogService } from './shared/dialog/dialog.service';
 
 @Component({
   selector: 'app-root',
-  imports: [CategoryView, CategoriesDialog, ImportDialog],
+  imports: [CategoryView, CategoriesDialog, ImportDialog, Reader],
   template: `
-    <app-category-view class="shell" />
+    <!-- the reader lies over the mounted category view (design 005 E6) -->
+    <app-category-view class="shell" [inert]="reader.session() !== null" />
+    @if (reader.session()) {
+      <app-reader />
+    }
     @switch (dialogs.open()) {
       @case ('categories') {
         <app-categories-dialog />
@@ -24,8 +30,10 @@ import { DialogService } from './shared/dialog/dialog.service';
 })
 export class App {
   protected readonly dialogs = inject(DialogService);
+  protected readonly reader = inject(ReaderService);
 
   constructor() {
     void inject(CategoriesStore).load();
+    void this.reader.loadPositions();
   }
 }

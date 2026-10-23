@@ -24,7 +24,10 @@
 - **Prompt 004 (Cover-Grid)** ist fertig: GuiExpert Cover-Grid randlos mit schwebender Toolbar (Filter `+/-`,
   Größe, Sortierung), eigener Cursor + Tastatur, Aktionsmenü (Standard-App, Finder, Serie filtern, Pfad kopieren),
   Ansichtszustand je Kategorie, Scan-Ereignisse in Teilen. Design: `prompts/done/004-cover-grid.design.md`.
-- Als Nächstes: **005** (Leser). Reihenfolge und Status: `prompts/README.md`.
+- **Prompt 005 (Leser)** ist fertig: Seiten direkt aus dem Buch (ZIP/TAR/nicht-solides RAR) bzw. einmal in den
+  App-Cache entpackt (7z, solides RAR), Schema `ccpage` mit Token, Einzelseite/fortlaufend, Manga, Vollbild,
+  Lesestand in `reading-state.json` + Balken am Cover. Design: `prompts/done/005-leser.design.md`.
+- Als Nächstes: **006** (PDF). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
   begründet.
@@ -67,6 +70,8 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   app/core/about/             AppInfo, AboutApi
   app/core/covers/            CoversApi: Cover-URL (Schema cccover, `<cat>.<book>.<dim>?v=<mtime>`)
   app/core/books/             BooksApi: Buch mit Standard-App öffnen / im Dateimanager zeigen (nur Ids)
+  app/core/reader/            ReaderApi: open/close (Token, Channel ReaderEvent), pageUrl (Schema ccpage), Lesestand,
+                              Vollbild; DTOs = Rust reader/model.rs, reading_state.rs
   app/features/categories/    CategoriesStore (Root: Konfig, aktive Kategorie, Import), category-form.ts (rein: Listen
                               = Rust, Prüfung), Dialog „Manage categories“, ImportDialog, Texte
   app/features/category/      CategoryStore (je Ansicht, ereignisgetrieben, Cache in Teilen), CategoryView (schwebende
@@ -76,8 +81,11 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
                               CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
                               in styles.css), BookMenu, rein: filter-logic (+ .cases.json), series-filter, grid-math,
                               view-state, cover-retries
+  app/features/reader/        Leser (005): ReaderService (Root: Sitzung = Buchliste + Index, Lesestände, closedOn),
+                              ReaderStore (je Leser: Buch, Seite, Größen, Einstellungen, Position speichern), Reader
+                              (Ebene über der Kategorie-Ansicht, Tasten am document), rein: reader-logic, reader-settings
   app/shared/dialog/          Modal (Fokusfalle, Esc), DialogService (ein Dialog, Fokus zurück) – aus files-and-folders
-  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi), Fixtures – nie im
+  testing/                    Fakes (FakeCategoriesApi, FakeScanApi, FakeCoversApi, FakeBooksApi, FakeReaderApi), Fixtures – nie im
                               Produktivcode importieren
   test-setup.ts               Vitest-Setup (ResizeObserver für jsdom, fnf G11)
 public/                       favicon.png
@@ -94,6 +102,9 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               FFI, fnf); Budget (Zeit/Abbruch), Grenzen; tests.rs mit Generatoren (cbz/cbt/cb7/cbr4)
   src/cover/                  choose (Titelseite), image (Decoder mit Limits, JPEG), sidecar (alte Thumbs lesen),
                               cache (App-Cache, 2 GiB), pool (LIFO), mod.rs (URL parsen, CoverService, Status)
+  src/reader/                 Leser (005): mod.rs (ReaderService: Sitzungen/Token, Durchlauf Maße/Entpacken, serve,
+                              Gate, LRU), page_cache (App-Cache pages/, trim), image (sniff, Maße, skalieren), url, model
+  src/reading_state.rs        reading-state.json (≤ 5 000 Bücher)
   src/book_registry.rs        Buch-Ids der Scans → Pfade (nur Gelistetes wird ausgeliefert/geöffnet)
   src/opener.rs               Buch auflösen (Registry) + mit Standard-App öffnen (fnf, `open` crate)
   src/platform/desktop.rs     reveal je OS (Finder/Explorer/D-Bus, Argument-Arrays, fnf)

@@ -15,6 +15,7 @@ import { BookEntry } from '../../core/scan/scan.models';
 import { CategoriesStore } from '../categories/categories.store';
 import { filterKey, SortMode, sortBooksBy } from '../category/book-order';
 import { CategoryStore } from '../category/category.store';
+import { ReaderService } from '../reader/reader.service';
 import { isEmptyFilter, matchesFilter, parseFilter } from './filter-logic';
 import { CursorMove, moveCursor } from './grid-math';
 import { GRID_TEXTS } from './grid-texts';
@@ -59,6 +60,7 @@ export class GridStore {
   private readonly categories = inject(CategoriesStore);
   private readonly scan = inject(CategoryStore);
   private readonly books = inject(BooksApi);
+  private readonly reader = inject(ReaderService);
   private readonly debounceMs = inject(FILTER_DEBOUNCE_MS);
   private readonly stateStore = inject(VIEW_STATE_STORE);
   private filterTimer: ReturnType<typeof setTimeout> | undefined;
@@ -130,6 +132,17 @@ export class GridStore {
       if (!id) return;
       clearTimeout(this.saveTimer);
       this.saveTimer = setTimeout(() => saveViewState(id, state, this.stateStore), 300);
+    });
+    // back from the reader: the cursor on the book read last (design 005 E6)
+    effect(() => {
+      const closed = this.reader.closedOn();
+      if (!closed) return;
+      untracked(() => {
+        if (this.indexById().has(closed.bookId)) {
+          this.focusId.set(closed.bookId);
+          this.revealTick.update((n) => n + 1);
+        }
+      });
     });
     inject(DestroyRef).onDestroy(() => {
       clearTimeout(this.filterTimer);
@@ -221,6 +234,12 @@ export class GridStore {
   filterSeries(book: BookEntry): void {
     this.applyFilterNow(extractSeriesFilter(book.name));
     this.focusId.set(book.id);
+  }
+
+  /** Opens the reader on `book` within the filtered list (`]` / `[` follow this order). */
+  read(book: BookEntry): void {
+    const list = this.filtered();
+    this.reader.open(this.categoryId(), list, list.indexOf(book));
   }
 
   async openExternal(book: BookEntry): Promise<void> {

@@ -444,3 +444,175 @@ fn data_skipped_before_the_cover_is_bounded() {
     );
     read(&p, c, cover, MAX_ENTRY_BYTES, &budget()).unwrap();
 }
+
+/// Reads `wanted` (names) of a book with `read_many`; outcome per name in arrival order.
+fn many(path: &Path, wanted: &[&str], take: Take) -> Vec<(String, Result<Vec<u8>, FsErrorCode>)> {
+    let (container, entries) = list(path, &budget()).unwrap();
+    let positions: Vec<usize> = wanted
+        .iter()
+        .map(|w| entries.iter().find(|e| e.name == *w).unwrap().pos)
+        .collect();
+    let mut out = Vec::new();
+    read_many(
+        path,
+        container,
+        &positions,
+        take,
+        &budget(),
+        &mut |pos, r| {
+            let name = entries.iter().find(|e| e.pos == pos).unwrap().name.clone();
+            out.push((name, r.map_err(|e| e.code)));
+            true
+        },
+    )
+    .unwrap();
+    out
+}
+
+fn reader_pages() -> Vec<(&'static str, Vec<u8>)> {
+    vec![
+        ("Hägar 🦸/p1.jpg", build::jpeg(40, 60, 1)),
+        ("Hägar 🦸/notes.txt", vec![7u8; 5000]),
+        ("Hägar 🦸/p2.png", build::png(30, 20)),
+        ("Hägar 🦸/p3.jpg", build::jpeg(50, 70, 3)),
+    ]
+}
+
+fn all_books(dir: &Path) -> Vec<PathBuf> {
+    let p = reader_pages();
+    let z = dir.join("a.cbz");
+    build::cbz(&z, &p);
+    let t = dir.join("a.cbt");
+    build::cbt(&t, &p);
+    let r = dir.join("a.cbr");
+    build::cbr4(&r, &p);
+    let s = dir.join("solid.cb7");
+    build::cb7(&s, &p, true);
+    let n = dir.join("plain.cb7");
+    build::cb7(&n, &p, false);
+    vec![z, t, r, s, n]
+}
+
+#[test]
+fn read_many_reads_every_wanted_entry_once() {
+    let d = tempfile::tempdir().unwrap();
+    let want = ["Hägar 🦸/p3.jpg", "Hägar 🦸/p1.jpg", "Hägar 🦸/p2.png"];
+    for book in all_books(d.path()) {
+        let got = many(&book, &want, Take::Whole(MAX_ENTRY_BYTES));
+        assert_eq!(got.len(), 3, "{book:?}");
+        for (name, data) in &got {
+            let expected = &reader_pages().into_iter().find(|p| p.0 == name).unwrap().1;
+            assert_eq!(data.as_ref().unwrap(), expected, "{book:?} {name}");
+        }
+        let order: Vec<&str> = got.iter().map(|g| g.0.as_str()).collect();
+        if book.extension().unwrap() == "cbz" {
+            // ZIP: in the order asked
+            assert_eq!(order, want);
+        } else {
+            // the others: in book order
+            assert_eq!(
+                order,
+                ["Hägar 🦸/p1.jpg", "Hägar 🦸/p2.png", "Hägar 🦸/p3.jpg"],
+                "{book:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn read_many_prefix_and_per_entry_limits() {
+    let d = tempfile::tempdir().unwrap();
+    for book in all_books(d.path()) {
+        let got = many(
+            &book,
+            &["Hägar 🦸/p1.jpg", "Hägar 🦸/notes.txt", "Hägar 🦸/p3.jpg"],
+            Take::Prefix(100),
+        );
+        assert!(
+            got.iter().all(|g| g.1.as_ref().unwrap().len() == 100),
+            "{book:?}"
+        );
+        assert_eq!(
+            got[0].1.as_ref().unwrap()[..],
+            build::jpeg(40, 60, 1)[..100]
+        );
+        // an entry over the limit is an error of that entry only – the pass goes on in step
+        let got = many(
+            &book,
+            &["Hägar 🦸/notes.txt", "Hägar 🦸/p3.jpg"],
+            Take::Whole(4000),
+        );
+        assert_eq!(got[0].1, Err(FsErrorCode::ArchiveTooLarge), "{book:?}");
+        assert_eq!(
+            got[1].1.as_ref().unwrap(),
+            &build::jpeg(50, 70, 3),
+            "{book:?}"
+        );
+    }
+}
+
+#[test]
+fn read_many_stops_when_asked_and_on_cancel() {
+    let d = tempfile::tempdir().unwrap();
+    for book in all_books(d.path()) {
+        let (container, entries) = list(&book, &budget()).unwrap();
+        let all: Vec<usize> = entries.iter().map(|e| e.pos).collect();
+        let mut seen = 0;
+        read_many(
+            &book,
+            container,
+            &all,
+            Take::Prefix(10),
+            &budget(),
+            &mut |_, _| {
+                seen += 1;
+                false
+            },
+        )
+        .unwrap();
+        assert_eq!(seen, 1, "{book:?}");
+        let cancel = AtomicBool::new(true);
+        let cancelled = Budget::new(TIME_LIMIT, Some(&cancel));
+        let err = read_many(
+            &book,
+            container,
+            &all,
+            Take::Prefix(10),
+            &cancelled,
+            &mut |_, _| true,
+        )
+        .unwrap_err();
+        assert_eq!(err.code, FsErrorCode::Timeout, "{book:?}");
+    }
+}
+
+#[test]
+fn sequential_books() {
+    let d = tempfile::tempdir().unwrap();
+    let books = all_books(d.path());
+    let seq: Vec<bool> = books
+        .iter()
+        .map(|b| is_sequential(b, detect(b).unwrap()).unwrap())
+        .collect();
+    assert_eq!(seq, [false, false, false, true, true]);
+    let solid = testdata("rar-solid.rar");
+    assert!(is_sequential(&solid, Container::Rar).unwrap());
+    // the pass over a solid RAR gets every file
+    let (c, entries) = list(&solid, &budget()).unwrap();
+    let all: Vec<usize> = entries.iter().map(|e| e.pos).collect();
+    let mut n = 0;
+    read_many(
+        &solid,
+        c,
+        &all,
+        Take::Whole(MAX_ENTRY_BYTES),
+        &budget(),
+        &mut |_, r| {
+            assert!(r.is_ok());
+            n += 1;
+            true
+        },
+    )
+    .unwrap();
+    assert_eq!(n, entries.len());
+}

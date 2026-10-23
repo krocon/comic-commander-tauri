@@ -11,9 +11,12 @@ use crate::cover::{self, CoverService, Reply};
 use crate::error::{FsError, FsErrorCode};
 use crate::legacy_import::{self, LegacyImport};
 use crate::model::AppInfo;
+use crate::reader::model::{OpenedBook, ReaderEvent};
+use crate::reader::{ReaderService, page_cache};
+use crate::reading_state::{ReadingPosition, ReadingState};
 use crate::scan_hub::{ScanEvent, ScanHub, Target};
 use crate::{about, opener, paths, platform, scan_cache};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::ipc::Channel;
@@ -31,6 +34,10 @@ pub struct AppState {
     registry: Arc<BookRegistry>,
     /// Created on first use (needs the app cache folder).
     covers: OnceLock<Arc<CoverService>>,
+    /// Open books of the reader (design 005), created on first use.
+    reader: OnceLock<Arc<ReaderService>>,
+    /// Reading positions, loaded on first use (design 005 E5); one writer at a time.
+    reading: Mutex<Option<ReadingState>>,
 }
 
 /// Runs blocking work off the async runtime.
@@ -272,6 +279,130 @@ pub async fn reveal_book(
     .await
 }
 
+/// Opens a listed book in the reader (design 005): pages, token, the remembered page; sizes
+/// and the end of the background pass arrive as events.
+#[tauri::command]
+pub async fn open_book(
+    app: AppHandle,
+    category_id: String,
+    book_id: String,
+    on_event: Channel<ReaderEvent>,
+) -> Result<OpenedBook, FsError> {
+    blocking(move || {
+        let path = opener::resolve_book(&app.state::<AppState>().registry, &category_id, &book_id)?;
+        let sink: crate::reader::Sink = Arc::new(move |e| {
+            // a closed window just drops the events
+            let _ = on_event.send(e);
+        });
+        let mut opened = reader(&app)?.open(&path, sink)?;
+        let pages = opened.pages.len();
+        opened.last_page = with_reading(&app, |s| {
+            s.books.get(&book_id).map(|p| p.page).filter(|p| *p < pages)
+        })?;
+        Ok(opened)
+    })
+    .await
+}
+
+/// Closes an open book: its pass stops, its page URLs answer 404.
+#[tauri::command]
+pub async fn close_book(app: AppHandle, token: String) -> Result<(), FsError> {
+    blocking(move || {
+        reader(&app)?.close(&token);
+        Ok(())
+    })
+    .await
+}
+
+/// Remembers the page of a listed book (design 005 E5).
+#[tauri::command]
+pub async fn save_reading_position(
+    app: AppHandle,
+    category_id: String,
+    book_id: String,
+    page: usize,
+    pages: usize,
+) -> Result<(), FsError> {
+    blocking(move || {
+        // only books the scan listed (no keys from the WebView)
+        if app
+            .state::<AppState>()
+            .registry
+            .path(&category_id, &book_id)
+            .is_none()
+        {
+            return Err(FsError::new(
+                FsErrorCode::UnknownBook,
+                "the book is not in the scanned list",
+                None,
+            ));
+        }
+        let dir = config_dir(&app)?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+        let state = app.state::<AppState>();
+        let mut guard = state.reading.lock().unwrap_or_else(|e| e.into_inner());
+        let reading = guard.get_or_insert_with(|| ReadingState::load(&dir));
+        if reading.set(&book_id, page, pages, now) {
+            reading.save(&dir)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// All remembered positions (for the progress bars of the grid).
+#[tauri::command]
+pub async fn load_reading_state(
+    app: AppHandle,
+) -> Result<HashMap<String, ReadingPosition>, FsError> {
+    blocking(move || with_reading(&app, |s| s.books.clone())).await
+}
+
+/// Full screen on/off (design 005 E11: a command instead of a window permission).
+#[tauri::command]
+pub async fn toggle_fullscreen(window: tauri::WebviewWindow) -> Result<bool, FsError> {
+    let on = !window
+        .is_fullscreen()
+        .map_err(|e| io_error(e.to_string()))?;
+    window
+        .set_fullscreen(on)
+        .map_err(|e| io_error(e.to_string()))?;
+    Ok(on)
+}
+
+fn with_reading<T>(app: &AppHandle, f: impl FnOnce(&ReadingState) -> T) -> Result<T, FsError> {
+    let dir = config_dir(app)?;
+    let state = app.state::<AppState>();
+    let mut guard = state.reading.lock().unwrap_or_else(|e| e.into_inner());
+    Ok(f(guard.get_or_insert_with(|| ReadingState::load(&dir))))
+}
+
+/// The reader service of the app (created on first use).
+pub fn reader(app: &AppHandle) -> Result<Arc<ReaderService>, FsError> {
+    let state = app.state::<AppState>();
+    if let Some(r) = state.reader.get() {
+        return Ok(r.clone());
+    }
+    let dir = cache_dir(app)?;
+    Ok(state
+        .reader
+        .get_or_init(|| ReaderService::new(&dir, page_cache::DEFAULT_LIMIT))
+        .clone())
+}
+
+/// Handler of the `ccpage` scheme (design 005 E7): runs on a blocking thread.
+pub fn serve_page(app: &AppHandle, url_path: &str) -> Reply {
+    let Some(req) = crate::reader::url::parse_path(url_path) else {
+        return Reply::status(404);
+    };
+    match reader(app) {
+        Ok(r) => r.serve(&req),
+        Err(_) => Reply::status(500),
+    }
+}
+
 /// The cover service of the app (created on first use).
 pub fn covers(app: &AppHandle) -> Result<Arc<CoverService>, FsError> {
     let state = app.state::<AppState>();
@@ -328,6 +459,6 @@ mod command_rules {
                 count += 1;
             }
         }
-        assert!(count >= 10);
+        assert!(count >= 15);
     }
 }

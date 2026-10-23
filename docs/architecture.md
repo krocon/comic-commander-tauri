@@ -21,10 +21,13 @@
 │ model.rs ↔ core/scan/scan.models.ts   categories.rs ↔ core/categories/categories.models.ts     │
 │ error.rs ↔ core/errors/fs-error.ts    book_registry.rs  Buch-Ids der Scans → Pfade             │
 │ book/   ZIP/RAR/7z/TAR nach Inhalt, Liste + ein Eintrag mit Grenzen (RAR: unrar-ng-sys, FFI)   │
-│ cover/  Wahl, Decoder, Sidecars, Plattencache, LIFO-Pool, Schema cccover    reader/ (005) …    │
+│ cover/  Wahl, Decoder, Sidecars, Plattencache, LIFO-Pool, Schema cccover                        │
+│ reader/ Sitzungen (Token), Seiten direkt oder entpackt, Schema ccpage   reading_state.rs (005)  │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
  Dateien:  <app config>/categories.json        <app cache>/scans/<fnv64(baseDir+Endungen)>.json
            <app cache>/covers/<xx>/<fnv64(Pfad, Größe, mtime, B×H)>.jpg
+           <app cache>/pages/<fnv64(Pfad, Größe, mtime)>/00000.img … complete.json     (005, 1 GiB)
+           <app config>/reading-state.json                                              (005)
 ```
 
 - **Kein HTTP-Server** wie in der Vorlage (legacy §1): Daten über Tauri-Commands, lange Läufe mit
@@ -63,6 +66,12 @@
 | A24 | Eigener Cursor im `GridStore` (Buch-Id), Tastatur im Capture-Listener des Grids, Table-Shortcuts aus; Screenreader über Live-Region | Cover-Grid der Table hat kein Fokusmodell und setzt `aria-activedescendant` zurück | 004 E7, E8 |
 | A25 | Filter/Sortierung/Größe im `GridStore` (rein: `filter-logic`, `series-filter`, `grid-math`, `sortBooksBy`); Ansichtszustand je Kategorie in `localStorage` (`cc.view.<id>`, v1), Position als Buch-Ids | Pixel stimmen nach Größenwechsel nicht; Einstellungen ziehen in 009 nach Rust | 004 E4, E9, E10 |
 | A26 | Bücher außerhalb der App nur über Kategorie-Id + Buch-Id (`open_book_external`, `reveal_book`); Pfad aus der `BookRegistry`; Dateimanager per Argument-Array (`/usr/bin/open -R`, `explorer.exe /select,`, D-Bus `ShowItems`) – enge Ausnahme von „keine externen Programme“ | kein Pfad aus der WebView | 004 E5 |
+| A28 | **Leser-Seiten hybrid**: ZIP/TAR/nicht-solides RAR je Seite direkt aus dem Buch; 7z und solides RAR einmal sequentiell (`book::read_many`) in den App-Cache `pages/` entpackt (≤ 2 GiB/Buch, Cache 1 GiB, älteste Bücher zuerst weg, offene nie); Anfragen warten auf ihre Seite | Seite *n* eines soliden Buchs kostet sonst das Dekodieren von 1…*n*; legacy §10.4 | 005 E1 |
+| A29 | Schema **`ccpage`** `/<token>.<seite>.<breite>`; Token aus `open_book`, gilt bis `close_book` (≤ 4 offene Bücher); nur erkannte Bildtypen (Magic), `nosniff`; ≤ 4 Seiten in Arbeit, > 16 wartend → 503; LRU 64 MiB | kein Pfad aus der WebView, kein HTML/SVG aus feindlichen Büchern | 005 E7, E8 |
+| A30 | Original-Bytes, solange das Bild ≤ 1,25 × Zielbreite (Stufen 1024…4096 aus `max(B, H) × dpr`); sonst Rust skaliert (JPEG q90, gleiche Decoder-Plätze wie Cover); > 64 MP → 422 | Speicher bei 6000-px-Scans, HiDPI | 005 E2 |
+| A31 | Lesestand in `reading-state.json` (App-Config, ≤ 5 000 Bücher, Schlüssel Buch-Id), nur für Bücher der Registry; Balken am Cover | nichts in die Comic-Ordner | 005 E5 |
+| A32 | Leser als Ebene über der montierten Kategorie-Ansicht (`inert`), Zustand im Root-`ReaderService` statt Router; Tasten am `document`, solange der Leser offen ist | Zurück ohne Wiederherstellen; Desktop ohne URL | 005 E6 |
+| A33 | Vollbild über den Command `toggle_fullscreen` statt einer Window-Capability | keine neue Berechtigung der WebView | 005 E11 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -77,6 +86,8 @@
 | `legacy_import::{LegacyImport, ImportNote}` | `categories.models.ts` | `ImportNote.index = null` = Kategorie ausgelassen |
 | `config_file::ConfigWarning` | `ConfigWarning` | `broken` / `unreadable` |
 | `model::AppInfo` | `AppInfo` in `about.models.ts` | |
+| `reader::model::{OpenedBook, PageInfo, PageDims, ReaderEvent}` | `core/reader/reader.models.ts` | `ReaderEvent` `tag = "kind"`: `dims`, `done`, `failed` |
+| `reading_state::ReadingPosition` | `ReadingPosition` | `{ page, pages, updatedMs }` |
 | `FsError { code, message, path }` | `FsError` in `fs-error.ts` | Codes `snake_case`; UI-Text nur aus `describeFsError()` |
 
 Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `categories.rs` und `category-form.ts`;
@@ -96,10 +107,19 @@ Die Listen `SUPPORTED_EXTENSIONS`, `DEFAULT_EXTENSIONS`, `ICONS` stehen in `cate
 | `cancel_scan` | `id` | `void` | – |
 | `open_book_external` | `categoryId`, `bookId` | `void` | `unknown_book`, `not_found`, `io` |
 | `reveal_book` | `categoryId`, `bookId` | `void` | `unknown_book`, `not_found`, `program_not_found`, `io` |
+| `open_book` | `categoryId`, `bookId`, `onEvent: Channel<ReaderEvent>` | `OpenedBook` | `unknown_book`, `not_found`, `unsupported_format` (PDF bis 006), `archive_*`, `no_image`, `timeout` |
+| `close_book` | `token` | `void` | – |
+| `save_reading_position` | `categoryId`, `bookId`, `page`, `pages` | `void` | `unknown_book`, `io` |
+| `load_reading_state` | – | `Record<bookId, ReadingPosition>` | – |
+| `toggle_fullscreen` | (Fenster) | `boolean` | `io` |
 
 **URI-Schema `cccover`** (kein Command, A17): `convertFileSrc('<cat>.<book>.<dim>', 'cccover')` + `?v=<mtime>` →
 `cccover://localhost/…` (macOS/Linux) bzw. `http://cccover.localhost/…` (Windows). Antwort `image/jpeg`/`image/png`
-oder Status nach A22. CSP: `img-src 'self' data: cccover: http://cccover.localhost`.
+oder Status nach A22.
+
+**URI-Schema `ccpage`** (005, A29): `convertFileSrc('<token>.<seite>.<breite>', 'ccpage')` → Bild oder 404 (Token/Seite
+unbekannt), 415 (kein Bild), 422, 503. CSP: `img-src 'self' data: cccover: http://cccover.localhost ccpage:
+http://ccpage.localhost`.
 
 ## Messungen
 
@@ -138,6 +158,19 @@ Cover 200×300 ≈ 10–25 KB, `_xl` ≈ 200–300 KB (mehr als die geschätzten
 Filter über 50 000 Bücher (Vitest, `filter-logic.perf.spec.ts`) deutlich < 50 ms; 30 × Bild-ab in 1,3 s inkl.
 `xdotool` (Debug); `Ctrl+End` sofort. Im Debug-Build ist der IPC-Transport der Engpass (~0,5 MB/s; Rust 0,7 s,
 Frontend 40–60 ms je Ereignis). Auf dem Mac nachmessen.
+
+**Leser (Design 005, 23.10.2026)** – Container (2 Kerne), Release-Build, `cargo test --release --lib -- --ignored
+--nocapture measure_reader`, 200 Seiten 1600 × 2400 (Zeiten ab `open`):
+
+| Buch | öffnen | erste Seite | Seite 100 | skaliert auf 1024 | Hintergrund-Durchlauf |
+|---|---|---|---|---|---|
+| CBZ (42 MiB) | 43 ms | 82 ms | 40 ms | 186 ms | 0,3 s (Maße) |
+| CBT (212 MiB) | 1 ms | 2 ms | 1 ms | 148 ms | 0,15 s |
+| CBR, RAR4 gespeichert (211 MiB) | 2 ms | 5 ms | 2 ms | 147 ms | – |
+| CB7 solide (LZMA2) | 1 ms | 10 ms | 454 ms (wartet aufs Entpacken) | 161 ms | 0,9 s (entpackt) |
+
+Akzeptanz „erste Seite < 500 ms“ erfüllt. Im Debug-Build dauert das Skalieren großer Seiten (6000 × 9000) mehrere
+Sekunden – nur Release messen. Echte CBR (RAR5, solide, komprimiert) aus Marcs Sammlung: auf dem Mac nachmessen.
 
 ## Abhängigkeiten
 

@@ -38,6 +38,7 @@ import {
 } from './grid-math';
 import { GRID_TEXTS } from './grid-texts';
 import { GridStore } from './grid.store';
+import { ReaderService } from '../reader/reader.service';
 
 /** Height of the floating toolbar = padding above the first row (design 004 „Zielbild“). */
 export const GRID_TOP = 56;
@@ -74,8 +75,8 @@ function scrollbarWidth(doc: Document): number {
  * gets its books from the `GridStore` (sorted, filtered) – the table only shows them; the model
  * is built once, new books (background scan, filter) go into it without a new table.
  *
- * Keyboard (E7): arrows, Home/End, PgUp/PgDn move the cursor, Enter reads (until prompt 005:
- * default app), Space/Shift+F10/context key open the actions, typing goes to the filter
+ * Keyboard (E7): arrows, Home/End, PgUp/PgDn move the cursor, Enter reads (PDF: default app until
+ * prompt 006), Space/Shift+F10/context key open the actions, typing goes to the filter
  * (`typed`), Esc clears the filter. The table's own shortcuts are off. Screen readers hear the
  * focused book through a live region (the table resets `aria-activedescendant` in every pass –
  * the cover grid has no focus model, see design 004 E8).
@@ -91,6 +92,7 @@ export class CoverGrid {
   protected readonly store = inject(GridStore);
   private readonly scan = inject(CategoryStore);
   private readonly covers = inject(CoversApi);
+  private readonly reader = inject(ReaderService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly t = GRID_TEXTS;
 
@@ -125,6 +127,10 @@ export class CoverGrid {
       if (url !== null) this.retries.failed(url);
     },
     isFocused: (b) => b.id === untracked(this.store.focusId),
+    progress: (b) => {
+      const p = untracked(this.reader.positions)[b.id];
+      return p && p.pages > 0 ? (p.page + 1) / p.pages : null;
+    },
     coverHeight: () => untracked(this.layout).coverHeight,
   });
 
@@ -202,6 +208,16 @@ export class CoverGrid {
     effect(() => {
       this.store.revealTick();
       untracked(() => this.reveal(this.store.cursor()));
+    });
+    // reading positions (design 005 E5): the bars
+    effect(() => {
+      this.reader.positions();
+      untracked(() => this.repaintSoon());
+    });
+    // back from the reader: the grid gets the focus again (the cursor is set by the store)
+    effect(() => {
+      if (!this.reader.closedOn()) return;
+      untracked(() => setTimeout(() => this.focus()));
     });
     // a new loaded size: other URLs
     effect(() => {
@@ -369,7 +385,11 @@ export class CoverGrid {
 
   private async act(action: BookAction, book: BookEntry): Promise<void> {
     switch (action) {
-      case 'read': // the reader follows in prompt 005
+      case 'read':
+        // PDF follows in prompt 006 (design 005 E12): the default app until then
+        if (book.format === 'pdf') return this.store.openExternal(book);
+        this.store.read(book);
+        return;
       case 'open':
         return this.store.openExternal(book);
       case 'reveal':
