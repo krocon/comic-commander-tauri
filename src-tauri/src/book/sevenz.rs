@@ -6,9 +6,13 @@
 //!
 //! `memory_need` and the error mapping follow files-and-folders `archive/sevenz.rs`.
 
-use super::{Budget, Entry, MAX_DICT, archive_error, drain, encrypted, read_limited, too_large};
+use super::{
+    Budget, Entry, MAX_DICT, OnRead, Take, archive_error, drain, encrypted, fatal, read_limited,
+    take_from, too_large,
+};
 use crate::error::FsError;
 use sevenz_rust2::{Archive, Block, BlockDecoder, EncoderMethod, Password};
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{BufReader, Seek, SeekFrom};
 use std::path::Path;
@@ -189,4 +193,100 @@ pub(super) fn read(
     }
     result.map_err(|e| map_error(e, path))?;
     data.ok_or_else(|| archive_error("entry not found", path))
+}
+
+/// One pass: every block that holds a wanted entry is decoded once, in book order; the other
+/// entries of the block are drained (they must be read, design 005 E1).
+pub(super) fn read_many(
+    path: &Path,
+    wanted: &[usize],
+    take: Take,
+    budget: &Budget<'_>,
+    on: OnRead<'_>,
+) -> Result<(), FsError> {
+    let (mut reader, archive) = open(path)?;
+    // block → wanted entries (by address: the decoder hands out `&ArchiveEntry`)
+    let mut blocks: BTreeMap<usize, HashMap<*const sevenz_rust2::ArchiveEntry, usize>> =
+        BTreeMap::new();
+    for &pos in wanted {
+        let Some(file) = archive.files.get(pos) else {
+            if !on(pos, Err(archive_error("entry not found", path))) {
+                return Ok(());
+            }
+            continue;
+        };
+        match archive
+            .stream_map
+            .file_block_index
+            .get(pos)
+            .copied()
+            .flatten()
+        {
+            Some(b) => {
+                blocks.entry(b).or_default().insert(file as *const _, pos);
+            }
+            None => {
+                if !on(pos, Err(archive_error("entry has no data", path))) {
+                    return Ok(());
+                }
+            }
+        }
+    }
+    let password = Password::empty();
+    for (block_index, mut entries) in blocks {
+        budget.check(path)?;
+        let block = archive
+            .blocks
+            .get(block_index)
+            .ok_or_else(|| archive_error("broken 7z: block missing", path))?;
+        if let Err(e) = check_block(block, path) {
+            let mut positions: Vec<usize> = entries.values().copied().collect();
+            positions.sort_unstable();
+            for pos in positions {
+                if !on(pos, Err(e.clone())) {
+                    return Ok(());
+                }
+            }
+            continue;
+        }
+        let mut failure: Option<FsError> = None;
+        let mut stopped = false;
+        let decoder = BlockDecoder::new(1, block_index, &archive, &password, &mut reader);
+        let result = decoder.for_each_entries(&mut |e, r| {
+            let step = match entries.remove(&(e as *const _)) {
+                Some(pos) => {
+                    let outcome = take_from(r, e.size, take, budget, path);
+                    match outcome {
+                        Err(err) if fatal(&err) => Err(err),
+                        outcome => {
+                            // the rest of the entry (a prefix, or data beyond the limit)
+                            let drained = drain(r, budget, path);
+                            if on(pos, outcome) {
+                                drained.map(|()| !entries.is_empty())
+                            } else {
+                                stopped = true;
+                                Ok(false)
+                            }
+                        }
+                    }
+                }
+                None => drain(r, budget, path).map(|()| true),
+            };
+            match step {
+                Ok(go_on) => Ok(go_on),
+                Err(err) => {
+                    failure = Some(err);
+                    Ok(false)
+                }
+            }
+        });
+        if let Some(err) = failure {
+            return Err(err);
+        }
+        if stopped {
+            return Ok(());
+        }
+        result.map_err(|e| map_error(e, path))?;
+    }
+    Ok(())
 }

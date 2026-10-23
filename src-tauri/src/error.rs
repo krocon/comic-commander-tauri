@@ -1,11 +1,11 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io;
 use std::path::Path;
 
 /// Machine-readable error codes. Serialised as `snake_case` strings so the frontend can map
 /// them to user-facing texts (`describeFsError()` in `src/app/core/errors/fs-error.ts`).
 /// A new code goes into both files.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FsErrorCode {
     NotFound,

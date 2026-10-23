@@ -15,6 +15,8 @@
 //! - [`book_registry`] which books the scans listed – the only ones covers are served for
 //! - [`opener`]        open a listed book with the default app (design 004 E5, from files-and-folders)
 //! - [`platform`]      OS functions with one signature each: `desktop::reveal` (design 004 E5)
+//! - [`reader`]        open books, pages in reading order, page cache, scheme `ccpage` (design 005)
+//! - [`reading_state`] last page per book in `reading-state.json` (design 005 E5)
 //! - [`about`]         data for the About dialog (version, platform)
 //! - [`commands`]      thin Tauri command layer (validate, `spawn_blocking`, never synchronous)
 
@@ -32,6 +34,8 @@ pub mod model;
 pub mod opener;
 pub mod paths;
 pub mod platform;
+pub mod reader;
+pub mod reading_state;
 pub mod scan;
 pub mod scan_cache;
 pub mod scan_hub;
@@ -47,6 +51,8 @@ fn http_reply(reply: cover::Reply) -> tauri::http::Response<Vec<u8>> {
         .status(reply.status)
         .header(tauri::http::header::CONTENT_TYPE, reply.mime)
         .header(tauri::http::header::CACHE_CONTROL, cache)
+        // never sniffed into something else (design 005 E7)
+        .header("X-Content-Type-Options", "nosniff")
         .body(reply.body)
         .unwrap_or_else(|_| {
             let mut r = tauri::http::Response::new(Vec::new());
@@ -74,12 +80,27 @@ pub fn run() {
                 );
             });
         })
+        // pages of the reader (design 005 E7): blocking threads, the reader limits the work
+        .register_asynchronous_uri_scheme_protocol(
+            reader::url::SCHEME,
+            |ctx, request, responder| {
+                let app = ctx.app_handle().clone();
+                let path = request.uri().path().to_owned();
+                tauri::async_runtime::spawn_blocking(move || {
+                    responder.respond(http_reply(commands::serve_page(&app, &path)));
+                });
+            },
+        )
         .setup(|app| {
             // trim the cover cache once per start, in the background
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 if let Ok(c) = commands::covers(&handle) {
                     c.trim_cache();
+                }
+                // pages unpacked in earlier sessions (design 005 E1)
+                if let Ok(r) = commands::reader(&handle) {
+                    r.trim_cache();
                 }
             });
             Ok(())
@@ -95,6 +116,11 @@ pub fn run() {
             commands::cancel_scan,
             commands::open_book_external,
             commands::reveal_book,
+            commands::open_book,
+            commands::close_book,
+            commands::save_reading_position,
+            commands::load_reading_state,
+            commands::toggle_fullscreen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

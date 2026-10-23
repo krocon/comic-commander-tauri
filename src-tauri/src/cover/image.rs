@@ -125,6 +125,24 @@ pub fn thumbnail_jpeg(
     Ok(out)
 }
 
+/// A page scaled to `width` (aspect kept, never enlarged) as JPEG – for the reader (design 005
+/// E2). Shares the decode permits with the covers.
+pub fn scale_jpeg(data: &[u8], width: u32, quality: u8, path: &Path) -> Result<Vec<u8>, FsError> {
+    let _permit = Permit::take();
+    let img = decode(data, path)?;
+    let img = if img.width() > width {
+        img.thumbnail(width, u32::MAX)
+    } else {
+        img
+    };
+    let rgb = img.to_rgb8();
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality)
+        .encode_image(&rgb)
+        .map_err(|e| bad(format!("the page cannot be scaled ({e})"), path))?;
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

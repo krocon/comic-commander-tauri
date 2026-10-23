@@ -231,6 +231,99 @@ pub fn read(
     }
 }
 
+/// How much of each entry [`read_many`] reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Take {
+    /// The whole entry, at most this many bytes (else `archive_too_large` for that entry).
+    Whole(u64),
+    /// The first bytes only (an image header), never an error for a larger entry.
+    Prefix(u64),
+}
+
+/// Gets every outcome of [`read_many`]: (position, data or the error of this entry). `false`
+/// stops the pass.
+pub type OnRead<'a> = &'a mut dyn FnMut(usize, Result<Vec<u8>, FsError>) -> bool;
+
+/// Reads the entries at `wanted` (positions from [`list`]) in **one pass** over the book –
+/// for the reader (design 005 E1/E9): unpacking a solid book costs one decode instead of one
+/// per page. ZIP gets them in the order of `wanted`, the other containers in book order.
+/// Errors of one entry (too large, encrypted, broken data) go to `on`; an error of the whole
+/// book (unreadable, time limit, cancel) ends the pass with `Err`.
+pub fn read_many(
+    path: &Path,
+    container: Container,
+    wanted: &[usize],
+    take: Take,
+    budget: &Budget<'_>,
+    on: OnRead<'_>,
+) -> Result<(), FsError> {
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    match container {
+        Container::Zip => zip_book::read_many(path, wanted, take, budget, on),
+        Container::Tar => tar_book::read_many(path, wanted, take, budget, on),
+        Container::SevenZ => sevenz::read_many(path, wanted, take, budget, on),
+        Container::Rar => rar_read_many(path, wanted, take, budget, on),
+        Container::Pdf => Err(FsError::new(
+            FsErrorCode::UnsupportedFormat,
+            "PDF follows in prompt 006",
+            Some(path),
+        )),
+    }
+}
+
+/// `true` when a page can only be reached by decoding the ones before it: 7z (blocks are
+/// solid as a rule) and solid RAR (design 005 E1).
+pub fn is_sequential(path: &Path, container: Container) -> Result<bool, FsError> {
+    Ok(match container {
+        Container::SevenZ => true,
+        Container::Rar => rar::RarArchive::open(path, false, None)?.solid,
+        _ => false,
+    })
+}
+
+/// Reads an entry as [`Take`] says (the reader of the entry stays usable: a prefix leaves the
+/// rest unread – solid containers drain it themselves).
+pub(crate) fn take_from(
+    r: &mut dyn Read,
+    expected: u64,
+    take: Take,
+    budget: &Budget<'_>,
+    path: &Path,
+) -> Result<Vec<u8>, FsError> {
+    match take {
+        Take::Whole(max) => read_limited(r, expected, max, budget, path),
+        Take::Prefix(n) => {
+            let mut out = Vec::with_capacity(expected.min(n) as usize);
+            let mut buf = vec![0u8; 64 << 10];
+            while (out.len() as u64) < n {
+                budget.check(path)?;
+                let want = (n - out.len() as u64).min(buf.len() as u64) as usize;
+                let got = r
+                    .read(&mut buf[..want])
+                    .map_err(|e| archive_error(format!("broken data: {e}"), path))?;
+                if got == 0 {
+                    break;
+                }
+                out.extend_from_slice(&buf[..got]);
+            }
+            Ok(out)
+        }
+    }
+}
+
+/// `true` for errors that end a whole pass (the book, not one entry).
+pub(crate) fn fatal(e: &FsError) -> bool {
+    matches!(
+        e.code,
+        FsErrorCode::Timeout
+            | FsErrorCode::NotFound
+            | FsErrorCode::PermissionDenied
+            | FsErrorCode::Io
+    )
+}
+
 /// Reads `r` into memory: at most `max` bytes (else `archive_too_large` – the declared size can
 /// lie), checking the budget every 64 KiB.
 pub(crate) fn read_limited(
@@ -351,6 +444,92 @@ fn rar_read(
         pos += 1;
     }
     Err(archive_error("entry not found", path))
+}
+
+fn rar_read_many(
+    path: &Path,
+    wanted: &[usize],
+    take: Take,
+    budget: &Budget<'_>,
+    on: OnRead<'_>,
+) -> Result<(), FsError> {
+    let mut left: std::collections::HashSet<usize> = wanted.iter().copied().collect();
+    let mut archive = rar::RarArchive::open(path, true, budget.cancel)?;
+    let mut pos = 0usize;
+    while !left.is_empty() {
+        let Some(h) = archive.next_header()? else {
+            break;
+        };
+        budget.check(path)?;
+        if left.remove(&pos) {
+            if h.encrypted {
+                // a solid stream cannot go on without the password
+                if archive.solid {
+                    return Err(encrypted(path));
+                }
+                archive.skip(&h)?;
+                if !on(pos, Err(encrypted(path))) {
+                    return Ok(());
+                }
+                pos += 1;
+                continue;
+            }
+            let (max, prefix) = match take {
+                Take::Whole(m) => (m, false),
+                Take::Prefix(n) => (n, true),
+            };
+            let mut data: Vec<u8> = Vec::with_capacity(h.size.min(max) as usize);
+            let mut over = false;
+            // never stop in the middle of an entry (the stream must stay in step): data beyond
+            // the limit is decoded and dropped
+            let complete = archive.test_into(&h, &mut |chunk| {
+                let room = (max as usize).saturating_sub(data.len());
+                if chunk.len() > room {
+                    if prefix {
+                        data.extend_from_slice(&chunk[..room]);
+                    } else {
+                        over = true;
+                    }
+                } else if !over {
+                    data.extend_from_slice(chunk);
+                }
+                budget.ok()
+            })?;
+            if !complete {
+                return Err(timeout(path));
+            }
+            let outcome = if over {
+                Err(too_large(
+                    format!("entry larger than {} MiB", max >> 20),
+                    path,
+                ))
+            } else {
+                Ok(data)
+            };
+            if !on(pos, outcome) {
+                return Ok(());
+            }
+        } else {
+            let went_on = if archive.solid {
+                let mut over = false;
+                let r = archive.test_into(&h, &mut |chunk| {
+                    over = !budget.skip(chunk.len());
+                    !over && budget.ok()
+                })?;
+                if over {
+                    return Err(budget.skip_error(path));
+                }
+                r
+            } else {
+                archive.skip(&h)?
+            };
+            if !went_on {
+                return Err(timeout(path));
+            }
+        }
+        pos += 1;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

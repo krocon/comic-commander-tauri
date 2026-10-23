@@ -4,7 +4,8 @@
 //! crate would build every record first (review 003 #1). Entries are read with a byte limit.
 
 use super::{
-    Budget, Entry, MAX_ENTRIES, archive_error, encrypted, read_limited, too_large, too_many,
+    Budget, Entry, MAX_ENTRIES, OnRead, Take, archive_error, encrypted, fatal, read_limited,
+    take_from, too_large, too_many,
 };
 use crate::error::FsError;
 use std::fs::File;
@@ -136,4 +137,34 @@ pub(super) fn read(
     let mut z = open(path)?;
     let mut f = z.by_index(entry.pos).map_err(|e| map_error(e, path))?;
     read_limited(&mut f, entry.size, max_bytes, budget, path)
+}
+
+/// One pass over `wanted` (in that order; the directory is read once).
+pub(super) fn read_many(
+    path: &Path,
+    wanted: &[usize],
+    take: Take,
+    budget: &Budget<'_>,
+    on: OnRead<'_>,
+) -> Result<(), FsError> {
+    let mut z = open(path)?;
+    for &pos in wanted {
+        budget.check(path)?;
+        let outcome = match z.by_index(pos) {
+            Ok(mut f) => {
+                let size = f.size();
+                take_from(&mut f, size, take, budget, path)
+            }
+            Err(e) => Err(map_error(e, path)),
+        };
+        if let Err(e) = &outcome
+            && fatal(e)
+        {
+            return Err(e.clone());
+        }
+        if !on(pos, outcome) {
+            break;
+        }
+    }
+    Ok(())
 }
