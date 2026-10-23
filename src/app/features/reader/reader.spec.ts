@@ -8,6 +8,10 @@ import { VIEW_STATE_STORE } from '../grid/grid.store';
 import { BAR_IDLE_MS, PAGE_RETRY_MS, Reader } from './reader';
 import { ANNOUNCE_MS, SAVE_DELAY_MS } from './reader.store';
 import { ReaderService } from './reader.service';
+import { wireKeyboard } from '../../../testing/keyboard';
+
+const cleanups: (() => void)[] = [];
+afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
 const wait = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -37,7 +41,10 @@ async function setup(
   api.books.set(list[0].id, answer ?? pagesBook(10, 'tok1'));
   const service = TestBed.inject(ReaderService);
   service.open('c1', list, 0);
+  cleanups.push(wireKeyboard());
   const fixture = TestBed.createComponent(Reader);
+  document.body.appendChild(fixture.nativeElement);
+  cleanups.push(() => fixture.nativeElement.remove());
   fixture.detectChanges();
   await wait();
   await fixture.whenStable();
@@ -89,7 +96,7 @@ describe('Reader', () => {
     expect(page()).toBe('Page 2 of 10');
     await press('End');
     expect(page()).toBe('Page 10 of 10');
-    await press('ArrowLeft', { metaKey: true });
+    await press('ArrowLeft', { ctrlKey: true });
     expect(page()).toBe('Page 1 of 10');
     await press('m');
     await press('ArrowLeft');

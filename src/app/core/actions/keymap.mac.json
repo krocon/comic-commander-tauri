@@ -1,0 +1,5 @@
+{
+  "global": { "Mod+,": "app.settings" },
+  "grid": {},
+  "reader": { "Mod+Ctrl+f": "reader.fullscreen", "F11": "reader.fullscreen" }
+}

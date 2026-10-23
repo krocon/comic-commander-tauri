@@ -17,8 +17,13 @@ import { ReaderApi } from '../../core/reader/reader-api';
 import { JobsApi } from '../../core/jobs/jobs-api';
 import { FakeJobsApi } from '../../../testing/fake-jobs-api';
 import { FakeReaderApi } from '../../../testing/fake-reader-api';
+import { wireKeyboard } from '../../../testing/keyboard';
+import { AppActions } from '../menus/app-actions';
 
 const flush = () => new Promise((r) => setTimeout(r));
+
+const cleanups: (() => void)[] = [];
+afterEach(() => cleanups.splice(0).forEach((f) => f()));
 
 async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provider[] = []) {
   TestBed.configureTestingModule({
@@ -39,6 +44,9 @@ async function render(setup?: (api: FakeCategoriesApi) => void, providers: Provi
   setup?.(api);
   const categories = TestBed.inject(CategoriesStore);
   await categories.load();
+  // keys go through the dispatcher like in the app (design 008)
+  cleanups.push(wireKeyboard());
+  TestBed.inject(AppActions).register();
   const fixture = TestBed.createComponent(CategoryView);
   await fixture.whenStable();
   await flush();
@@ -220,7 +228,7 @@ describe('CategoryView', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', ctrlKey: true }));
     await update();
     expect(scan.opened.map((o) => o.id)).toEqual(['c1', 'c1']);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', metaKey: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true }));
     await update();
     expect(categories.active()?.id).toBe('c2');
   });

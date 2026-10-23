@@ -19,7 +19,7 @@ import { GridStore } from '../grid/grid.store';
 import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
-import { ReaderService } from '../reader/reader.service';
+import { ActionService } from '../../core/actions/action.service';
 import { ThumbsJobStore } from '../jobs/thumbs-job.store';
 import { JOBS_TEXTS } from '../jobs/jobs-texts';
 import { CATEGORY_TEXTS } from './category-texts';
@@ -38,14 +38,15 @@ import { CATEGORY_TEXTS } from './category-texts';
   styleUrl: './category-view.css',
   providers: [CategoryStore, GridStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown)': 'onKeydown($event)', '[style.--grid-top.px]': 'gridTop' },
+  host: { '[style.--grid-top.px]': 'gridTop' },
 })
 export class CategoryView {
   protected readonly categories = inject(CategoriesStore);
   protected readonly store = inject(CategoryStore);
   protected readonly grid = inject(GridStore);
   private readonly dialogs = inject(DialogService);
-  private readonly reader = inject(ReaderService);
+  private readonly actions = inject(ActionService);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly job = inject(ThumbsJobStore);
   protected readonly jt = JOBS_TEXTS;
   protected readonly t = CATEGORY_TEXTS;
@@ -111,6 +112,7 @@ export class CategoryView {
       if (key === null) return;
       untracked(() => void this.store.open(this.categories.active()?.id ?? null));
     });
+    this.registerActions();
     const timer = setInterval(() => this.now.set(Date.now()), 30_000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
@@ -175,34 +177,37 @@ export class CategoryView {
     if (this.categories.active() && !this.store.scanning()) void this.store.rescan();
   }
 
-  protected onKeydown(event: KeyboardEvent): void {
-    // the reader has its own keys (design 005)
-    if (this.dialogs.open() !== null || this.reader.session() !== null || event.altKey) return;
-    if (!(event.metaKey || event.ctrlKey)) return;
-    if (event.key === '+' || event.key === '=' || event.key === '-') {
-      event.preventDefault();
-      this.grid.stepDim(event.key === '-' ? -1 : 1);
-      return;
-    }
-    if (event.shiftKey) return;
-    if (event.key === 'f' || event.key === 'F') {
-      event.preventDefault();
-      this.filterInput()?.nativeElement.focus();
-      this.filterInput()?.nativeElement.select();
-      return;
-    }
-    if (event.key === 'r' || event.key === 'R') {
-      event.preventDefault();
-      this.rescan();
-      return;
-    }
-    const n = Number(event.key);
-    if (Number.isInteger(n) && n >= 1 && n <= 9) {
-      const c = this.categories.categories()[n - 1];
-      if (c) {
-        event.preventDefault();
-        void this.categories.select(c.id);
-      }
-    }
+  /** The view's actions (design 008): scan, filter, size, order, top/bottom. */
+  private registerActions(): void {
+    const grid = () => this.showGrid();
+    const sort = (m: SortMode) => ({
+      run: () => this.grid.setSort(m),
+      enabled: grid,
+      checked: () => this.grid.sort() === m,
+    });
+    this.actions.registerAll(
+      {
+        'app.rescan': {
+          run: () => this.rescan(),
+          enabled: () => !!this.categories.active() && !this.store.scanning(),
+        },
+        'view.focusFilter': {
+          run: () => {
+            this.filterInput()?.nativeElement.focus();
+            this.filterInput()?.nativeElement.select();
+          },
+          enabled: grid,
+        },
+        'view.sizeUp': { run: () => this.grid.stepDim(1), enabled: grid },
+        'view.sizeDown': { run: () => this.grid.stepDim(-1), enabled: grid },
+        'view.sort.path': sort('path'),
+        'view.sort.name': sort('name'),
+        'view.sort.date': sort('date'),
+        'view.sort.size': sort('size'),
+        'view.toTop': { run: () => this.toTop(), enabled: grid },
+        'view.toBottom': { run: () => this.toBottom(), enabled: grid },
+      },
+      this.destroyRef,
+    );
   }
 }

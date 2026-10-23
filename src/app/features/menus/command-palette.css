@@ -1,0 +1,39 @@
+.query {
+  width: 100%;
+}
+
+.list {
+  max-height: 50vh;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius);
+    cursor: default;
+
+    &.active {
+      background: var(--color-accent);
+      color: var(--color-accent-text);
+
+      kbd {
+        color: inherit;
+      }
+    }
+  }
+
+  kbd {
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--font-size-small);
+  }
+
+  .empty {
+    color: var(--color-text-muted);
+  }
+}

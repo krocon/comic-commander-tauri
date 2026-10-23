@@ -1,0 +1,55 @@
+<div class="menubar" role="menubar" [attr.aria-label]="t.menuBar">
+  @for (m of menus(); track m.label; let i = $index) {
+    <div class="top">
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        [id]="'menubar-' + i"
+        [attr.aria-expanded]="open() === i"
+        [tabindex]="i === topFocus() ? 0 : -1"
+        (click)="toggle(i)"
+        (pointerenter)="hover(i)"
+        (keydown)="onTopKey($event, i)"
+      >
+        {{ m.label }}
+      </button>
+      @if (open() === i) {
+        <!-- the keys of the menu are handled here for all items (they carry tabindex) -->
+        <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -->
+        <ul
+          class="menu"
+          role="menu"
+          [attr.aria-labelledby]="'menubar-' + i"
+          (keydown)="onMenuKey($event)"
+        >
+          @for (r of rows(); track $index) {
+            @switch (r.kind) {
+              @case ('separator') {
+                <li role="separator"></li>
+              }
+              @case ('group') {
+                <li role="presentation" class="group">{{ r.label }}</li>
+              }
+              @case ('item') {
+                <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
+                <li
+                  [attr.role]="r.item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'"
+                  tabindex="-1"
+                  [attr.aria-checked]="r.item.checked ?? null"
+                  [attr.aria-disabled]="r.item.enabled ? null : 'true'"
+                  [class.disabled]="!r.item.enabled"
+                  (click)="choose(r.item)"
+                >
+                  <span class="check" aria-hidden="true">{{ r.item.checked ? '✓' : '' }}</span>
+                  <span class="label">{{ r.item.label }}</span>
+                  <kbd aria-hidden="true">{{ r.item.shortcut }}</kbd>
+                </li>
+              }
+            }
+          }
+        </ul>
+      }
+    </div>
+  }
+</div>

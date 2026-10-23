@@ -23,6 +23,7 @@ export type FsErrorCode =
   | 'unknown_book'
   | 'program_not_found'
   | 'job_running'
+  | 'invalid_menu'
   /** Frontend only: no Tauri backend (e.g. `pnpm start` in a browser). */
   | 'backend_unavailable'
   /** Frontend only: something that is no `FsError` was thrown. */
@@ -55,6 +56,7 @@ const KNOWN: readonly FsErrorCode[] = [
   'unknown_book',
   'program_not_found',
   'job_running',
+  'invalid_menu',
   'backend_unavailable',
   'unknown',
 ];
@@ -117,6 +119,8 @@ export function describeFsError(error: FsError): string {
       return 'The file manager could not be started.';
     case 'job_running':
       return 'This job is running already.';
+    case 'invalid_menu':
+      return 'The menu could not be built.';
     case 'backend_unavailable':
       return 'The desktop backend is not available (running in a browser?).';
     case 'unknown':
