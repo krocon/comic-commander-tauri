@@ -58,6 +58,10 @@ export const ACTIONS: readonly ActionDef[] = [
   G('view.mode.flat', 'View: all books'),
   G('view.mode.series', 'View: series'),
   G('view.mode.folders', 'View: folders'),
+  // looks (design 015)
+  G('view.look.grid', 'Look: grid'),
+  G('view.look.shelf', 'Look: shelf'),
+  G('view.look.toggle', 'Switch grid / shelf'),
   G('view.sizeUp', 'Bigger covers', { repeat: true }),
   G('view.sizeDown', 'Smaller covers', { repeat: true }),
   G('view.sort.path', 'Order: folder and name'),

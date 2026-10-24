@@ -33,7 +33,7 @@ import {
   seriesBooks,
   ViewMode,
 } from './grouping';
-import { KeyValueStore, loadViewState, saveViewState } from './view-state';
+import { KeyValueStore, Look, loadViewState, saveViewState } from './view-state';
 
 /** Pause between typing and filtering (the template: 333 ms; local data is fast). */
 export const FILTER_DEBOUNCE_MS = new InjectionToken<number>('FILTER_DEBOUNCE_MS', {
@@ -97,6 +97,8 @@ export class GridStore {
    * filter (all its volumes), back on the overview it is in force again.
    */
   readonly outerFilter = signal<string | null>(null);
+  /** Grid or shelf (design 015), remembered per category like the view. */
+  readonly look = signal<Look>('grid');
   /** Chosen size step (index into `dims()`). */
   readonly dimIndex = signal(0);
   /** Book with the keyboard cursor. */
@@ -238,6 +240,7 @@ export class GridStore {
       view: this.view(),
       level: this.level(),
       outerFilter: this.outerFilter(),
+      look: this.look(),
     };
   }
 
@@ -252,6 +255,7 @@ export class GridStore {
     this.appliedFilter.set(filter);
     this.sort.set(saved?.sort ?? 'path');
     this.view.set(saved?.view ?? 'flat');
+    this.look.set(saved?.look ?? 'grid');
     this.level.set(saved?.level ?? null);
     this.outerFilter.set(
       this.view() === 'series' && this.level() !== null ? (saved?.outerFilter ?? null) : null,
@@ -284,6 +288,15 @@ export class GridStore {
   setDim(index: number): void {
     const n = this.dims().length;
     this.dimIndex.set(Math.min(Math.max(0, index), n - 1));
+  }
+
+  /** Grid or shelf (design 015): the grid keeps the book with the cursor and the top book in view. */
+  setLook(look: Look): void {
+    this.look.set(look);
+  }
+
+  toggleLook(): void {
+    this.look.update((l) => (l === 'grid' ? 'shelf' : 'grid'));
   }
 
   /** `Mod +/−`: the next larger / smaller size. */

@@ -8,7 +8,13 @@ import { VIEW_MODES, ViewMode } from './grouping';
  *
  * v2 (design 011): view (flat / series / folders) and level; `focusId`/`topId` are tile ids
  * (book id or group id). A v1 state is read with the flat view.
+ * v3 (design 015): the look (grid / shelf); v1 and v2 are read with the grid.
  */
+
+/** How the tiles are drawn (design 015): covers edge to edge, or books on a wooden shelf. */
+export type Look = 'grid' | 'shelf';
+export const LOOKS: readonly Look[] = ['grid', 'shelf'];
+
 export interface ViewState {
   filter: string;
   dimIndex: number;
@@ -22,9 +28,10 @@ export interface ViewState {
   level: string | null;
   /** Series view in a series: the filter of the overview, in force again on the way back. */
   outerFilter?: string | null;
+  look: Look;
 }
 
-const VERSION = 2;
+const VERSION = 3;
 const PREFIX = 'cc.view.';
 
 /** Storage of the view states (tests pass their own). */
@@ -47,7 +54,7 @@ export function loadViewState(
     const raw = store?.getItem(PREFIX + categoryId);
     if (!raw) return null;
     const v = JSON.parse(raw) as Record<string, unknown>;
-    if (v['v'] !== VERSION && v['v'] !== 1) return null;
+    if (v['v'] !== VERSION && v['v'] !== 2 && v['v'] !== 1) return null;
     const str = (x: unknown) => (typeof x === 'string' ? x : null);
     const view = VIEW_MODES.includes(v['view'] as ViewMode) ? (v['view'] as ViewMode) : 'flat';
     return {
@@ -62,6 +69,7 @@ export function loadViewState(
       view,
       level: view === 'flat' ? null : str(v['level']),
       outerFilter: view === 'series' ? str(v['outerFilter']) : null,
+      look: LOOKS.includes(v['look'] as Look) ? (v['look'] as Look) : 'grid',
     };
   } catch {
     return null;

@@ -111,25 +111,44 @@ describe('GridStore', () => {
     emit();
     grid.applyFilterNow('bessy');
     grid.setSort('name');
+    grid.setLook('shelf');
     grid.focusIndex(1);
     grid.topId.set(grid.filtered()[1].id);
     TestBed.tick();
     await wait(350);
     expect(JSON.parse(data.get('cc.view.c1')!)).toMatchObject({
-      v: 2,
+      v: 3,
       filter: 'bessy',
       sort: 'name',
+      look: 'shelf',
     });
     await categories.select('c2');
     TestBed.tick();
     expect(grid.filterText()).toBe('');
     expect(grid.sort()).toBe('path');
+    expect(grid.look()).toBe('grid');
     await categories.select('c1');
     TestBed.tick();
     expect(grid.filterText()).toBe('bessy');
     expect(grid.sort()).toBe('name');
+    expect(grid.look()).toBe('shelf');
     expect(grid.restoreTopId()).toBe(grid.topId());
     expect(grid.focusId()).not.toBeNull();
+  });
+
+  it('switches the look and keeps the cursor book (design 015)', async () => {
+    const { grid, emit } = await setup();
+    emit();
+    grid.focusIndex(1);
+    const id = grid.focusId();
+    expect(grid.look()).toBe('grid');
+    grid.toggleLook();
+    expect(grid.look()).toBe('shelf');
+    expect(grid.focusId()).toBe(id);
+    grid.toggleLook();
+    expect(grid.look()).toBe('grid');
+    grid.setLook('shelf');
+    expect(grid.look()).toBe('shelf');
   });
 
   it('filters the series and runs the actions by ids', async () => {
@@ -349,7 +368,7 @@ describe('GridStore', () => {
       await categories.select('c2');
       TestBed.tick();
       const saved = JSON.parse(data.get('cc.view.c1')!);
-      expect(saved).toMatchObject({ v: 2, view: 'series', level: 'asterix' });
+      expect(saved).toMatchObject({ v: 3, view: 'series', level: 'asterix' });
       await categories.select('c1');
       TestBed.tick();
       expect(grid.view()).toBe('series');

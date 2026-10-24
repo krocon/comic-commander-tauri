@@ -40,6 +40,9 @@ export function buildMenuModel(os: Os, categories: { id: string; title: string }
     a('view.mode.folders'),
     a('grid.levelUp'),
     sep,
+    a('view.look.grid'),
+    a('view.look.shelf'),
+    sep,
     a('view.focusFilter'),
     a('view.sizeUp'),
     a('view.sizeDown'),
@@ -188,6 +191,8 @@ export function isRadio(id: string): boolean {
     id.startsWith('app.category.') ||
     id.startsWith('view.sort.') ||
     id.startsWith('view.mode.') ||
+    id === 'view.look.grid' ||
+    id === 'view.look.shelf' ||
     /^reader\.zoom\.(width|height|page|full)$/.test(id)
   );
 }

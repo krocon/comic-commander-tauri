@@ -28,3 +28,6 @@ Thumbs.db
 
 # Claude: bundles handed over from a remote session (CLAUDE.md §9)
 /.tmp-bundle
+
+# Quell-PSD des Regals (24 MB, Prompt 015) – nur lokal, scripts/shelf-slices.py liest sie
+*.psd
