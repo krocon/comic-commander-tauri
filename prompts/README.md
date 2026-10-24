@@ -35,7 +35,7 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 | 012 | [012-release-distribution.md](012-release-distribution.md) | Version, Lizenzen (unRAR, PDF), Pakete je OS, CI-Vorlagen, Signierung vorbereiten | – | M | offen |
 | 013 | [013-feature-paritaet.md](013-feature-paritaet.md) | Matrix gegen comiccommander mit Testbelegen, Lücken → neue Prompts | 002–010 | S–M | offen |
 | 014 | [014-zoom-modi.md](done/014-zoom-modi.md) | Leser: Zoom-Modi (Fit width/height/page, Full size), Zoom-Regler, Drehen links/rechts, dezente Toolbar mit sanftem Aus-/Einblenden | 005, 006, 008 | M | ✅ 23.10.2026 |
-| 015 | [015-regalansicht.md](015-regalansicht.md) | Darstellung „Regal“ wie die iBooks-Fotos (`img*.png`): Holzrückwand, Seitenwände, Böden mit Schatten, Bildfragmente; umschaltbar zum Raster | 004, 008, 011 | M–L | offen |
+| 015 | [015-regalansicht.md](done/015-regalansicht.md) | Darstellung „Regal“ wie die iBooks-Fotos (`img*.png`): Holzrückwand, Seitenwände, Böden mit Schatten, Bildfragmente; umschaltbar zum Raster | 004, 008, 011 | M–L | ✅ 24.10.2026 |
 
 ## Folge-Ideen (noch ohne Prompt)
 
@@ -44,4 +44,6 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 - Serien-Heuristik mit Marcs echter Namensliste nachschärfen (011, Katalog `book-info.cases.json`); ComicInfo auch
   aus PDF-Metadaten (Title/Author); „Im Finder zeigen“ für Ordnerkacheln (neuer Command, 011 E6).
 - Kürzel-Editor (008 E2 → 009) und ein Hilfe-Menü auf macOS mit Link auf das Repo.
+- Regal: Hefte ohne Buchrücken wie die Zeitschriften in `img_1.png` (015 E5), Regal-Standard global in den
+  Einstellungen (015 E1 → 009).
 - Lesefortschritt synchronisieren (z. B. über eine Datei im Kategorie-Ordner) – nur nach Entscheidung zu legacy §10.2.

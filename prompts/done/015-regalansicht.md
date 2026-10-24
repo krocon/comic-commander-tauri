@@ -1,8 +1,8 @@
 # Prompt 015: Regalansicht (Bücherregal aus Holz)
 
 > Braucht: 004, 008, 011 · Umfang: M–L · Branch `feat/regalansicht` · reines Frontend (Phase 2 entfällt)
-> Gemeinsame Regeln: [`000-arbeitsweise.md`](000-arbeitsweise.md). Table: `CLAUDE.md` §5. Vorgänger-Designs:
-> `done/004-cover-grid.design.md` (Layout, Cursor, Scroll), `done/011-metadaten-serien.design.md` (Gruppenkacheln).
+> Gemeinsame Regeln: [`000-arbeitsweise.md`](../000-arbeitsweise.md). Table: `CLAUDE.md` §5. Vorgänger-Designs:
+> `004-cover-grid.design.md` (Layout, Cursor, Scroll), `011-metadaten-serien.design.md` (Gruppenkacheln).
 
 ## Ziel
 
@@ -19,13 +19,13 @@ beiden Darstellungen gleich.
 
 | Datei | Zeigt | Wofür |
 |---|---|---|
-| `prompts/img.png` (1024 × 768) | iBooks-Regal quer, 6 Bücher je Boden, auch Bücher ohne Cover (beiger Leineneinband mit Etikett) | **Zielbild** Gesamteindruck, Spalten, Platzhalter-Buch |
-| `prompts/img_2.png` (768 × 1024) | iBooks-Regal hoch, fast leer, 4 Bücher, leere Böden bis unten | **Zielbild** Maße und Farben (Tabelle unten), Regal läuft leer weiter |
-| `prompts/img_1.png` (600 × 590) | Newsstand: Zeitschriften (Comic-Format!) auf dem Regal | Zeitschriften ohne Buchrücken, nur Schatten (E5) |
-| `prompts/img_3.png` (800 × 1100) | leeres Regal, sauber, ohne Bücher/Wasserzeichen | **Material**: Quelle der Bildfragmente (Rückwand, Böden, Seitenwände) |
+| `015-screenshots/img.png` (1024 × 768) | iBooks-Regal quer, 6 Bücher je Boden, auch Bücher ohne Cover (beiger Leineneinband mit Etikett) | **Zielbild** Gesamteindruck, Spalten, Platzhalter-Buch |
+| `015-screenshots/img_2.png` (768 × 1024) | iBooks-Regal hoch, fast leer, 4 Bücher, leere Böden bis unten | **Zielbild** Maße und Farben (Tabelle unten), Regal läuft leer weiter |
+| `015-screenshots/img_1.png` (600 × 590) | Newsstand: Zeitschriften (Comic-Format!) auf dem Regal | Zeitschriften ohne Buchrücken, nur Schatten (E5) |
+| `015-screenshots/img_3.png` (800 × 1100) | leeres Regal, sauber, ohne Bücher/Wasserzeichen | **Material**: Quelle der Bildfragmente (Rückwand, Böden, Seitenwände) |
 
-Die Fotos sind Referenz, nicht Spielraum: Wo dieser Prompt und ein Foto auseinandergehen, gilt das Foto. In Phase 5
-wandern sie mit dem Prompt nach `done/015-screenshots/`. Ausschnitte daraus dürfen als
+Die Fotos sind Referenz, nicht Spielraum: Wo dieser Prompt und ein Foto auseinandergehen, gilt das Foto. Dazu die
+Quell-PSD `Bookshelf.psd` (Naldz Graphics, <https://naldzgraphics.net/how-to-create-an-ibook/>; 24 MB, nur lokal). Ausschnitte daraus dürfen als
 Bildfragmente in die App (Marc, 24.10.2026); Herkunft in `docs/architecture.md` vermerken.
 
 ### Aufbau (aus `img_2.png`, `img.png` gemessen; Cover 100 × 150 px, 1×)
@@ -52,7 +52,7 @@ Bildfragmente in die App (Marc, 24.10.2026); Herkunft in `docs/architecture.md` 
 | Boden-Oberseite | ≈ 12 px, perspektivisch | hinten `#855a2f` → vorn `#bc9d61` |
 | Boden-Vorderkante | ≈ 16 px, volle Breite inkl. Seitenwände | oben 1–2 px Licht `#fbe4ac`, `#f4d599` → `#e1c07e`, unterste px `#c7a378`; über den Seitenwänden etwas dunkler (`#dbb577` → `#c5a05c`) |
 | Zeilenraster | Zeile = 20 Luft + 150 Cover + 5 Kontaktstreifen + 16 Kante ≈ 191–192 px | – |
-| Spalten | Außenrand 42 px (= 30 Seitenwand + 12), Cover gleich verteilt (erste/letzte bündig), Mindestabstand ≈ 50 % Coverbreite → 1024 px: 6 Spalten (Abstand 68), 768 px: 4 (Abstand 46) | – |
+| Spalten | Außenrand 42 px (= 30 Seitenwand + 12), Cover gleich verteilt (erste/letzte bündig), Mindestabstand ≈ 44 % Coverbreite → 1024 px: 6 Spalten (Abstand 68), 768 px: 5 (Abstand 46; das Foto zeigt nur 4 Bücher) | – |
 | Buch | unbeschnitten im echten Seitenverhältnis, Unterkante auf der Oberseite | Falz links `#857564` → Cover über ≈ 10 px; Schatten rechts `#6d512d` → Wand über ≈ 8 px; schmaler Schatten links (2–3 px); Kontaktschatten `#492a0b` → `#825c2b` auf den 5 px Oberseite vor dem Buch |
 | Leeres Regal | unter der letzten Reihe weitere leere Böden bis zum Fensterende (`img_2.png`) | – |
 
@@ -70,7 +70,7 @@ Farbkorrektur im Generator, nicht per CSS-Filter zur Laufzeit).
    Der Wechsel behält Cursor-Buch und oberstes sichtbares Buch (Ids, 004 E10).
 3. **Layout als reine Funktion** (`shelf-math.ts` oder in `grid-math.ts`): aus Fensterbreite, Cover-Größe und
    Skalierung → Spalten, Abstand, Zellbreite, **Zeilenhöhe**, Cover-Box, Positionen von Boden und Schatten – genau nach
-   der Tabelle oben (Testfälle: 1024 → 6 Spalten/Abstand 68, 768 → 4/46, 1 Spalte bei schmalem Fenster). Heute gilt
+   der Tabelle oben (Testfälle: 1024 → 6 Spalten/Abstand 68, 768 → 5/46, 1 Spalte bei schmalem Fenster). Heute gilt
    Zeilenhöhe = Coverhöhe: trennen (`rowHeight`) und `pageRows`, `scrollToShow`, `topIndex`, `scrollForTop` sowie die
    Koordinaten des Aktionsmenüs (`cover-grid.ts`) umstellen; im Raster bleibt `rowHeight = coverHeight` (alte Tests
    grün). **Skalierung**: die Holzmaße gelten für Cover 100 px; bei anderen Größen mit `s = clamp(coverW / 100, 1, 1.6)`
@@ -112,7 +112,7 @@ Farbkorrektur im Generator, nicht per CSS-Filter zur Laufzeit).
 
 ## Phase 1 zusätzlich: Attrappe 🛑
 
-Vor dem Freigabe-Halt eine **statische HTML-Attrappe** (`prompts/015-shelf-mock.html`, nutzt die erzeugten Fragmente
+Vor dem Freigabe-Halt eine **statische HTML-Attrappe** (`015-shelf-mock.html`, nutzt die erzeugten Fragmente
 und das geplante CSS, Test-Cover 100 × 150 + 2 Bücher ohne Cover) bei **768 × 1024** und **1024 × 768** rendern
 (Playwright/Chromium im Container) und **nebeneinander mit `img_2.png` bzw. `img.png`** als Bild ins Design-Dokument
 legen. Erst nach Marcs Freigabe der Optik in die App einbauen.
@@ -142,7 +142,7 @@ legen. Erst nach Marcs Freigabe der Optik in die App einbauen.
 
 - [ ] Knopf, Menüpunkt, Befehlspalette und Kürzel schalten zwischen Raster und Regal; der Menüpunkt zeigt den Zustand.
 - [ ] Bei 768 × 1024 und 1024 × 768 mit Covern 100 × 150 ist die App neben `img_2.png`/`img.png` gelegt **kaum zu
-      unterscheiden**: Seitenwände, Holzmaserung, Böden mit Oberseite, Lichtkante und Schatten, 4 bzw. 6 Bücher je
+      unterscheiden**: Seitenwände, Holzmaserung, Böden mit Oberseite, Lichtkante und Schatten, 5 bzw. 6 Plätze je
       Boden mit Falz und Schatten; der optische Abgleich ist grün.
 - [ ] Bücher ohne Cover sehen aus wie die beigen Bücher in `img.png` (mit dem eigenen Titel).
 - [ ] Keine Nähte in Rückwand oder Böden, auch nicht beim Scrollen und auf Retina; leere Böden bis zum Fensterende.

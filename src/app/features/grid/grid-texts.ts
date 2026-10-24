@@ -3,6 +3,7 @@
  */
 import { SortMode } from '../category/book-order';
 import type { ViewMode } from './grouping';
+import type { Look } from './view-state';
 
 export const GRID_TEXTS = {
   gridLabel: 'Comic books',
@@ -26,6 +27,9 @@ export const GRID_TEXTS = {
     string
   >,
   viewLabel: 'View',
+  /** Design 015: how the books are drawn. */
+  looks: { grid: 'Grid', shelf: 'Shelf' } satisfies Record<Look, string>,
+  lookLabel: 'Look',
   topOf: { flat: '', series: 'All series', folders: 'All folders' } satisfies Record<
     ViewMode,
     string

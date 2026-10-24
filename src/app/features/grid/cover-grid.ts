@@ -31,7 +31,6 @@ import { CoverRenderer } from './cover-renderer';
 import { CoverRetries } from './cover-retries';
 import {
   CursorMove,
-  gridLayout,
   loadDimIndex,
   pageRows,
   scrollForTop,
@@ -39,6 +38,8 @@ import {
   topIndex,
 } from './grid-math';
 import { GRID_TEXTS } from './grid-texts';
+import { Geometry, geometry, shelfHeight } from './shelf-math';
+import { ShelfBackdrop } from './shelf-backdrop';
 import { GridStore } from './grid.store';
 import { ReaderService } from '../reader/reader.service';
 import { ThumbsJobStore } from '../jobs/thumbs-job.store';
@@ -108,9 +109,12 @@ export class CoverGrid {
 
   /** Padding above the first row: the toolbar, in a level also the breadcrumb (design 011). */
   readonly top = computed(() => GRID_TOP + (this.store.crumbs().length ? CRUMBS_HEIGHT : 0));
-  readonly layout = computed(() =>
-    gridLayout(Math.max(0, this.hostWidth() - this.scrollbar), this.store.dim()),
+  /** Columns, cells and covers for the look (design 015: grid or shelf). */
+  readonly layout = computed<Geometry>(() =>
+    geometry(this.store.look(), Math.max(0, this.hostWidth() - this.scrollbar), this.store.dim()),
   );
+  /** The wood behind the table in the shelf look (design 015 E2). */
+  private backdrop: ShelfBackdrop | null = null;
   /** The thumbnail size loaded for the shown cover size (E2). */
   private readonly loadDim = computed(() =>
     loadDimIndex(this.store.dims(), this.layout().coverWidth, this.dpr),
@@ -134,6 +138,7 @@ export class CoverGrid {
     },
     coverHeight: () => untracked(this.layout).coverHeight,
     title: (i) => this.tileTitle(i),
+    shelf: () => untracked(this.layout).shelf,
   });
 
   protected readonly model: CoverGridTableModel<GridItem> = CoverGridFactory.createCoverGridModel(
@@ -177,6 +182,9 @@ export class CoverGrid {
         : this.t.groupLabel(i.group, i.label, i.count, i.total, i.read);
     return this.t.focused(name, this.store.cursor() + 1, this.store.items().length);
   });
+
+  /** Spoken once when the look changes (grid / shelf). */
+  protected readonly lookNote = signal('');
 
   private repaintPending = false;
   private lastLayoutKey = '';
@@ -232,6 +240,22 @@ export class CoverGrid {
       if (!this.reader.closedOn()) return;
       untracked(() => setTimeout(() => this.focus()));
     });
+    // the window's height: more or fewer boards (design 015)
+    effect(() => {
+      this.viewHeight();
+      untracked(() => this.syncBackdrop());
+    });
+    // the look changed: say so (live region, design 015 requirement 12)
+    let firstLook = true;
+    effect(() => {
+      const look = this.store.look();
+      if (firstLook) {
+        firstLook = false;
+        return;
+      }
+      untracked(() => this.lookNote.set(this.t.looks[look]));
+    });
+    inject(DestroyRef).onDestroy(() => this.backdrop?.remove());
     // a new loaded size: other URLs
     effect(() => {
       this.loadDim();
@@ -278,7 +302,7 @@ export class CoverGrid {
 
   private applyModel(
     list: GridItem[],
-    layout: { cols: number; coverWidth: number; coverHeight: number },
+    layout: Geometry,
     api: TableApi | undefined,
     top = GRID_TOP,
   ): void {
@@ -287,32 +311,64 @@ export class CoverGrid {
     this.model.paddingTop = top;
     body.items = list;
     body.filteredItems = list;
-    body.coverWidth = layout.coverWidth;
-    body.coverHeight = layout.coverHeight;
+    // the model's „cover“ is the cell: the cover itself (grid) or a slot on a board (shelf)
+    body.coverWidth = layout.cellWidth;
+    body.coverHeight = layout.rowHeight;
     // exactly `cols` columns (the model computes floor(width / coverWidth))
-    this.model.setParentWidth(layout.cols * layout.coverWidth);
+    this.model.setParentWidth(layout.cols * layout.cellWidth);
     this.model.recalcHeightAndPadding();
+    this.syncBackdrop();
     if (!api || this.hostWidth() === 0) return;
     // TODO(guiexpert): CoverGridBodyModel.getRowCount() adds an empty row when the last row is full
     api.repaintHard();
 
     // position: a pending restore (E10), else keep the top book when the layout changed
-    const key = `${layout.cols}x${layout.coverHeight}`;
+    const key = `${layout.cols}x${layout.rowHeight}x${layout.shelf ? 's' : 'g'}`;
     const pending = this.store.restoreTopId();
     if (pending !== null && list.length) {
       const i = list.findIndex((b) => b.id === pending);
       // found, or the scan is over and the book gone (review 004 #6)
       if (i >= 0 || this.scan.phase() !== 'scanning') {
         this.store.restoreTopId.set(null);
-        if (i >= 0) this.scrollTo(scrollForTop(i, layout.cols, layout.coverHeight));
+        if (i >= 0) this.scrollTo(scrollForTop(i, layout.cols, layout.rowHeight));
       }
     } else if (key !== this.lastLayoutKey && this.lastLayoutKey !== '') {
       // other size or width: the book with the cursor (else the top one) stays in view
       const anchor = this.store.focusId() ?? this.store.topId();
       const i = anchor === null ? -1 : list.findIndex((b) => b.id === anchor);
-      if (i >= 0) this.scrollTo(scrollForTop(i, layout.cols, layout.coverHeight));
+      if (i >= 0) this.scrollTo(scrollForTop(i, layout.cols, layout.rowHeight));
     }
     this.lastLayoutKey = key;
+  }
+
+  /**
+   * The wood of the shelf look under the table (design 015 E2): created on the switch, laid out
+   * for the scroll position – called from the table's scroll event, so it moves with the books.
+   */
+  private syncBackdrop(): void {
+    const shelf = untracked(this.layout).shelf;
+    if (!shelf) {
+      this.backdrop?.remove();
+      this.backdrop = null;
+      return;
+    }
+    // in the table's scroll viewport, under the content (E2); before the table exists: the host
+    const viewport = untracked(this.api)?.getTableScope().scrollViewport;
+    const parent = viewport ?? this.host.nativeElement;
+    this.backdrop ??= new ShelfBackdrop(this.host.nativeElement.ownerDocument);
+    if (this.backdrop.element.parentElement !== parent) parent.prepend(this.backdrop.element);
+    const view = viewport?.clientHeight || untracked(this.viewHeight);
+    const width = viewport?.clientWidth || this.host.nativeElement.clientWidth - this.scrollbar;
+    const scrollTop = viewport ? viewport.scrollTop : 0;
+    // as tall as the rows, at least the window – never from `scrollHeight`: that includes the
+    // wood itself, it would never shrink again (a filter left the view scrolled into nothing)
+    const height = shelfHeight(
+      untracked(this.top),
+      this.model.bodyModel.getRowCount(),
+      shelf.rowHeight,
+      view,
+    );
+    this.backdrop.update(shelf, untracked(this.top), scrollTop, view, width, height);
   }
 
   /** Repaints once per frame (cursor, retries) – not per event. */
@@ -332,7 +388,7 @@ export class CoverGrid {
     const top = scrollToShow(
       index,
       l.cols,
-      l.coverHeight,
+      l.rowHeight,
       this.top(),
       this.viewHeight(),
       this.scrollTop,
@@ -352,7 +408,8 @@ export class CoverGrid {
     if (e.clientHeight) this.viewHeight.set(e.clientHeight);
     const l = this.layout();
     const list = this.store.items();
-    const id = list[Math.min(list.length - 1, topIndex(e.scrollTop, l.cols, l.coverHeight))]?.id;
+    this.syncBackdrop();
+    const id = list[Math.min(list.length - 1, topIndex(e.scrollTop, l.cols, l.rowHeight))]?.id;
     if (id && id !== this.store.topId()) this.store.topId.set(id);
   }
 
@@ -414,8 +471,8 @@ export class CoverGrid {
       // at the focused cover
       const l = this.layout();
       const i = this.store.cursor();
-      x = (i % l.cols) * l.coverWidth + l.coverWidth / 3;
-      y = this.top() + Math.floor(i / l.cols) * l.coverHeight - this.scrollTop + l.coverHeight / 3;
+      x = (i % l.cols) * l.cellWidth + l.cellWidth / 3;
+      y = this.top() + Math.floor(i / l.cols) * l.rowHeight - this.scrollTop + l.rowHeight / 3;
     }
     // inside the grid (menu ≈ 16 × 12 rem)
     x = Math.max(4, Math.min(x, rect.width - 260));
@@ -476,7 +533,7 @@ export class CoverGrid {
     const move = (m: CursorMove) => ({
       run: () => {
         const l = this.layout();
-        this.store.move(m, l.cols, pageRows(this.viewHeight(), l.coverHeight, this.top()));
+        this.store.move(m, l.cols, pageRows(this.viewHeight(), l.rowHeight, this.top()));
       },
     });
     const onBook = (action: BookAction) => ({

@@ -49,6 +49,25 @@
         </button>
       }
     </div>
+    <div class="views" role="radiogroup" [attr.aria-label]="g.lookLabel">
+      @for (l of looks; track l) {
+        <button
+          type="button"
+          class="btn icon"
+          role="radio"
+          [attr.data-look]="l"
+          [attr.aria-checked]="grid.look() === l"
+          [attr.aria-label]="g.looks[l]"
+          [title]="g.looks[l] + ' (Ctrl/⌘+Shift+B)'"
+          [tabindex]="grid.look() === l ? 0 : -1"
+          [class.on]="grid.look() === l"
+          (click)="grid.setLook(l)"
+          (keydown)="onLookKey($event, l)"
+        >
+          <i [class]="'fa fa-' + lookIcons[l]" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
     @if (grid.dims().length > 1) {
       <label class="select">
         <span class="visually-hidden">{{ g.thumbSize }}</span>

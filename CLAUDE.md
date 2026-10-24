@@ -43,6 +43,10 @@
   (`book-info.ts` + Katalog), Ansichten flach/Serie/Ordner im selben Grid (`grouping.ts`, Ebenen, Breadcrumb), Filter
   `series:`/`year:`/`writer:`/`publisher:`, Sortierung „Serie“, Manga aus ComicInfo. Design:
   `prompts/done/011-metadaten-serien.design.md`.
+- **Prompt 015 (Regal)** ist fertig: Darstellung „Regal“ neben dem Raster (`look` je Kategorie, Ansichtszustand v3,
+  `Mod+Shift+B`), Bücher auf Holzböden wie die iBooks-Fotos (`shelf-math.ts`, `shelf.css`, `ShelfBackdrop` im
+  Scroll-Viewport der Table), Holz-Fragmente aus `Bookshelf.psd` (`scripts/shelf-slices.py`), optischer Abgleich
+  `scripts/shelf-compare.py`. Design: `prompts/done/015-regalansicht.design.md`.
 - Als Nächstes: **009** (Einstellungen, i18n). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -78,6 +82,7 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
   main.ts, index.html
   styles.css                  Design-Tokens light/dark (einzige Stelle für Farben/Größen), .btn/.input, FA-Import
   assets/font-awesome-4.5.0/  Font Awesome 4.5.0 (nur woff2), wie files-and-folders
+  assets/shelf/               Holz-Fragmente des Regals (WebP 2x, erzeugt; Quellen in README.md, 015)
   app/app.ts, app.config.ts   Root: Kategorie-Ansicht + Dialoge (@switch DialogService.open); Fassaden-Bindung
   app/core/backend/call.ts    einzige Stelle mit invoke() (+ isTauri-Prüfung, Fehler → FsError)
   app/core/errors/            FsError, toFsError, describeFsError (Codes = Rust error.rs)
@@ -97,7 +102,8 @@ src/                          Angular 22 (zoneless, Signals, OnPush, Standalone)
                               CoverGrid (TableSignalComponent, Tastatur, Live-Region), cover-renderer.ts (DOM, .cc-cover
                               in styles.css), BookMenu, rein: filter-logic (+ .cases.json, Felder series:/year:),
                               book-info (Serie/Nummer, + .cases.json), grouping (Ansichten, Ebenen), grid-math,
-                              view-state (v2), cover-retries
+                              view-state (v3: + look), cover-retries; Regal (015): shelf-math (Layout, rein),
+                              shelf-backdrop (Holz im Scroll-Viewport), shelf.css (global, von styles.css importiert)
   app/core/actions/           Aktionen (008): action-catalog (Ids, Kontexte, Texte), keymap.{base,mac,other}.json +
                               keymap.ts (Override), shortcut.ts (Akkord/Anzeige je OS), ActionService (Handler,
                               enabled/checked), KeyboardDispatcher (der eine keydown-Listener), platform.ts (OS-Token)
@@ -156,6 +162,7 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               logo-5farbig.svg mittig, 560 px hoch)
 docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),
                               legacy-analysis.md (Vorlage comiccommander)
+scripts/                      shelf-slices.py (Holz-Fragmente aus der PSD), shelf-compare.py (Abgleich mit Fotos) – 015
 prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbeitsweise.md), done/
 ```
 

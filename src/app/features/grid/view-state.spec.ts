@@ -18,6 +18,7 @@ const state: ViewState = {
   view: 'series',
   level: 'asterix',
   outerFilter: 'ang',
+  look: 'shelf',
 };
 
 describe('view-state (E9)', () => {
@@ -44,10 +45,13 @@ describe('view-state (E9)', () => {
       view: 'flat',
       level: null,
       outerFilter: null,
+      look: 'grid',
     });
     s.data.set('cc.view.c1', JSON.stringify({ v: 2, view: 'evil', level: 'x' }));
     expect(loadViewState('c1', s)?.view).toBe('flat');
     expect(loadViewState('c1', s)?.level).toBeNull();
+    s.data.set('cc.view.c1', JSON.stringify({ v: 3, look: 'evil' }));
+    expect(loadViewState('c1', s)?.look).toBe('grid');
     const throwing: KeyValueStore = {
       getItem: () => {
         throw new Error('blocked');
@@ -76,6 +80,13 @@ describe('view-state (E9)', () => {
       view: 'flat',
       level: null,
       outerFilter: null,
+      look: 'grid',
     });
+  });
+
+  it('reads a v2 state with the grid look (design 015)', () => {
+    const s = memory();
+    s.data.set('cc.view.c1', JSON.stringify({ ...state, v: 2, look: undefined }));
+    expect(loadViewState('c1', s)).toEqual({ ...state, look: 'grid' });
   });
 });

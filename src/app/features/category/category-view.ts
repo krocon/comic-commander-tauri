@@ -17,6 +17,7 @@ import { CoverGrid, GRID_TOP } from '../grid/cover-grid';
 import { GRID_TEXTS } from '../grid/grid-texts';
 import { GridStore } from '../grid/grid.store';
 import { VIEW_MODES, ViewMode } from '../grid/grouping';
+import { Look, LOOKS } from '../grid/view-state';
 import { SORT_MODES, SortMode } from './book-order';
 import { CategoryMenu } from './category-menu';
 import { CategoryStore } from './category.store';
@@ -55,6 +56,8 @@ export class CategoryView {
   protected readonly gridTop = GRID_TOP;
   protected readonly sortModes = SORT_MODES;
   protected readonly viewModes = VIEW_MODES;
+  protected readonly looks = LOOKS;
+  protected readonly lookIcons: Record<Look, string> = { grid: 'th', shelf: 'book' };
   protected readonly viewIcons: Record<ViewMode, string> = {
     flat: 'th',
     series: 'clone',
@@ -182,6 +185,24 @@ export class CategoryView {
     host?.querySelector<HTMLElement>(`[data-view="${next}"]`)?.focus();
   }
 
+  /** The look group (radio group, APG, design 015): arrows move and choose. */
+  protected onLookKey(event: KeyboardEvent, current: Look): void {
+    const step =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? -1
+          : 0;
+    if (!step) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const i = LOOKS.indexOf(current);
+    const next = LOOKS[(i + step + LOOKS.length) % LOOKS.length];
+    this.grid.setLook(next);
+    const host = (event.currentTarget as HTMLElement).parentElement;
+    host?.querySelector<HTMLElement>(`[data-look="${next}"]`)?.focus();
+  }
+
   protected goTo(level: string | null): void {
     this.grid.goTo(level);
     this.coverGrid()?.focus();
@@ -224,8 +245,16 @@ export class CategoryView {
       enabled: grid,
       checked: () => this.grid.view() === m,
     });
+    const look = (l: Look) => ({
+      run: () => this.grid.setLook(l),
+      enabled: grid,
+      checked: () => this.grid.look() === l,
+    });
     this.actions.registerAll(
       {
+        'view.look.grid': look('grid'),
+        'view.look.shelf': look('shelf'),
+        'view.look.toggle': { run: () => this.grid.toggleLook(), enabled: grid },
         'app.rescan': {
           run: () => this.rescan(),
           enabled: () => !!this.categories.active() && !this.store.scanning(),

@@ -18,6 +18,7 @@
     "Mod+Shift+l": "view.mode.flat",
     "Mod+Shift+s": "view.mode.series",
     "Mod+Shift+d": "view.mode.folders",
+    "Mod+Shift+b": "view.look.toggle",
     "Mod+q": "app.quit"
   },
   "grid": {

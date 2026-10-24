@@ -1,7 +1,8 @@
 import { AreaModelIf } from '@guiexpert/table';
 import { book } from '../../../testing/fixtures';
 import { BookEntry } from '../../core/scan/scan.models';
-import { CoverRenderer } from './cover-renderer';
+import { CoverRenderer, displayTitle } from './cover-renderer';
+import { bookLeft, shelfLayout } from './shelf-math';
 import { GridItem, GroupItem } from './grouping';
 
 function render(
@@ -108,5 +109,93 @@ describe('CoverRenderer', () => {
     expect(cell.querySelector('.cc-folder')).not.toBeNull();
     expect(cell.querySelector('.cc-name .fa-folder')).not.toBeNull();
     expect(cell.querySelector('.cc-count')!.textContent).toBe('12');
+  });
+});
+
+describe('CoverRenderer – shelf look (design 015)', () => {
+  const layout = shelfLayout(768, { width: 100, height: 150 });
+
+  function shelfRender(item: GridItem, src: string | null, focused = false) {
+    const failed: string[] = [];
+    const r = new CoverRenderer({
+      src: () => src,
+      failed: (x) => failed.push(x.id),
+      isFocused: () => focused,
+      coverHeight: () => 150,
+      progress: () => 0.5,
+      title: (i) => (i.kind === 'book' ? i.book.relPath : i.label),
+      shelf: () => layout,
+    });
+    const cell = document.createElement('div');
+    r.render(cell, 0, 4, 'body', {} as AreaModelIf, item);
+    return { cell, failed, r };
+  }
+  const asItem = (b: BookEntry): GridItem => ({ kind: 'book', id: b.id, book: b });
+
+  it('stands the book at its column on the board, the box of the cover size', () => {
+    const b = book('A/Asterix 01.cbz');
+    const { cell } = shelfRender(asItem(b), 'cccover://x/1', true);
+    const slot = cell.querySelector('.cc-shelf-slot') as HTMLElement;
+    expect(slot.style.left).toBe(`${bookLeft(layout, 4)}px`);
+    expect(slot.style.bottom).toBe(`${layout.bookBottom}px`);
+    expect(slot.title).toBe(b.relPath);
+    const el = slot.querySelector('.cc-book') as HTMLElement;
+    expect(el.classList.contains('cc-focus')).toBe(true);
+    expect(el.style.width).toBe('100px');
+    expect(el.style.height).toBe('150px');
+    expect(el.querySelector('.cc-progress > div')!.getAttribute('style')).toContain('50%');
+    expect(el.querySelector('.cc-ring')).not.toBeNull();
+  });
+
+  it('fits the loaded cover in its real aspect and remembers the size', () => {
+    const b = book('A/Wide.cbz');
+    const { cell, r } = shelfRender(asItem(b), 'cccover://x/wide');
+    const img = cell.querySelector('img')!;
+    Object.defineProperty(img, 'naturalWidth', { value: 300 });
+    Object.defineProperty(img, 'naturalHeight', { value: 300 });
+    img.dispatchEvent(new Event('load'));
+    const el = cell.querySelector('.cc-book') as HTMLElement;
+    expect(el.style.width).toBe('100px');
+    expect(el.style.height).toBe('100px');
+    expect(el.classList.contains('cc-loaded')).toBe(true);
+    // a repaint knows the size at once
+    const again = document.createElement('div');
+    r.render(again, 0, 0, 'body', {} as AreaModelIf, asItem(b));
+    expect((again.querySelector('.cc-book') as HTMLElement).style.height).toBe('100px');
+    expect(again.querySelector('.cc-book')!.classList.contains('cc-loaded')).toBe(true);
+  });
+
+  it('a book without a cover: linen with the title as text, never as HTML', () => {
+    const evil = book('x/<b onmouseover="x()">Bad</b>.cbr', { format: 'cbr' });
+    const { cell } = shelfRender(asItem(evil), null);
+    const el = cell.querySelector('.cc-book') as HTMLElement;
+    expect(el.classList.contains('cc-blank')).toBe(true);
+    expect(el.querySelector('.cc-label')!.textContent).toBe(displayTitle(evil.name));
+    expect(el.querySelector('.cc-author')!.textContent).toBe('CBR');
+    expect(cell.innerHTML).not.toContain('onmouseover="x()"');
+    expect(cell.querySelector('img')).toBeNull();
+  });
+
+  it('a failed cover turns into the linen book and is reported', () => {
+    const b = book('A/Broken.cbz');
+    const { cell, failed } = shelfRender(asItem(b), 'cccover://x/broken');
+    cell.querySelector('img')!.dispatchEvent(new Event('error'));
+    expect(failed).toEqual([b.id]);
+    expect(cell.querySelector('.cc-blank .cc-label')!.textContent).toBe('Broken');
+    expect(cell.querySelector('img')).toBeNull();
+  });
+
+  it('a group: stack, count and name on the cover', () => {
+    const { cell } = shelfRender(group({ count: 3, total: 12 }), 'cccover://x/g');
+    const el = cell.querySelector('.cc-book') as HTMLElement;
+    expect(el.classList.contains('cc-group')).toBe(true);
+    expect(el.querySelector('.cc-count')!.textContent).toBe('3/12');
+    expect(el.querySelector('.cc-name')!.textContent).toBe('Asterix');
+  });
+
+  it('displayTitle drops only the extension', () => {
+    expect(displayTitle('Asterix 01 - Der Gallier.cbz')).toBe('Asterix 01 - Der Gallier');
+    expect(displayTitle('.hidden')).toBe('.hidden');
+    expect(displayTitle('no-ext')).toBe('no-ext');
   });
 });
