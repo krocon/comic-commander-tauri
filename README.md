@@ -38,6 +38,11 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
   `005_Bessy_…` im Ordner `Bessy`). Filter mit Feldern: `series:asterix`, `series:"im roten bereich"`, `year:1990-1999`,
   `writer:`, `publisher:` (auch mit `+`/`-`); Sortierung „Series and number“. Bücher mit
   `Manga=YesAndRightToLeft` liest der Leser von rechts nach links.
+- **Regal** (Toolbar-Knopf 📖, Menü „View → Look: shelf“ oder `Ctrl/⌘ + Shift + B`): statt des randlosen Rasters
+  stehen die Bücher wie im iBooks-Regal auf Holzböden vor einer Holzrückwand, mit Buchrücken, Schatten und echtem
+  Seitenverhältnis; leere Böden laufen bis zum Fensterende weiter, Bücher ohne Cover erscheinen als Leineneinband mit
+  Titel. Alles andere (Filter, Ansichten, Größen, Tastatur, Lesen) geht wie im Raster; die Wahl merkt sich die App je
+  Kategorie.
 - **Aktionen je Buch** (Klick, Leertaste oder Rechtsklick): mit der Standard-App öffnen, im Finder zeigen, Serie
   filtern, Pfad kopieren – mit den Tastenkürzeln daneben.
 - **Leser** (`Enter`/Doppelklick): Einzelseite oder fortlaufend; Zoom **Fit width, Fit height, Fit page, Full size**
@@ -69,6 +74,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `Enter` / Doppelklick | Buch lesen (auch PDF); Serie/Ordner öffnen (auch Klick) |
 | `Backspace`, `Alt + ↑`, `Esc` (Filter leer) | eine Ebene hoch (Serien-/Ordneransicht) |
 | `Ctrl/⌘ + Shift + L / S / D` | Ansicht: alle Bücher / nach Serie / nach Ordner |
+| `Ctrl/⌘ + Shift + B` | Darstellung: Raster ⇄ Regal |
 | `Leertaste`, `Shift+F10`, Rechtsklick | Aktionen für das Buch |
 | Tippen | springt in den Filter; `Esc` leert ihn |
 | `Ctrl/⌘ + F` | Filter |

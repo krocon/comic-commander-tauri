@@ -1,0 +1,137 @@
+<!doctype html>
+<!--
+  Static mock of the shelf look (design 015, phase 1): the CSS of the app (styles.css → shelf.css),
+  the layout of shelf-math.ts (ported below), test books. The real app draws the wood with
+  ShelfBackdrop inside the table's scroll viewport – the mock puts the same DOM in a plain box. Rendered at 768 × 1024 and 1024 × 768
+  next to img_2.png / img.png by scripts/shelf-compare.py.
+  Query: ?w=768&h=1024&top=64&books=4   (books: how many; the first ones without a cover)
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Shelf mock</title>
+    <link rel="stylesheet" href="../../src/styles.css" />
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      #view {
+        position: relative;
+        overflow: hidden;
+      }
+      .cell {
+        position: absolute;
+        z-index: 4;
+      }
+      .bar {
+        position: absolute;
+        inset: 0 0 auto;
+        z-index: 5;
+        background: var(--color-toolbar-overlay);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="view"></div>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const W = +(q.get('w') ?? 768), H = +(q.get('h') ?? 1024), TOP = +(q.get('top') ?? 64);
+      const N = +(q.get('books') ?? 4);
+      const blanks = [
+        ['Der Weihnachtsabend', 'Charles Dickens'],
+        ['Alice’s Abenteuer im Wunderland', 'Lewis Carroll'],
+        ['Romeo und Julia', 'William Shakespeare'],
+      ];
+      const nBlank = +(q.get('blank') ?? 3);
+      // ---- shelf-math.ts (same numbers) ----
+      const S = { margin: 42, headroom: 20, ledge: 6, inset: 6, front: 16, minGap: 0.44, base: 100, maxScale: 1.6 };
+      const scale = (cw) => Math.min(S.maxScale, Math.max(1, cw / S.base));
+      function layout(w, dim) {
+        const s = scale(dim.width), margin = Math.round(S.margin * s);
+        const cw = dim.width, ch = dim.height, minGap = S.minGap * cw, inner = w - 2 * margin;
+        const cols = Math.max(1, Math.floor((inner + minGap) / (cw + minGap)));
+        const gap = cols > 1 ? (inner - cols * cw) / (cols - 1) : 0;
+        const ledge = Math.round(S.ledge * s), front = Math.round(S.front * s), head = Math.round(S.headroom * s);
+        return { cols, cellWidth: w / cols, cw, ch, gap, margin, s, rowHeight: head + ch + ledge + front, bookBottom: ledge + front };
+      }
+      const bookLeft = (l, c) => l.cols === 1 ? Math.round((l.cellWidth - l.cw) / 2) : Math.round(l.margin + c * (l.cw + l.gap) - c * l.cellWidth);
+
+      const dim = { width: +(q.get('cw') ?? 100), height: +(q.get('ch') ?? 150) };
+      const l = layout(W, dim);
+      const view = document.getElementById('view');
+      view.style.cssText = `width:${W}px;height:${H}px`;
+
+      // backdrop (CoverGrid → ShelfBackdrop)
+      const bg = document.createElement('div');
+      bg.className = 'cc-shelf-bg';
+      bg.style.setProperty('--shelf-s', l.s);
+      bg.style.setProperty('--shelf-row', l.rowHeight + 'px');
+      bg.style.width = W + 'px';
+      bg.style.height = H + 'px';
+      bg.innerHTML = '<div class="cc-shelf-wall"></div><div class="cc-shelf-upright"></div><div class="cc-shelf-upright cc-right"></div>';
+      for (let k = 0; TOP + k * l.rowHeight < H; k++) {
+        const row = document.createElement('div');
+        row.className = 'cc-shelf-row';
+        row.style.top = TOP + k * l.rowHeight + 'px';
+        row.innerHTML = '<div class="cc-shelf-shadow"></div><div class="cc-shelf-board"></div>';
+        bg.appendChild(row);
+      }
+      view.appendChild(bg);
+
+      // a cover painted on a canvas (stands in for a thumbnail)
+      function cover(i) {
+        const c = document.createElement('canvas');
+        c.width = 200; c.height = 300;
+        const g = c.getContext('2d');
+        const hues = [200, 15, 120, 45, 280, 340];
+        g.fillStyle = i === 0 ? '#fbfbf7' : `hsl(${hues[i % hues.length]} 65% 45%)`;
+        g.fillRect(0, 0, 200, 300);
+        g.fillStyle = i === 0 ? '#b88a3c' : '#fff';
+        g.font = 'bold 34px Georgia';
+        g.textAlign = 'center';
+        g.fillText(i === 0 ? 'Winnie' : 'Comic', 100, 110);
+        g.fillText(i === 0 ? '-the-' : '#' + (i + 1), 100, 150);
+        if (i === 0) g.fillText('Pooh', 100, 190);
+        return c.toDataURL();
+      }
+
+      // books (CoverRenderer, look „shelf“)
+      for (let i = 0; i < N; i++) {
+        const r = Math.floor(i / l.cols), c = i % l.cols;
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const cellTop = r === 0 ? 0 : TOP + r * l.rowHeight;
+        const cellH = r === 0 ? TOP + l.rowHeight : l.rowHeight;
+        cell.style.cssText = `left:${c * l.cellWidth}px;top:${cellTop}px;width:${l.cellWidth}px;height:${cellH}px;--s:${l.s}`;
+        const slot = document.createElement('div');
+        slot.className = 'cc-shelf-slot';
+        slot.style.cssText = `left:${bookLeft(l, c)}px;bottom:${l.bookBottom}px;width:${l.cw}px;height:${l.ch}px`;
+        const book = document.createElement('div');
+        book.style.cssText = `width:${l.cw}px;height:${l.ch}px`;
+        if (i < nBlank) {
+          book.className = 'cc-book cc-blank';
+          const [t, a] = blanks[i % blanks.length];
+          book.innerHTML = '<div class="cc-label"></div><div class="cc-author"></div>';
+          book.firstChild.textContent = t;
+          book.lastChild.textContent = a;
+        } else {
+          book.className = 'cc-book cc-loaded';
+          const img = document.createElement('img');
+          img.src = cover(i - nBlank);
+          book.appendChild(img);
+        }
+        slot.appendChild(book);
+        cell.appendChild(slot);
+        view.appendChild(cell);
+      }
+      if (q.get('bar') !== '0') {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = TOP + 'px';
+        view.appendChild(bar);
+      }
+      document.title = 'ready';
+    </script>
+  </body>
+</html>

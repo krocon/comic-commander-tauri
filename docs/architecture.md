@@ -94,6 +94,9 @@
 | A51 | **Filter-Felder** `series:`, `year:` (Jahr/Bereich), `writer:`, `publisher:`, Werte in `"…"`, `+`/`-`; unbekannte Felder bleiben Wörter; Sortierung `series` (Band → Nummer numerisch, `1.5`, `12a`, `01-2024`) | abwärts kompatibel zu 004 | 011 E8, E9 |
 | A52 | **Manga aus ComicInfo**: `YesAndRightToLeft` → rechts-nach-links; `M` schaltet bei so einem Buch nur dieses Buch (nicht gespeichert), sonst die Einstellung | Einstellung bleibt für alle anderen Bücher richtig | 011 E11 |
 | A53 | **Filter beim Öffnen einer Serie**: in der Serienansicht hebt das Öffnen einer Serie den Filter auf (alle Bände), der Filter der Übersicht liegt in `outerFilter` und gilt auf dem Rückweg (Breadcrumb, `Esc`, `up`, Ansicht wechseln) wieder; ein in der Serie getippter Filter verfällt; im Ansichtszustand gespeichert (`outerFilter`, v2 bleibt). Ordneransicht behält den Filter | eine Serie zeigt alle Bände; die Übersicht bleibt, wie sie war | Marc, 23.10.2026 |
+| A54 | **Darstellung Regal** (`look: 'grid' \| 'shelf'`, je Kategorie im Ansichtszustand v3) im selben Cover-Grid: Modell-„Cover“ = Zelle (`floor(B / Spalten)` × `20 + Cover + 6 + 16`), das Buch im echten Seitenverhältnis an der Foto-Position in seiner Zelle (`shelf-math.ts`); Maße und Farben aus den iBooks-Fotos, Holz aus `Bookshelf.psd` (Naldz Graphics, <https://naldzgraphics.net/how-to-create-an-ibook/>, Quellen in `src/assets/shelf/README.md`) | Zielbild Marc (Prompt 015); Abgleich `scripts/shelf-compare.py` (ΔE00 ≤ 8, Kanten ± 2 px) | 015 E1, E6–E8 |
+| A55 | **Holz unter der Table** (`ShelfBackdrop`, reines DOM) im Scroll-Viewport der Table (öffentlich `getTableScope().scrollViewport`), so hoch wie die Reihen (`shelfHeight`, nie aus `scrollHeight`); scrollt nativ mit, nur Böden am Rand des sichtbaren Teils werden umgesetzt | eine Ebene außerhalb des Viewports lief bei schnellem Mausrad hinterher bzw. ließ unter Software-Rendering Bilder ausfallen (gemessen, Design 015 E2) | 015 E2 |
+| A56 | **Holz-Fragmente erzeugt** (`scripts/shelf-slices.py`): Maserung aus der rohen Textur der PSD (Detail/weiches Mittel, Kontrast wie die Fotos) auf den gemessenen Farben, nahtlos überblendet, WebP 2x (≈ 41 KiB); Licht und Schatten als CSS-Verläufe in px (`shelf.css`, Tokens `--shelf-*` für hell und dunkel gleich) | Farben exakt, Maserung echt, jede Breite/Zeilenhöhe | 015 E3, E10 |
 | A27 | Scan-Ereignisse mit Büchern in Teilen ≤ 2000 (`cached` + `cachedMore`, große `diff`, späte Öffner); Frontend zeigt Cache-Teile sofort (außer beim Neu-Scan derselben Kategorie), sammelt Diff-Teile bis `done` und sortiert einmal | 11 MB in einer Nachricht ~20 s im Debug-Build; erste Cover nach ~2 s | 004 |
 
 ## DTO-Vertrag
@@ -190,6 +193,11 @@ Cover 200×300 ≈ 10–25 KB, `_xl` ≈ 200–300 KB (mehr als die geschätzten
 | alle 50 000 Bücher (25 Teile) | ~21 s | 2,6 s |
 | Hintergrund-Scan fertig | ~22 s | 2,9 s |
 
+**Regal (Design 015, 24.10.2026)** – Container, Xvfb (Software-Rendering), Debug-Build, 50 000 leere `.cbz` in 2 500
+Ordnern, 1024 × 768: 30 × Bild-ab inkl. `xdotool` **1,8 s im Regal** gegen 1,06 s im Raster; schnelles Mausrad
+(10 Schritte auf einmal) ohne leere Bilder, die Bücher stehen nach ≤ 2 Bildern auf ihren Böden. Mehr DOM je Buch
+(Falz, Schatten, Etikett) kostet; auf dem Mac (GPU) nachmessen.
+
 Filter über 50 000 Bücher (Vitest, `filter-logic.perf.spec.ts`) deutlich < 50 ms; 30 × Bild-ab in 1,3 s inkl.
 `xdotool` (Debug); `Ctrl+End` sofort. Im Debug-Build ist der IPC-Transport der Engpass (~0,5 MB/s; Rust 0,7 s,
 Frontend 40–60 ms je Ereignis). Auf dem Mac nachmessen.
@@ -253,5 +261,9 @@ Neue npm-Pakete oder Crates nur mit Begründung in dieser Tabelle (CLAUDE.md §4
 
 Debug-Builds optimieren Decoder und PDF-Renderer trotzdem (`[profile.dev.package.*] opt-level = 3` in `Cargo.toml`,
 006): unoptimiert dauert eine PDF-Seite Sekunden.
+
+Entwicklungswerkzeuge ohne Laufzeit-Abhängigkeit (015): `scripts/shelf-slices.py` (Pillow, numpy, `psd-tools` – nur
+zum Neu-Erzeugen der Holz-Fragmente aus `Bookshelf.psd`, die PSD liegt nicht im Repo) und `scripts/shelf-compare.py`
+(Pillow, numpy, Python-Playwright – optischer Abgleich mit den Referenzfotos).
 
 Geplant (Entscheidung im jeweiligen Prompt): `trash` (010).
