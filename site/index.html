@@ -1,63 +1,546 @@
 <!doctype html>
 <!--
-  Comic Commander (FnF) – single page for https://krocon.de/products/comiccommander (prompt 044).
+  Comic Commander – single page for https://krocon.de/products/comiccommander/ (prompt 044).
   One static file: CSS inline, no JavaScript, no web fonts, no trackers, no external requests.
+  Dark only. Logo inline (= docs/logo-5farbig.svg), favicon.svg next to this file.
+  Pictures: img/<name>.png next to this file (macOS window shots with transparent shadow – no frame needed).
+  Upload index.html, favicon.svg and img/ to /products/comiccommander. See site/README.md.
+  IMG_BASE: img/
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Comic Commander</title>
-    <meta name="description" content="A fast, keyboard-first two-panel file manager for macOS, Windows and Linux in the spirit of Norton Commander and Total Commander. Free and open source (MIT).">
-    <meta name="color-scheme" content="light dark">
+    <title>Comic Commander – your comic collection as a wall of covers, for macOS, Windows and Linux</title>
+    <meta name="description" content="A comic browser for macOS, Windows and Linux: shows your CBZ, CBR, CB7, CBT and PDF collection as a wall of covers or on a wooden shelf and reads the books in a built-in reader. Free and open source (MIT).">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0e0a16">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Comic Commander">
-    <meta property="og:description" content="A fast, keyboard-first two-panel file manager for macOS, Windows and Linux. Free and open source.">
+    <meta property="og:description" content="Your comic collection as a wall of covers – with a built-in reader. For macOS, Windows and Linux. Free and open source.">
     <meta property="og:url" content="https://krocon.de/products/comiccommander/">
-    <meta property="og:image" content="https://krocon.de/products/comiccommander/img/main.png">
-    <meta property="og:image:width" content="1280">
-    <meta property="og:image:height" content="760">
+    <meta property="og:image" content="https://krocon.de/products/comiccommander/img/grid.png">
+    <meta property="og:image:width" content="1217">
+    <meta property="og:image:height" content="744">
     <meta name="twitter:card" content="summary_large_image">
-    <link rel="icon" type="image/png" href="favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <style>
       :root {
+        /* the five colours of the logo */
+        --pink: #ff2e8e;
+        --rose: #f768c9;
+        --magenta: #d21fc2;
+        --violet: #a436e8;
+        --purple: #7414dc;
 
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
+        --bg: #0e0a16;
+        --bg-2: #161022;
+        --surface: #1d152c;
+        --line: #33264a;
+        --text: #f1ecf8;
+        --muted: #b9adcc;
+        --link: #ff8cc6;
+        --ink: #08050d;
 
-        }
+        --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif;
+        --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+        --measure: 62ch;
+        --gutter: clamp(16px, 4vw, 40px);
+        --print: 3px 3px 0 var(--pink), 6px 6px 0 var(--purple); /* offset print of comic covers */
       }
 
       *, *::before, *::after { box-sizing: border-box; }
-      html { scroll-behavior: smooth; scroll-padding-top: 64px; } /* sticky .fkeys height + air */
+      html { scroll-behavior: smooth; scroll-padding-top: 72px; }
       body {
         margin: 0;
         background: var(--bg);
         color: var(--text);
         font: 17px/1.6 var(--sans);
         -webkit-text-size-adjust: 100%;
+        overflow-x: hidden;
+      }
+      img { max-width: 100%; height: auto; display: block; }
+      a { color: var(--link); text-underline-offset: 0.18em; }
+      a:hover { text-decoration-thickness: 2px; }
+      :focus-visible { outline: 3px solid var(--rose); outline-offset: 3px; border-radius: 4px; }
+      .skip { position: absolute; left: -999px; top: 0; background: var(--rose); color: var(--ink); padding: 8px 12px; z-index: 10; font-weight: 700; }
+      .skip:focus { left: 8px; top: 8px; }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter); }
+      h1, h2, h3 { line-height: 1.1; font-weight: 900; letter-spacing: -0.02em; text-wrap: balance; }
+      p { max-width: var(--measure); }
+      code { font: 0.9em var(--mono); background: var(--surface); padding: 0.1em 0.35em; border-radius: 4px; }
+      kbd {
+        font: 600 0.8em/1 var(--mono);
+        display: inline-block;
+        padding: 0.32em 0.5em 0.28em;
+        border-radius: 5px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-bottom-width: 3px;
+        white-space: nowrap;
       }
 
+      /* ---- halftone dots, the comic print texture ------------------------------------ */
+      .dots { position: relative; isolation: isolate; }
+      .dots::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background-image: radial-gradient(circle, rgb(210 31 194 / 0.33) 1.2px, transparent 1.8px);
+        background-size: 13px 13px;
+        -webkit-mask-image: radial-gradient(ellipse 70% 60% at 85% 0%, #000 0%, transparent 70%);
+                mask-image: radial-gradient(ellipse 70% 60% at 85% 0%, #000 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      /* ---- hero ---------------------------------------------------------------------- */
+      .hero {
+        padding: clamp(36px, 7vw, 96px) 0 0;
+        background:
+          radial-gradient(ellipse 60% 50% at 12% 8%, rgb(116 20 220 / 0.28), transparent 70%),
+          radial-gradient(ellipse 50% 45% at 92% 30%, rgb(255 46 142 / 0.16), transparent 70%),
+          var(--bg);
+      }
+      .hero-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: center; }
+      .logo { width: clamp(96px, 16vw, 188px); height: auto; filter: drop-shadow(0 10px 30px rgb(210 31 194 / 0.45)); }
+      .kicker {
+        display: inline-block;
+        margin: 0 0 14px;
+        padding: 4px 12px;
+        font: 800 0.8rem/1.4 var(--sans);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--ink);
+        background: var(--rose);
+        transform: rotate(-2deg);
+        border-radius: 3px;
+      }
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2.6rem, 8.4vw, 6.2rem);
+        letter-spacing: -0.04em;
+        line-height: 0.95;
+        color: #fff;
+        text-shadow: var(--print);
+      }
+      .pitch { font-size: clamp(1.1rem, 2.2vw, 1.45rem); line-height: 1.45; margin: 26px 0 0; max-width: 34ch; color: var(--text); }
+      .actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 30px; }
+      .btn {
+        font: 800 1rem/1 var(--sans);
+        padding: 15px 20px;
+        border-radius: 10px;
+        text-decoration: none;
+        border: 2px solid var(--ink);
+        box-shadow: 4px 4px 0 var(--ink);
+        transition: transform 80ms, box-shadow 80ms;
+      }
+      .btn-primary { background: linear-gradient(135deg, var(--pink), var(--magenta)); color: #fff; }
+      .btn-secondary { background: var(--text); color: var(--ink); }
+      .btn:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--ink); text-decoration: none; }
+      .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+      .note { margin: 18px 0 0; font-size: 0.95rem; color: var(--muted); }
+      .hero-shot { margin: clamp(28px, 5vw, 56px) auto 0; max-width: 1100px; }
+      .hero-shot img { margin: 0 auto; }
+      @media (max-width: 560px) {
+        .hero-top { grid-template-columns: 1fr; }
+      }
+
+      /* ---- sticky navigation ------------------------------------------------------------ */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        background: rgb(14 10 22 / 0.88);
+        -webkit-backdrop-filter: blur(10px);
+                backdrop-filter: blur(10px);
+        border-block: 1px solid var(--line);
+      }
+      .nav ol {
+        list-style: none;
+        margin: 0 auto;
+        padding: 10px var(--gutter);
+        max-width: 1180px;
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .nav a {
+        display: block;
+        padding: 8px 14px;
+        border-radius: 999px;
+        color: var(--text);
+        text-decoration: none;
+        font: 700 0.95rem/1 var(--sans);
+        white-space: nowrap;
+      }
+      .nav a:hover { background: var(--surface); }
+      .nav li:last-child { margin-left: auto; }
+      .nav li:last-child a { background: var(--surface); border: 1px solid var(--line); }
+
+      /* ---- intro: a speech bubble ---------------------------------------------------------- */
+      main { padding-bottom: 40px; }
+      .intro { padding-block: clamp(48px, 8vw, 104px) clamp(24px, 4vw, 48px); }
+      .intro h2, .block h2 { font-size: clamp(1.8rem, 4.2vw, 2.9rem); margin: 0 0 0.55em; }
+      .bubble {
+        position: relative;
+        max-width: 760px;
+        margin: 0;
+        padding: clamp(20px, 3vw, 32px) clamp(22px, 3.5vw, 40px);
+        background: var(--text);
+        color: var(--ink);
+        border-radius: 28px;
+        box-shadow: 6px 6px 0 var(--purple);
+        font-size: 1.12rem;
+      }
+      .bubble p { margin: 0 0 0.7em; }
+      .bubble p:last-child { margin: 0; }
+      .bubble::after {
+        content: '';
+        position: absolute;
+        left: 56px;
+        bottom: -26px;
+        border: 14px solid transparent;
+        border-top: 18px solid var(--text);
+        border-left: 4px solid var(--text);
+      }
+      .signature { margin: 38px 0 0; font-weight: 700; color: var(--muted); }
+
+      /* ---- features as numbered panels ---------------------------------------------------- */
+      .feature {
+        display: grid;
+        grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+        gap: clamp(20px, 4vw, 56px);
+        align-items: center;
+        padding: clamp(40px, 6vw, 80px) 0;
+        border-top: 1px solid var(--line);
+      }
+      .feature.flip { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); }
+      .feature.flip .text { order: 2; }
+      .num {
+        display: inline-grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        margin-bottom: 18px;
+        font: 900 1.3rem/1 var(--sans);
+        color: #fff;
+        background: linear-gradient(135deg, var(--pink), var(--purple));
+        clip-path: polygon(50% 0, 61% 18%, 82% 10%, 80% 33%, 100% 40%, 84% 56%, 96% 76%, 73% 77%, 66% 100%, 50% 86%, 34% 100%, 27% 77%, 4% 76%, 16% 56%, 0 40%, 20% 33%, 18% 10%, 39% 18%);
+      }
+      .feature h3 { font-size: clamp(1.5rem, 3vw, 2.1rem); margin: 0 0 0.5em; }
+      .feature .lead { font-weight: 700; font-size: 1.08rem; margin: 0 0 0.7em; color: var(--rose); }
+      .feature p { margin: 0 0 0.8em; color: var(--text); }
+      .feature ul { margin: 0.4em 0 0; padding-left: 1.1em; color: var(--muted); }
+      .feature li { margin: 0.25em 0; }
+      .feature li::marker { color: var(--magenta); }
+      .keys { margin: 1.2em 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; font-size: 0.92rem; color: var(--muted); }
+      .keys dt { font-weight: 600; }
+      .keys dd { margin: 0; }
+      .shot { margin: 0; }
+      .shot img { width: 100%; }
+      /* a zoomed detail of a window shot: toolbar and the first covers (img is 1217 px wide, window from x 57, toolbar from y 70) */
+      .shot.detail { overflow: hidden; aspect-ratio: 16 / 10; border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 24px 60px rgb(0 0 0 / 0.55); }
+      .shot.detail img { width: 152%; max-width: none; margin: -8.9% 0 0 -7.4%; }
+      @media (max-width: 860px) {
+        .feature, .feature.flip { grid-template-columns: 1fr; }
+        .feature.flip .text { order: 0; }
+      }
+
+      /* ---- blocks --------------------------------------------------------------------------- */
+      .block { padding: clamp(48px, 7vw, 96px) 0; border-top: 1px solid var(--line); }
+      .block > .wrap > p { color: var(--muted); }
+      .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 2em 0 0; padding: 0; list-style: none; }
+      .cards li {
+        padding: 20px 22px;
+        background: var(--bg-2);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        color: var(--muted);
+        font-size: 0.97rem;
+      }
+      .cards b { display: block; margin-bottom: 6px; color: var(--text); font-size: 1.04rem; }
+      .formats { display: flex; flex-wrap: wrap; gap: 8px; margin: 1.6em 0 0; padding: 0; list-style: none; }
+      .formats li {
+        font: 800 0.95rem/1 var(--mono);
+        padding: 9px 13px;
+        border-radius: 8px;
+        color: #fff;
+        background: var(--surface);
+        border: 1px solid var(--line);
+      }
+      .formats li:nth-child(5n+1) { border-color: var(--pink); }
+      .formats li:nth-child(5n+2) { border-color: var(--rose); }
+      .formats li:nth-child(5n+3) { border-color: var(--magenta); }
+      .formats li:nth-child(5n+4) { border-color: var(--violet); }
+      .formats li:nth-child(5n+5) { border-color: var(--purple); }
+
+      .cheat-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px 48px; margin-top: 1.6em; }
+      .cheat-cols h3 { font-size: 1.15rem; margin: 0 0 0.4em; color: var(--rose); }
+      .cheat { margin: 0; padding: 0; }
+      .cheat div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--line); }
+      .cheat dt { margin: 0; }
+      .cheat dd { margin: 0; text-align: right; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+
+      .platforms { width: 100%; border-collapse: collapse; margin-top: 1.4em; font-size: 0.98rem; }
+      .platforms th, .platforms td { text-align: left; padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+      .platforms th { color: var(--muted); font-weight: 700; }
+      .platforms td:first-child { font-weight: 700; }
+      .table-scroll { overflow-x: auto; }
+
+      details { border-bottom: 1px solid var(--line); padding: 16px 0; max-width: 80ch; }
+      summary { cursor: pointer; font: 700 1.1rem/1.4 var(--sans); }
+      summary::marker { color: var(--magenta); }
+      details p { margin: 0.6em 0 0; color: var(--muted); }
+
+      footer { background: var(--bg-2); border-top: 1px solid var(--line); padding: 36px 0 44px; font-size: 0.95rem; }
+      footer .row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
+      footer .mark { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text); margin-right: auto; }
+      footer .mark svg { width: 28px; height: 28px; }
+      footer ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; }
+      footer p { margin: 18px 0 0; color: var(--muted); max-width: none; }
+      footer .fair { padding-left: 12px; border-left: 3px solid var(--magenta); max-width: 90ch; }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        .btn { transition: none; }
+      }
     </style>
   </head>
   <body>
     <a class="skip" href="#features">Skip to the features</a>
 
-    <header class="hero"></header>
+    <header class="hero dots">
+      <div class="wrap">
+        <div class="hero-top">
+          <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="188" height="188" aria-hidden="true" focusable="false">
+            <path fill="#FF2E8E" stroke="#FF2E8E" stroke-width=".5" stroke-linejoin="round" d="M24 64 96 64 80 96ZM80 160 24 192 61 128ZM24 192 128 256 96 192Z"/>
+            <path fill="#F768C9" stroke="#F768C9" stroke-width=".5" stroke-linejoin="round" d="M128 0 128 64 96 64ZM24 64 80 96 61 128ZM24 192 96 192 80 160ZM128 256 128 192 96 192Z"/>
+            <path fill="#D21FC2" stroke="#D21FC2" stroke-width=".5" stroke-linejoin="round" d="M24 64 128 0 96 64ZM128 0 163 64 128 64ZM96 64 128 64 80 96ZM80 96 80 160 61 128ZM24 192 24 64 61 128ZM96 192 128 192 80 160Z"/>
+            <path fill="#A436E8" stroke="#A436E8" stroke-width=".5" stroke-linejoin="round" d="M128 0 232 64 163 64ZM128 64 163 64 180 96ZM163 192 232 192 180 160ZM128 256 163 192 128 192Z"/>
+            <path fill="#7414DC" stroke="#7414DC" stroke-width=".5" stroke-linejoin="round" d="M163 64 232 64 180 96ZM128 192 163 192 180 160ZM128 256 232 192 163 192Z"/>
+          </svg>
+          <div>
+            <p class="kicker">Comic browser · macOS · Windows · Linux</p>
+            <h1>Comic Commander</h1>
+          </div>
+        </div>
+        <p class="pitch">Your whole comic collection as a wall of covers – or on a wooden shelf. Pick a book and read it right there.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://github.com/krocon/comic-commander-tauri/releases">Releases on GitHub</a>
+          <a class="btn btn-secondary" href="https://github.com/krocon/comic-commander-tauri">Source on GitHub</a>
+        </div>
+        <p class="note">Free and open source (MIT). The first public release is in the works – today you can <a href="https://github.com/krocon/comic-commander-tauri#entwickeln">build it from source</a>.</p>
+        <figure class="hero-shot">
+          <img src="img/grid.png" width="1217" height="744" fetchpriority="high"
+               alt="Comic Commander showing the category Comics as a borderless wall of covers grouped by series – 2001 Nights, Africa Dreams, Amazonia, Angor and more, each series with the number of volumes in a blue badge">
+        </figure>
+      </div>
+    </header>
 
-    <main>
+    <nav class="nav" aria-label="Sections">
+      <ol>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#more">Details</a></li>
+        <li><a href="#keys">Keys</a></li>
+        <li><a href="#platforms">Platforms</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="https://github.com/krocon/comic-commander-tauri">GitHub</a></li>
+      </ol>
+    </nav>
+
+    <main id="features">
+      <section class="intro wrap" aria-labelledby="intro-title">
+        <h2 id="intro-title">Thousands of comics, one look</h2>
+        <blockquote class="bubble">
+          <p>My comics live in folders – CBZ, CBR, PDF, sorted by series, some with odd names. For years a small server of mine showed them as covers in the browser.</p>
+          <p>Comic Commander is its successor as a real desktop app: it opens instantly, reads every common format and never touches your comic folders.</p>
+        </blockquote>
+        <p class="signature">Marc Kronberg</p>
+      </section>
+
+      <div class="wrap">
+        <article class="feature" id="grid">
+          <div class="text">
+            <span class="num" aria-hidden="true">1</span>
+            <h3>The wall of covers</h3>
+            <p class="lead">Every book as its cover, edge to edge.</p>
+            <p>Scroll through the whole collection, by series or by folder. A series shows the cover of its first volume, the number of volumes and how far you have read.</p>
+            <ul>
+              <li>Filter as you type: <code>asterix -album</code>, <code>series:</code>, <code>year:1990-1999</code>, <code>writer:</code></li>
+              <li>Sort by series and number, name, date or size</li>
+              <li>Cover size, filter and position are kept per category</li>
+            </ul>
+            <dl class="keys"><dt>Views</dt><dd><kbd>Ctrl/⌘ ⇧ L</kbd> <kbd>S</kbd> <kbd>D</kbd></dd><dt>Read</dt><dd><kbd>Enter</kbd></dd></dl>
+          </div>
+          <figure class="shot detail"><img src="img/grid.png" width="1217" height="744" loading="lazy" decoding="async" alt="Close-up of the toolbar with the filter field, view buttons, cover size and sort order, below the covers of 2001 Nights, Africa Dreams, Amazonia and Amorostasia with their series badges"></figure>
+        </article>
+
+        <article class="feature flip" id="shelf">
+          <div class="text">
+            <span class="num" aria-hidden="true">2</span>
+            <h3>On the shelf</h3>
+            <p class="lead">Like books in a bookcase.</p>
+            <p>One key turns the wall into wooden shelves: covers stand in their real proportions, with spine, pages and shadow. A series shows up as a small stack. Filter, views and keys work just the same.</p>
+            <dl class="keys"><dt>Wall ⇄ shelf</dt><dd><kbd>Ctrl/⌘ ⇧ B</kbd></dd></dl>
+          </div>
+          <figure class="shot"><img src="img/shelf.png" width="1217" height="744" loading="lazy" decoding="async" alt="The shelf look: covers of Amazonia, Angor, Arcanes and others stand on two wooden shelves, series as stacks"></figure>
+        </article>
+
+        <article class="feature" id="reader">
+          <div class="text">
+            <span class="num" aria-hidden="true">3</span>
+            <h3>The reader</h3>
+            <p class="lead">Read where you browse – no other program.</p>
+            <p>Single page or continuous, fit width, height or page, full size or free zoom. Read big pages screen by screen, rotate, switch to manga right to left, go full screen. The toolbar fades away while you read.</p>
+            <ul>
+              <li>Remembers the last page of every book</li>
+              <li><kbd>]</kbd> takes you to the next volume of the series</li>
+            </ul>
+            <dl class="keys"><dt>Zoom modes</dt><dd><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></dd><dt>Rotate, manga</dt><dd><kbd>R</kbd> <kbd>L</kbd> <kbd>M</kbd></dd></dl>
+          </div>
+          <figure class="shot"><img src="img/view.png" width="1216" height="736" loading="lazy" decoding="async" alt="The reader at full window width: the cover of Amazonia, episode 2, without any toolbar"></figure>
+        </article>
+      </div>
+
+      <section class="block" id="more" aria-labelledby="more-title">
+        <div class="wrap">
+          <h2 id="more-title">Made for big collections</h2>
+          <p>Books are recognised by their content, not by their extension – a CBR that is really a ZIP opens just fine.</p>
+          <ul class="formats" aria-label="Supported formats">
+            <li>CBZ</li><li>CBR</li><li>CB7</li><li>CBT</li><li>PDF</li><li>ZIP</li><li>RAR 4/5</li><li>7z</li><li>TAR</li>
+          </ul>
+          <ul class="cards">
+            <li><b>Your folders stay untouched</b>Covers and caches live in the app's own cache, nothing is written into your comic folders.</li>
+            <li><b>Instant start</b>The last scan shows up at once and is refreshed in the background. An unreachable drive keeps its last state.</li>
+            <li><b>Series from ComicInfo.xml</b>Series, number, year, writer and manga direction from ComicRack metadata – or from the file name.</li>
+            <li><b>Categories</b>Comics, manga, magazines: each with its own folder, formats and cover sizes. Choose with <kbd>Ctrl/⌘ 1…9</kbd>.</li>
+            <li><b>All covers at once</b>Generate missing thumbnails in the background with progress, time left, pause and cancel.</li>
+            <li><b>PDF in Rust</b>Covers and pages without external programs; scanned PDFs show their embedded images directly.</li>
+            <li><b>Hostile files stay harmless</b>Archives and images are read with limits – no zip bombs, no zip slip, broken books just show their format.</li>
+            <li><b>Keyboard first</b>Every function is an action with a shortcut, in the menu and in the command palette. Your own keys in <code>keymap.json</code>.</li>
+            <li><b>Natural order</b><i>Volume 2</i> comes before <i>Volume 10</i>; umlauts are found in either Unicode form.</li>
+            <li><b>Coming from comiccommander?</b>Import your old <code>config.json</code> with a preview; existing thumbnails are used.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="block" id="keys" aria-labelledby="keys-title">
+        <div class="wrap">
+          <h2 id="keys-title">Hands on the keyboard</h2>
+          <p>Mouse, trackpad and swipe work too – but everything is one key away. <kbd>Ctrl</kbd> on Windows and Linux, <kbd>⌘</kbd> on macOS.</p>
+          <div class="cheat-cols">
+            <div>
+              <h3>Browsing</h3>
+              <dl class="cheat">
+                <div><dt>Read the book</dt><dd><kbd>Enter</kbd></dd></div>
+                <div><dt>Actions for the book</dt><dd><kbd>Space</kbd></dd></div>
+                <div><dt>Filter</dt><dd>just type</dd></div>
+                <div><dt>All books, series, folders</dt><dd><kbd>Ctrl/⌘ ⇧ L</kbd> <kbd>S</kbd> <kbd>D</kbd></dd></div>
+                <div><dt>Wall ⇄ shelf</dt><dd><kbd>Ctrl/⌘ ⇧ B</kbd></dd></div>
+                <div><dt>Bigger, smaller covers</dt><dd><kbd>Ctrl/⌘ +</kbd> <kbd>Ctrl/⌘ −</kbd></dd></div>
+                <div><dt>One level up</dt><dd><kbd>Backspace</kbd></dd></div>
+                <div><dt>Command palette</dt><dd><kbd>Ctrl/⌘ ⇧ P</kbd></dd></div>
+              </dl>
+            </div>
+            <div>
+              <h3>Reading</h3>
+              <dl class="cheat">
+                <div><dt>Next, previous page</dt><dd><kbd>→</kbd> <kbd>←</kbd> <kbd>Space</kbd></dd></div>
+                <div><dt>Fit width, height, page, full size</dt><dd><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></dd></div>
+                <div><dt>Zoom</dt><dd><kbd>+</kbd> <kbd>−</kbd></dd></div>
+                <div><dt>Rotate right, left</dt><dd><kbd>R</kbd> <kbd>L</kbd></dd></div>
+                <div><dt>Single page ⇄ continuous</dt><dd><kbd>S</kbd></dd></div>
+                <div><dt>Manga</dt><dd><kbd>M</kbd></dd></div>
+                <div><dt>Next, previous book</dt><dd><kbd>]</kbd> <kbd>[</kbd></dd></div>
+                <div><dt>Full screen, back</dt><dd><kbd>F11</kbd> <kbd>Esc</kbd></dd></div>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="platforms" aria-labelledby="platforms-title">
+        <div class="wrap">
+          <h2 id="platforms-title">macOS, Windows and Linux</h2>
+          <p>One app, built with Tauri and Rust, with a native menu on macOS and a menu bar in the window elsewhere. The packages for the first release are being prepared.</p>
+          <div class="table-scroll">
+            <table class="platforms">
+              <thead><tr><th scope="col">System</th><th scope="col">Needs</th><th scope="col">Package</th></tr></thead>
+              <tbody>
+                <tr><td>macOS</td><td>12 Monterey or later, Apple Silicon and Intel</td><td>.dmg</td></tr>
+                <tr><td>Windows</td><td>10 or 11, x64</td><td>Installer or .msi</td></tr>
+                <tr><td>Linux</td><td>WebKitGTK 4.1 – Ubuntu 22.04, Debian 12, Fedora 36 or later</td><td>.deb, .rpm, AppImage</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="block" id="faq" aria-labelledby="faq-title">
+        <div class="wrap">
+          <h2 id="faq-title">Questions</h2>
+          <details>
+            <summary>Is it free?</summary>
+            <p>Yes. Comic Commander is open source under the MIT license – read the code, change it, use it.</p>
+          </details>
+          <details>
+            <summary>Where can I download it?</summary>
+            <p>The first public release is still being prepared. Until then you can build the app from source with Node.js, pnpm and Rust – the steps are in the <a href="https://github.com/krocon/comic-commander-tauri#entwickeln">README</a>. Releases will appear on <a href="https://github.com/krocon/comic-commander-tauri/releases">GitHub</a>.</p>
+          </details>
+          <details>
+            <summary>Does it change my comic files?</summary>
+            <p>No. Comic Commander only reads your books. Covers, scan results and unpacked pages are kept in the app's own cache folder, reading positions in its settings folder.</p>
+          </details>
+          <details>
+            <summary>Which formats can it read?</summary>
+            <p>CBZ, CBR (RAR 4 and 5), CB7, CBT and PDF, plus the same as plain ZIP, RAR, 7z and TAR. Pages can be JPEG, PNG, WebP, GIF or BMP. Encrypted books are skipped.</p>
+          </details>
+          <details>
+            <summary>I used the old Comic Commander server. Can I keep my setup?</summary>
+            <p>Yes. Import its <code>config.json</code> – you see a preview of all categories with missing folders and duplicates first. Thumbnails the old server created next to your books are used as they are.</p>
+          </details>
+          <details>
+            <summary>Where do the comics come from?</summary>
+            <p>From your own collection: comics you scanned yourself from books you own, DRM-free purchases or freely licensed comics. Comic Commander only shows and reads what is already on your disk – it is not meant for pirated copies and has no download function.</p>
+          </details>
+          <details>
+            <summary>Are the packages signed?</summary>
+            <p>Not yet. The first packages will be unsigned: on macOS open the app with right-click, Open; on Windows choose More info, Run anyway in SmartScreen.</p>
+          </details>
+          <details>
+            <summary>Which languages?</summary>
+            <p>English for now. German, switchable while the app runs, comes with the settings.</p>
+          </details>
+        </div>
+      </section>
     </main>
 
     <footer>
       <div class="wrap">
-        <ul>
-          <li><a href="https://github.com/krocon/comic-commander-tauri">Source on GitHub</a></li>
-          <li><a href="https://github.com/krocon/comic-commander-tauri/issues">Report a problem</a></li>
-          <li><a href="https://github.com/krocon/comic-commander-tauri/blob/main/LICENSE">MIT license</a></li>
-          <li><a href="https://krocon.de">Imprint and privacy (krocon.de)</a></li>
-        </ul>
-        <p>© Marc Kronberg. </p>
+        <div class="row">
+          <span class="mark">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+              <path fill="#FF2E8E" d="M24 64 96 64 80 96ZM80 160 24 192 61 128ZM24 192 128 256 96 192Z"/>
+              <path fill="#F768C9" d="M128 0 128 64 96 64ZM24 64 80 96 61 128ZM24 192 96 192 80 160ZM128 256 128 192 96 192Z"/>
+              <path fill="#D21FC2" d="M24 64 128 0 96 64ZM128 0 163 64 128 64ZM96 64 128 64 80 96ZM80 96 80 160 61 128ZM24 192 24 64 61 128ZM96 192 128 192 80 160Z"/>
+              <path fill="#A436E8" d="M128 0 232 64 163 64ZM128 64 163 64 180 96ZM163 192 232 192 180 160ZM128 256 163 192 128 192Z"/>
+              <path fill="#7414DC" d="M163 64 232 64 180 96ZM128 192 163 192 180 160ZM128 256 232 192 163 192Z"/>
+            </svg>
+            Comic Commander
+          </span>
+          <ul>
+            <li><a href="https://github.com/krocon/comic-commander-tauri">Source on GitHub</a></li>
+            <li><a href="https://github.com/krocon/comic-commander-tauri/issues">Report a problem</a></li>
+            <li><a href="https://github.com/krocon/comic-commander-tauri/blob/main/LICENSE">MIT license</a></li>
+            <li><a href="https://krocon.de/products/fnf/">Files and Folders</a></li>
+            <li><a href="https://krocon.de">Imprint and privacy (krocon.de)</a></li>
+          </ul>
+        </div>
+        <p class="fair">Please use Comic Commander only with comics you are allowed to have: books you scanned yourself from your own copies, DRM-free purchases and freely licensed comics. The app is a reader for your own collection – it does not support or encourage pirated copies, and it does not download anything.</p>
+        <p>© Marc Kronberg. The covers in the screenshots belong to their publishers and artists; they only show the app at work.</p>
       </div>
     </footer>
   </body>
