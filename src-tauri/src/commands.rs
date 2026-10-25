@@ -497,27 +497,30 @@ pub async fn cancel_job(app: AppHandle, job_id: String) -> Result<(), FsError> {
 #[tauri::command]
 pub async fn set_app_menu(app: AppHandle, spec: crate::app_menu::MenuSpec) -> Result<(), FsError> {
     crate::app_menu::validate(&spec)?;
-    #[cfg(target_os = "macos")]
-    {
-        // menus are built on the main thread
-        let (tx, rx) = std::sync::mpsc::channel();
-        let handle = app.clone();
-        app.run_on_main_thread(move || {
-            let _ = tx.send(crate::app_menu::apply(&handle, &spec));
-        })
-        .map_err(|e| io_error(e.to_string()))?;
-        return blocking(move || {
-            rx.recv()
-                .map_err(|e| io_error(e.to_string()))?
-                .map_err(|e| io_error(e.to_string()))
-        })
-        .await;
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = app;
-        Ok(())
-    }
+    apply_app_menu(app, spec).await
+}
+
+/// macOS: menus are built on the main thread; the answer is awaited off the async runtime.
+#[cfg(target_os = "macos")]
+async fn apply_app_menu(app: AppHandle, spec: crate::app_menu::MenuSpec) -> Result<(), FsError> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(crate::app_menu::apply(&handle, &spec));
+    })
+    .map_err(|e| io_error(e.to_string()))?;
+    blocking(move || {
+        rx.recv()
+            .map_err(|e| io_error(e.to_string()))?
+            .map_err(|e| io_error(e.to_string()))
+    })
+    .await
+}
+
+/// Windows/Linux: the HTML menu bar needs nothing from the backend.
+#[cfg(not(target_os = "macos"))]
+async fn apply_app_menu(_app: AppHandle, _spec: crate::app_menu::MenuSpec) -> Result<(), FsError> {
+    Ok(())
 }
 
 /// The user's shortcut overrides (`keymap.json`, design 008 E2).

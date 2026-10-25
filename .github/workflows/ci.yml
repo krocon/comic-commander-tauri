@@ -64,4 +64,16 @@ jobs:
       # Debug builds compile in Tauri's dev mode (devUrl), so no frontend build is needed here.
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      # Failing tests also become one error annotation (the "failures:" block of the log), so
+      # they show up in the PR without opening the job log.
+      - name: cargo test
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cargo test --manifest-path src-tauri/Cargo.toml --locked 2>&1 | tee "$RUNNER_TEMP/test.log"; then
+            msg=$(sed -n '/^failures:$/,/^test result:/p' "$RUNNER_TEMP/test.log" | head -c 8000)
+            [ -z "$msg" ] && msg=$(tail -n 60 "$RUNNER_TEMP/test.log")
+            msg="${msg//'%'/'%25'}"; msg="${msg//$'\r'/}"; msg="${msg//$'\n'/'%0A'}"
+            echo "::error title=cargo test (${{ runner.os }})::$msg"
+            exit 1
+          fi

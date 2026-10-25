@@ -68,7 +68,7 @@
 | Frontend-Tests | `pnpm test` (Vitest + jsdom über `ng test`), `pnpm test:watch` |
 | Lint / Format | `pnpm lint`, `pnpm format`, `pnpm format:check` |
 | Frontend-Build | `pnpm build` |
-| Rust | `pnpm rust:fmt`, `pnpm rust:lint` (clippy `-D warnings`), `pnpm rust:test` |
+| Rust | `pnpm rust:fmt`, `pnpm rust:lint` (clippy `-D warnings`), `pnpm rust:test`; `pnpm rust:cross` = clippy für Windows/macOS vom Linux-Container aus (nur Typprüfung, `scripts/cross-check.sh`) |
 | Alles prüfen | `pnpm check` |
 | Debug-App ohne Bundle | `pnpm tauri build --debug --no-bundle` → `src-tauri/target/debug/comic-commander-tauri` |
 | Icons neu erzeugen | `pnpm tauri icon src-tauri/icons/source/app-icon.svg -o src-tauri/icons` (danach `android/`, `ios/` löschen) |
