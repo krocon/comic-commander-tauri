@@ -632,7 +632,8 @@ fn meta_pass(
             flush(&mut pending);
             last_flush = Instant::now();
         }
-        if last_progress.elapsed() >= PROGRESS_INTERVAL {
+        // the last one (done = total) is sent once, after the loop – also on a slow last book
+        if last_progress.elapsed() >= PROGRESS_INTERVAL && (n as u64 + 1) < total {
             broadcast(
                 inner,
                 key,
@@ -1015,6 +1016,32 @@ mod tests {
                 .and_then(|m| m.series.as_deref())
                 == Some("S"))
         );
+    }
+
+    #[test]
+    fn the_last_meta_progress_comes_once_even_after_a_slow_book() {
+        // CI (macOS): when the last book took longer than PROGRESS_INTERVAL, the loop sent
+        // done = total itself and the pass sent it again after the loop
+        let lib = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        for i in 0..2 {
+            comic(lib.path(), &format!("A {i}.cbz"), Some("A"));
+        }
+        let hub = ScanHub::with_options(4, PROGRESS_INTERVAL + Duration::from_millis(20));
+        let ends = Arc::new(Mutex::new(0usize));
+        let counter = ends.clone();
+        hub.open(
+            cache.path(),
+            "c1",
+            target(lib.path()),
+            Arc::new(move |e| {
+                if matches!(e, ScanEvent::MetaProgress { done, total } if done == total) {
+                    *lock(&counter) += 1;
+                }
+            }),
+        );
+        wait_idle(&hub);
+        assert_eq!(*lock(&ends), 1);
     }
 
     #[test]
