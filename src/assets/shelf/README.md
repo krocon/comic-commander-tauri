@@ -5,7 +5,7 @@ Bildfragmente für die Darstellung „Regal“ (`src/app/features/grid/shelf.css
 
 | Datei | Inhalt | CSS-Größe (s = 1) |
 |---|---|---|
-| `wall.webp` | Rückwand, nahtlos in x und y | 326 × 426 px |
+| `wall2.webp` | Rückwand, nahtlos in x und y | 326 × 426 px |
 | `board.webp` | Boden: 12 px Oberseite + 16 px Vorderkante, Maserung quer | 526 × 28 px (repeat-x) |
 | `upright.webp` | Seitenwand links (rechts gespiegelt), nahtlos in y | 30 × 426 px |
 

@@ -47,7 +47,7 @@
       rgb(var(--shelf-dark) / 4%) calc(240px * var(--s)),
       transparent calc(290px * var(--s))
     ),
-    url('../../../assets/shelf/wall.webp') 0 0 / calc(326px * var(--s)) calc(426px * var(--s))
+    url('../../../assets/shelf/wall2.webp') 0 0 / calc(326px * var(--s)) calc(426px * var(--s))
       repeat;
 }
 
