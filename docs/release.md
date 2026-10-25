@@ -53,9 +53,6 @@ Zielplattformen (`cargo metadata`), npm-Laufzeitpakete (u. a. GuiExpert Table), 
   RAR-Packers) – aus `vendor/unrar/license.txt` der Crate.
 - **PDF** (`hayro` u. a., Apache-2.0 OR MIT; Standard-Fonts aus PDFium/Foxit, BSD) – über `cargo metadata`.
 - **Font Awesome 4.5.0** (OFL 1.1 + MIT) – `scripts/notices/font-awesome.txt`.
-- **Holz des Regals** (`src/assets/shelf/`, Design 015) – Herkunftsangabe in `scripts/notices/shelf-wood.txt`.
-  Die Quell-Seite nennt keine Lizenz für die PSD (s. `src/assets/shelf/README.md`); vor dem ersten öffentlichen
-  Release klären oder die Maserung durch eine eigene/freie Textur ersetzen.
 
 Die Datei liegt in jedem Paket (`bundle.resources`). `pnpm check` und der Release-Workflow prüfen mit
 `pnpm notices:check`, dass sie aktuell ist – **nach jeder Änderung an Abhängigkeiten `pnpm notices` ausführen**

@@ -13,11 +13,9 @@ Die Dateien liegen in doppelter Auflösung vor und werden in halber Größe geze
 
 ## Quellen
 
-- **Layout und Holz:** Thoriq Firdaus, „Create an iBook Inspired Bookshelf Mock-up“, Naldz Graphics, 4.11.2011,
-  <https://naldzgraphics.net/how-to-create-an-ibook/>. Die PSD des Tutorials (`Bookshelf.psd`, 800 × 1100,
-  Vorschau `img_3.png`) liefert die rohe Holztextur (Smart-Objekt `wood (right).psb`). Aus ihr kommt nur die
-  **Maserung**: Helligkeit geteilt durch ihr weiches Mittel, Kontrast angepasst. Eine Lizenz für die PSD nennt die
-  Seite nicht (Stand 24.10.2026). Freigabe für die Nutzung: Marc Kronberg, 24.10.2026.
+- **Holz:** eigene Texturen (Marc Kronberg). Danke an **Naldz Graphics** – das Tutorial „Create an iBook Inspired
+  Bookshelf Mock-up“ von Thoriq Firdaus (4.11.2011, <https://naldzgraphics.net/how-to-create-an-ibook/>) war die
+  Vorlage für Aufbau und Anmutung des Regals.
 - **Maße und Farben:** gemessen an den Fotos des iBooks-Regals (iPad, 2010; `shelf.png`, `img_2.png`, Newsstand
   `view.png`). Übernommen sind nur Zahlen (Breiten, Höhen, Farbwerte; Tabelle „Aufbau“ in
   `prompts/done/015-regalansicht.md`), keine Pixel.
