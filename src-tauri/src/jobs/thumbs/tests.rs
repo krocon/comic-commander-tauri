@@ -188,7 +188,11 @@ fn pause_holds_the_run() {
     // paused before the start: counting waits too (review 007 #4), nothing was made – and the
     // 300 ms pause is not part of the elapsed time (compared with the wall clock: CI runners are
     // too slow for a fixed bound on the work itself)
-    assert!(p.elapsed_ms + 250 <= wall_ms, "elapsed {} ms, wall {wall_ms} ms", p.elapsed_ms);
+    assert!(
+        p.elapsed_ms + 250 <= wall_ms,
+        "elapsed {} ms, wall {wall_ms} ms",
+        p.elapsed_ms
+    );
 }
 
 #[test]
