@@ -106,7 +106,10 @@ pub(crate) mod build {
         let mut out = b"Rar!\x1a\x07\x00".to_vec();
         out.extend(rar_block(0x73, 0, &[0u8; 6]));
         for (name, data) in entries {
-            let n = name.as_bytes();
+            // like WinRAR: a non-ASCII name gets the Unicode part (LHD_UNICODE) behind the narrow
+            // one – without it UnRAR on Windows reads the narrow bytes as OEM code page (CI)
+            let (n, flags) = rar4_name(name);
+            let n = n.as_slice();
             let mut body = Vec::new();
             body.extend_from_slice(&(data.len() as u32).to_le_bytes()); // packed
             body.extend_from_slice(&(data.len() as u32).to_le_bytes()); // unpacked
@@ -118,11 +121,31 @@ pub(crate) mod build {
             body.extend_from_slice(&(n.len() as u16).to_le_bytes());
             body.extend_from_slice(&0o100644u32.to_le_bytes());
             body.extend_from_slice(n);
-            out.extend(rar_block(0x74, 0x8000, &body));
+            out.extend(rar_block(0x74, 0x8000 | flags, &body));
             out.extend_from_slice(data);
         }
         out.extend(rar_block(0x7B, 0x4000, &[]));
         std::fs::write(path, out).unwrap();
+    }
+
+    /// RAR 4 file name field: ASCII as is; otherwise the UTF-8 bytes, a zero and the name in
+    /// UnRAR's `EncodeFileName` form (high byte 0, every UTF-16 unit as op 2 = low, high).
+    fn rar4_name(name: &str) -> (Vec<u8>, u16) {
+        const LHD_UNICODE: u16 = 0x0200;
+        if name.is_ascii() {
+            return (name.as_bytes().to_vec(), 0);
+        }
+        let mut field = name.as_bytes().to_vec();
+        field.push(0);
+        field.push(0); // high byte
+        for units in name.encode_utf16().collect::<Vec<_>>().chunks(4) {
+            // two bits per unit, from the top: 0b10 = a full 16-bit unit follows
+            field.push(0b1010_1010 << (2 * (4 - units.len())));
+            for u in units {
+                field.extend_from_slice(&u.to_le_bytes());
+            }
+        }
+        (field, LHD_UNICODE)
     }
 }
 
