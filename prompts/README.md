@@ -32,7 +32,7 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 | 009 | [009-einstellungen-themes-i18n.md](009-einstellungen-themes-i18n.md) | Einstellungen + Dialog, Farbschemata, Deutsch/Englisch zur Laufzeit | 004, 005, 008 | M | offen |
 | 010 | [010-duplikate.md](010-duplikate.md) | Duplikate: identisch, ähnlich (pHash), Namensnähe; Vergleich mit Covern, Papierkorb | 003, 004, 007 | M–L | offen |
 | 011 | [011-metadaten-serien.md](done/011-metadaten-serien.md) | *optional*: ComicInfo.xml, Serie/Nummer, Serien- und Ordneransicht | 002, 004 | M | ✅ 23.10.2026 |
-| 012 | [012-release-distribution.md](012-release-distribution.md) | Version, Lizenzen (unRAR, PDF), Pakete je OS, CI-Vorlagen, Signierung vorbereiten | – | M | offen |
+| 012 | [012-release-distribution.md](012-release-distribution.md) | Version, Lizenzen (unRAR, PDF), Pakete je OS, CI-Vorlagen, Signierung vorbereiten | – | M | teilweise 25.10.2026: Version, Notices, Pakete, CI/Release-Workflows (`docs/release.md`); offen E1, E2, `docs/licenses.md` |
 | 013 | [013-feature-paritaet.md](013-feature-paritaet.md) | Matrix gegen comiccommander mit Testbelegen, Lücken → neue Prompts | 002–010 | S–M | offen |
 | 014 | [014-zoom-modi.md](done/014-zoom-modi.md) | Leser: Zoom-Modi (Fit width/height/page, Full size), Zoom-Regler, Drehen links/rechts, dezente Toolbar mit sanftem Aus-/Einblenden | 005, 006, 008 | M | ✅ 23.10.2026 |
 | 015 | [015-regalansicht.md](done/015-regalansicht.md) | Darstellung „Regal“ wie die iBooks-Fotos (`img*.png`): Holzrückwand, Seitenwände, Böden mit Schatten, Bildfragmente; umschaltbar zum Raster | 004, 008, 011 | M–L | ✅ 24.10.2026 |
