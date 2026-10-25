@@ -70,9 +70,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          if ! cargo test --manifest-path src-tauri/Cargo.toml --locked 2>&1 | tee "$RUNNER_TEMP/test.log"; then
-            msg=$(sed -n '/^failures:$/,/^test result:/p' "$RUNNER_TEMP/test.log" | head -c 8000)
-            [ -z "$msg" ] && msg=$(tail -n 60 "$RUNNER_TEMP/test.log")
+          if ! cargo test --manifest-path src-tauri/Cargo.toml --locked --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test.log"; then
+            log="$RUNNER_TEMP/test.log"
+            # names first (the last "failures:" list), then the details, cut to fit an annotation
+            names=$(awk '/^failures:$/{n=""} /^    [^ ]/{n=n $0 "\n"} END{printf "%s", n}' "$log")
+            details=$(sed -n '/^failures:$/,/^test result:/p' "$log" | head -c 30000)
+            msg=$(printf 'Failed tests:\n%b\n%s' "$names" "$details")
+            [ -z "$details" ] && msg=$(tail -n 60 "$log")
             msg="${msg//'%'/'%25'}"; msg="${msg//$'\r'/}"; msg="${msg//$'\n'/'%0A'}"
             echo "::error title=cargo test (${{ runner.os }})::$msg"
             exit 1

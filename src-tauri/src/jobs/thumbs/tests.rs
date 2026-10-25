@@ -179,12 +179,16 @@ fn pause_holds_the_run() {
         c.set_paused(false);
         made
     });
+    let started = std::time::Instant::now();
     let events = run_job(&l, &control);
+    let wall_ms = started.elapsed().as_millis() as u64;
     assert_eq!(t.join().unwrap(), 0, "covers made while paused");
     let (p, _, _) = done(&events);
     assert_eq!(p.generated, 7);
-    // paused before the start: counting waits too (review 007 #4), nothing was made
-    assert!(p.elapsed_ms < 300, "{}", p.elapsed_ms);
+    // paused before the start: counting waits too (review 007 #4), nothing was made – and the
+    // 300 ms pause is not part of the elapsed time (compared with the wall clock: CI runners are
+    // too slow for a fixed bound on the work itself)
+    assert!(p.elapsed_ms + 250 <= wall_ms, "elapsed {} ms, wall {wall_ms} ms", p.elapsed_ms);
 }
 
 #[test]
