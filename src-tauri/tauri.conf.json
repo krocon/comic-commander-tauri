@@ -34,6 +34,9 @@
     "active": true,
     "license": "MIT",
     "licenseFile": "../LICENSE",
+    "resources": {
+      "../THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
+    },
     "targets": ["deb", "rpm", "appimage", "dmg", "app", "msi", "nsis"],
     "publisher": "Marc Kronberg",
     "copyright": "© 2026 Marc Kronberg",
@@ -51,7 +54,32 @@
     "macOS": {
       "minimumSystemVersion": "12.0",
       "hardenedRuntime": true,
-      "signingIdentity": null
+      "signingIdentity": null,
+      "dmg": {
+        "windowSize": { "width": 660, "height": 400 },
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 }
+      }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "wix": {
+        "language": "en-US",
+        "upgradeCode": "7f69796d-3eda-5ea5-879f-e390896ff088"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "German"],
+        "displayLanguageSelector": false
+      }
+    },
+    "linux": {
+      "deb": { "section": "graphics" },
+      "rpm": { "release": "1" },
+      "appimage": { "bundleMediaFramework": false }
     }
   }
 }
