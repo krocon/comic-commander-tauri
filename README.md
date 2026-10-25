@@ -132,5 +132,7 @@ Weitere Befehle, Architekturregeln und Projektaufbau: [`CLAUDE.md`](CLAUDE.md),
 
 ## Lizenz
 
-MIT © 2026 Marc Kronberg – siehe [`LICENSE`](LICENSE). Lizenzen der mitgelieferten Teile (u. a. UnRAR, Font
+MIT © 2026 Marc Kronberg – siehe [`LICENSE`](LICENSE).
+Das Regal ist inspiriert vom Tutorial „Create an iBook Inspired Bookshelf Mock-up“ von
+[Naldz Graphics](https://naldzgraphics.net/how-to-create-an-ibook/) – danke! Lizenzen der mitgelieferten Teile (u. a. UnRAR, Font
 Awesome): [`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt), nach Änderungen an Abhängigkeiten `pnpm notices`.

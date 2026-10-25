@@ -27,8 +27,6 @@ const EXTRA_FILES = {
 /** Bundled assets that are no package (relative to scripts/notices/). */
 const ASSETS = [
   { name: 'Font Awesome', version: '4.5.0', license: 'OFL-1.1 AND MIT', file: 'font-awesome.txt' },
-  // src/assets/shelf/ (design 015): wood grain derived from a tutorial PSD – attribution, see the file
-  { name: 'Bookshelf wood texture', version: '2011', license: 'see notice', file: 'shelf-wood.txt' },
 ];
 
 /**
