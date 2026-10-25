@@ -1,0 +1,83 @@
+# CI for Comic Commander (design 012, taken over from files-and-folders-tauri design 017).
+# Frontend checks on Linux; Rust fmt/clippy/test on Linux, macOS and Windows – the
+# `#[cfg(target_os = …)]` code (platform/desktop.rs, menus) is only compiled on its own OS.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * 1' # Mondays 04:17 UTC
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend (format, lint, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check # package.json ↔ tauri.conf.json ↔ Cargo.toml/.lock
+      - run: pnpm scripts:test # scripts/*.test.mjs (version, release notes, notices)
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false # see every platform's errors, not only the first
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # Debug builds compile in Tauri's dev mode (devUrl), so no frontend build is needed here.
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+      # Failing tests also become one error annotation (the "failures:" block of the log), so
+      # they show up in the PR without opening the job log.
+      - name: cargo test
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cargo test --manifest-path src-tauri/Cargo.toml --locked --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test.log"; then
+            log="$RUNNER_TEMP/test.log"
+            # names first (the last "failures:" list), then the details, cut to fit an annotation
+            names=$(awk '/^failures:$/{n=""} /^    [^ ]/{n=n $0 "\n"} END{printf "%s", n}' "$log")
+            details=$(sed -n '/^failures:$/,/^test result:/p' "$log" | head -c 30000)
+            msg=$(printf 'Failed tests:\n%b\n%s' "$names" "$details")
+            [ -z "$details" ] && msg=$(tail -n 60 "$log")
+            msg="${msg//'%'/'%25'}"; msg="${msg//$'\r'/}"; msg="${msg//$'\n'/'%0A'}"
+            echo "::error title=cargo test (${{ runner.os }})::$msg"
+            exit 1
+          fi

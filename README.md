@@ -106,6 +106,16 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 | `F11`, `⌘ + Ctrl + F` | Vollbild |
 | `Esc` | Vollbild verlassen, sonst zurück zum Raster (an dieselbe Stelle) |
 
+## Installation
+
+Pakete für macOS (`.dmg`, Apple Silicon + Intel), Windows (`-setup.exe` ohne Admin-Rechte, `.msi`) und Linux
+(`.deb`, `.rpm`, `.AppImage`) erscheinen unter [Releases](https://github.com/krocon/comic-commander-tauri/releases).
+Sie sind noch **nicht signiert**: unter macOS die App beim ersten Start mit Rechtsklick → Öffnen starten, unter
+Windows in SmartScreen „Weitere Informationen“ → „Trotzdem ausführen“. Release-Ablauf: [`docs/release.md`](docs/release.md).
+
+Bitte Comic Commander nur mit Comics nutzen, die man haben darf: selbst gescannte eigene Bücher, DRM-frei gekaufte
+oder frei lizenzierte Comics.
+
 ## Entwickeln
 
 Voraussetzungen: Node ≥ 22.22.3, pnpm 10, Rust stable ≥ 1.93, Tauri-Voraussetzungen des OS
@@ -114,7 +124,7 @@ Voraussetzungen: Node ≥ 22.22.3, pnpm 10, Rust stable ≥ 1.93, Tauri-Vorausse
 ```bash
 pnpm install
 pnpm tauri dev      # App mit Dev-Server (Port 1430)
-pnpm check          # Format, Lint, Tests, Build, cargo fmt/clippy/test
+pnpm check          # Version, Skript-Tests, Format, Lint, Tests, Build, cargo fmt/clippy/test, Lizenzhinweise
 ```
 
 Weitere Befehle, Architekturregeln und Projektaufbau: [`CLAUDE.md`](CLAUDE.md),
@@ -122,4 +132,5 @@ Weitere Befehle, Architekturregeln und Projektaufbau: [`CLAUDE.md`](CLAUDE.md),
 
 ## Lizenz
 
-MIT © 2026 Marc Kronberg – siehe [`LICENSE`](LICENSE).
+MIT © 2026 Marc Kronberg – siehe [`LICENSE`](LICENSE). Lizenzen der mitgelieferten Teile (u. a. UnRAR, Font
+Awesome): [`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt), nach Änderungen an Abhängigkeiten `pnpm notices`.

@@ -129,18 +129,40 @@ unsafe fn on_message(msg: ffi::UINT, user: ffi::LPARAM, p1: ffi::LPARAM, p2: ffi
     }
 }
 
+/// Windows: UnRAR gives the native separator; entry names use `/` on every OS (as UnRAR does
+/// on Unix) – cover choice, ComicInfo lookup and the natural order work on `/`.
 #[cfg(windows)]
 fn from_wide(buf: &[ffi::WCHAR]) -> String {
     let end = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
-    String::from_utf16_lossy(&buf[..end])
+    String::from_utf16_lossy(&buf[..end]).replace('\\', "/")
 }
 
+/// Unix: `wchar_t` is 32 bit, but RAR 4 Unicode names reach it as UTF-16 units – a character
+/// outside the BMP (emoji) arrives as a surrogate pair and is joined here.
 #[cfg(not(windows))]
 fn from_wide(buf: &[ffi::WCHAR]) -> String {
-    buf.iter()
-        .take_while(|c| **c != 0)
-        .map(|c| char::from_u32(*c as u32).unwrap_or('\u{fffd}'))
-        .collect()
+    let units = buf.iter().take_while(|c| **c != 0).map(|c| *c as u32);
+    let mut out = String::new();
+    let mut high: Option<u32> = None;
+    for u in units {
+        if let Some(h) = high.take() {
+            if (0xDC00..=0xDFFF).contains(&u) {
+                let c = 0x1_0000 + ((h - 0xD800) << 10) + (u - 0xDC00);
+                out.push(char::from_u32(c).unwrap_or('\u{fffd}'));
+                continue;
+            }
+            out.push('\u{fffd}');
+        }
+        if (0xD800..=0xDBFF).contains(&u) {
+            high = Some(u);
+        } else {
+            out.push(char::from_u32(u).unwrap_or('\u{fffd}'));
+        }
+    }
+    if high.is_some() {
+        out.push('\u{fffd}');
+    }
+    out
 }
 
 fn rar_error(code: c_int, path: &Path, encrypted: bool) -> FsError {
@@ -464,4 +486,25 @@ pub(crate) fn headers(
 pub(crate) fn dll_version() -> c_int {
     // SAFETY: no arguments, no state.
     unsafe { ffi::RARGetDllVersion() }
+}
+
+#[cfg(all(test, not(windows)))]
+mod wide_names {
+    use super::{ffi, from_wide};
+
+    fn w(units: &[u32]) -> Vec<ffi::WCHAR> {
+        units.iter().map(|u| *u as ffi::WCHAR).collect()
+    }
+
+    #[test]
+    fn surrogate_pairs_are_joined() {
+        // "ä🦸/p" as UTF-16 units (as RAR 4 stores them), then the terminating zero
+        let name = from_wide(&w(&[0xE4, 0xD83E, 0xDDB8, 0x2F, 0x70, 0, 0x41]));
+        assert_eq!(name, "ä🦸/p");
+        // a lone half stays visible as a replacement character
+        assert_eq!(from_wide(&w(&[0x61, 0xD83E, 0x62])), "a\u{fffd}b");
+        assert_eq!(from_wide(&w(&[0xDDB8, 0xD83E])), "\u{fffd}\u{fffd}");
+        // UTF-32 from RAR 5 is taken as is
+        assert_eq!(from_wide(&w(&[0x1F9B8])), "🦸");
+    }
 }

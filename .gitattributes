@@ -1,0 +1,17 @@
+# Books, archives and PDFs are binary: never convert line ends (core.autocrlf on Windows CI
+# turned testdata/pdf/encrypted.pdf – plain text to git – into a different file)
+*.pdf binary
+*.cbz binary
+*.cbr binary
+*.cb7 binary
+*.cbt binary
+*.zip binary
+*.rar binary
+*.7z binary
+*.tar binary
+*.psd binary
+*.webp binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary

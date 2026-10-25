@@ -281,13 +281,31 @@ mod tests {
         FIXTURE.replace("@ROOT@", root)
     }
 
+    /// A Unix-style absolute test path; on Windows on drive C: (`/x` is not absolute there).
+    fn abs(p: &str) -> String {
+        if cfg!(windows) && p.starts_with('/') {
+            format!("C:{p}")
+        } else {
+            p.to_owned()
+        }
+    }
+
+    /// The same for every `"baseDir": "/…"` of a test config.
+    fn json(text: &str) -> String {
+        if cfg!(windows) {
+            text.replace(r#""baseDir": "/"#, r#""baseDir": "C:/"#)
+        } else {
+            text.to_owned()
+        }
+    }
+
     #[test]
     fn imports_marcs_config() {
-        let r = parse(&fixture("/demo"), "config.json", &[], &|_| true).unwrap();
+        let r = parse(&fixture(&abs("/demo")), "config.json", &[], &|_| true).unwrap();
         assert_eq!(r.categories.len(), 2);
         let comics = &r.categories[0];
         assert_eq!(comics.title, "Comics");
-        assert_eq!(comics.base_dir, "/demo/comics");
+        assert_eq!(comics.base_dir, abs("/demo/comics"));
         assert_eq!(comics.book_extensions, [".cbz", ".cbr"]);
         assert_eq!(comics.icon, "star");
         assert_eq!(comics.dim_index, 1);
@@ -296,7 +314,7 @@ mod tests {
         let make = &r.categories[1];
         assert_eq!(
             (make.title.as_str(), make.base_dir.as_str()),
-            ("Make", "/demo/ct Make")
+            ("Make", abs("/demo/ct Make").as_str())
         );
         assert_eq!(make.book_extensions, [".pdf"]);
         assert!(r.notes.is_empty());
@@ -304,10 +322,10 @@ mod tests {
 
     #[test]
     fn notes_for_missing_dirs_and_duplicates() {
-        let existing = parse(&fixture("/demo"), "c", &[], &|_| true)
+        let existing = parse(&fixture(&abs("/demo")), "c", &[], &|_| true)
             .unwrap()
             .categories;
-        let r = parse(&fixture("/demo"), "c", &existing[..1], &|d| {
+        let r = parse(&fixture(&abs("/demo")), "c", &existing[..1], &|d| {
             d.ends_with("comics")
         })
         .unwrap();
@@ -333,7 +351,7 @@ mod tests {
                               { "width": 300, "height": 450 } ] },
             "nonsense"
         ] }"#;
-        let r = parse(text, "c", &[], &|_| true).unwrap();
+        let r = parse(&json(text), "c", &[], &|_| true).unwrap();
         assert_eq!(r.categories.len(), 1);
         let c = &r.categories[0];
         assert_eq!(c.book_extensions, [".cbr"]);
@@ -369,6 +387,7 @@ mod tests {
         let text = format!(
             r#"{{ "categories": [ {{ "title": "{title}", "baseDir": "/a", "bookExtensions": [".cbz", {exts}] }} ] }}"#
         );
+        let text = json(&text);
         assert!(text.len() < MAX_BYTES as usize);
         let r = parse(&text, "c", &[], &|_| true).unwrap();
         assert_eq!(r.categories.len(), 1);
@@ -386,14 +405,14 @@ mod tests {
     fn respects_the_category_limit_and_duplicates_in_the_file() {
         // review 002 #8
         let one = r#"{ "title": "x", "baseDir": "/a", "bookExtensions": [".cbz"] }"#;
-        let text = format!(r#"{{ "categories": [ {one}, {one} ] }}"#);
+        let text = json(&format!(r#"{{ "categories": [ {one}, {one} ] }}"#));
         let r = parse(&text, "c", &[], &|_| true).unwrap();
         let codes: Vec<_> = r.notes.iter().map(|n| (n.index, n.code)).collect();
         assert_eq!(codes, [(Some(1), NoteCode::Duplicate)]);
 
         let existing: Vec<Category> = (0..categories::MAX_CATEGORIES - 1)
             .map(|i| Category {
-                base_dir: format!("/e{i}"),
+                base_dir: abs(&format!("/e{i}")),
                 ..r.categories[0].clone()
             })
             .collect();
@@ -404,7 +423,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join(",");
         let r = parse(
-            &format!(r#"{{ "categories": [ {many} ] }}"#),
+            &json(&format!(r#"{{ "categories": [ {many} ] }}"#)),
             "c",
             &existing,
             &|_| true,
@@ -438,7 +457,8 @@ mod tests {
             FsErrorCode::InvalidLegacyConfig
         );
         let ok = dir.path().join("config-mac.json");
-        let root = dir.path().to_string_lossy().into_owned();
+        // `/` also separates on Windows – and needs no escaping inside the JSON text
+        let root = dir.path().to_string_lossy().replace('\\', "/");
         std::fs::create_dir(dir.path().join("comics")).unwrap();
         std::fs::write(&ok, fixture(&root)).unwrap();
         let r = import_file(&ok, &[]).unwrap();

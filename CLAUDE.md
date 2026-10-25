@@ -47,6 +47,9 @@
   `Mod+Shift+B`), Bücher auf Holzböden wie die iBooks-Fotos (`shelf-math.ts`, `shelf.css`, `ShelfBackdrop` im
   Scroll-Viewport der Table), Holz-Fragmente aus `Bookshelf.psd` (`scripts/shelf-slices.py`), optischer Abgleich
   `scripts/shelf-compare.py`. Design: `prompts/done/015-regalansicht.design.md`.
+- **Prompt 012 (Release) zum Teil**: eine Version (`scripts/version.mjs`), Release-Notes, `THIRD-PARTY-NOTICES.txt`
+  (`scripts/notices.mjs`, im Paket), Pakete je OS, Workflows `.github/workflows/ci.yml` + `release.yml` (Entwurf per
+  Tag `v*`, Signierung vorbereitet), `docs/release.md`. Offen: Dateizuordnung (E1), Updater (E2), `docs/licenses.md`.
 - Als Nächstes: **009** (Einstellungen, i18n). Reihenfolge und Status: `prompts/README.md`.
 - **Fachliche Vorlage/SOLL:** `docs/legacy-analysis.md` („legacy §N“) – Analyse von comiccommander. Abweichungen
   (Desktop statt Server, Cache nicht in die Comic-Ordner, kein Shell-Aufruf, natürliche Sortierung) sind dort in §10
@@ -65,11 +68,13 @@
 | Frontend-Tests | `pnpm test` (Vitest + jsdom über `ng test`), `pnpm test:watch` |
 | Lint / Format | `pnpm lint`, `pnpm format`, `pnpm format:check` |
 | Frontend-Build | `pnpm build` |
-| Rust | `pnpm rust:fmt`, `pnpm rust:lint` (clippy `-D warnings`), `pnpm rust:test` |
+| Rust | `pnpm rust:fmt`, `pnpm rust:lint` (clippy `-D warnings`), `pnpm rust:test`; `pnpm rust:cross` = clippy für Windows/macOS vom Linux-Container aus (nur Typprüfung, `scripts/cross-check.sh`) |
 | Alles prüfen | `pnpm check` |
 | Debug-App ohne Bundle | `pnpm tauri build --debug --no-bundle` → `src-tauri/target/debug/comic-commander-tauri` |
 | Icons neu erzeugen | `pnpm tauri icon src-tauri/icons/source/app-icon.svg -o src-tauri/icons` (danach `android/`, `ios/` löschen) |
-| Release-Build | `pnpm tauri build` (Signierung/Notarisierung: Prompt 012) |
+| Version | `pnpm version:check`, `pnpm version:set X.Y.Z` (Quelle `package.json`), `pnpm release:notes` |
+| Lizenzhinweise | `pnpm notices` schreibt `THIRD-PARTY-NOTICES.txt` (nach jeder Abhängigkeitsänderung; `pnpm check` prüft per `notices:check`) |
+| Release-Build | `pnpm tauri build`; Release über GitHub Actions: Tag `vX.Y.Z` → Entwurf (`.github/workflows/release.yml`, `docs/release.md`) |
 
 Nicht ausführbare Checks im Abschlussbericht mit Grund nennen. `pnpm tauri dev` braucht ein Fenster – in einer
 Container-Sitzung ohne Display: Debug-Build und die Binary unter `Xvfb` starten (Screenshot mit
@@ -162,7 +167,9 @@ src-tauri/                    Rust (Tauri 2), Crate `comic-commander-tauri`, Lib
                               logo-5farbig.svg mittig, 560 px hoch)
 docs/                         architecture.md (Entscheidungen, DTOs, Commands, Messungen, Abhängigkeiten),
                               legacy-analysis.md (Vorlage comiccommander)
-scripts/                      shelf-slices.py (Holz-Fragmente aus der PSD), shelf-compare.py (Abgleich mit Fotos) – 015
+scripts/                      shelf-slices.py (Holz-Fragmente aus der PSD), shelf-compare.py (Abgleich mit Fotos) – 015;
+                              version.mjs, release-notes.mjs, notices.mjs (+ notices/, Tests *.test.mjs) – 012
+.github/workflows/            ci.yml (Checks, Rust auf 3 OS), release.yml (Pakete je OS → Release-Entwurf) – 012
 prompts/                      Feature-Prompts (Index README.md, Regeln 000-arbeitsweise.md), done/
 ```
 

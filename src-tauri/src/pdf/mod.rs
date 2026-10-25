@@ -178,7 +178,7 @@ impl PdfBook {
         // white background: every pixel is opaque, premultiplied = straight
         let rgba = pixmap.data_as_u8_slice();
         let mut rgb = Vec::with_capacity(pw as usize * ph as usize * 3);
-        for px in rgba.chunks_exact(4) {
+        for px in rgba.as_chunks::<4>().0 {
             rgb.extend_from_slice(&px[..3]);
         }
         RgbImage::from_raw(pw, ph, rgb).ok_or_else(|| broken("bad render size", &self.path))
