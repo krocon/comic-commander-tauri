@@ -1,4 +1,4 @@
-Bookshelf wood texture (src/assets/shelf/: wall.webp, board.webp, upright.webp)
+Bookshelf wood texture (src/assets/shelf/: wall2.webp, board.webp, upright.webp)
 
 The wood grain of the shelf look is derived from the raw wood texture of the PSD that comes
 with the tutorial "Create an iBook Inspired Bookshelf Mock-up" by Thoriq Firdaus, Naldz
