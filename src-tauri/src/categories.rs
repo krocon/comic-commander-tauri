@@ -373,11 +373,20 @@ pub fn save(config_dir: &Path, cfg: &CategoriesConfig) -> Result<CategoriesConfi
 mod tests {
     use super::*;
 
+    /// A Unix-style absolute test path; on Windows on drive C: (`/x` is not absolute there).
+    fn abs(p: &str) -> String {
+        if cfg!(windows) && p.starts_with('/') {
+            format!("C:{p}")
+        } else {
+            p.to_owned()
+        }
+    }
+
     fn cat(base_dir: &str, exts: &[&str]) -> Category {
         Category {
             id: String::new(),
             title: String::new(),
-            base_dir: base_dir.into(),
+            base_dir: abs(base_dir),
             book_extensions: exts.iter().map(|e| (*e).to_owned()).collect(),
             icon: String::new(),
             thumbs_dims: Vec::new(),

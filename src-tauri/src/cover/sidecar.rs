@@ -84,10 +84,13 @@ mod tests {
         let names: Vec<String> = c
             .iter()
             .map(|p| {
+                // joined with `/` on every OS (Windows separates with `\`)
                 p.strip_prefix(d.path())
                     .unwrap()
-                    .to_string_lossy()
-                    .into_owned()
+                    .iter()
+                    .map(|c| c.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/")
             })
             .collect();
         assert_eq!(
