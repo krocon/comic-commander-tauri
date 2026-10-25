@@ -298,16 +298,29 @@ describe('Reader', () => {
     await press('ArrowRight');
     await press('ArrowRight');
     expect(el.querySelector('.count')!.textContent!.trim()).toBe('3 / 10');
-    await press('s');
-    const view = el.querySelector('.view.continuous') as HTMLElement;
-    const tops: number[] = [];
-    Object.defineProperty(view, 'scrollTop', {
-      get: () => tops.at(-1) ?? 0,
-      set: (v: number) => void tops.push(v),
-    });
-    await wait(40);
-    fixture.detectChanges();
-    // fit width 800: every page 1200 high + gap → page 3 starts at 2 × 1204
-    expect(tops).toEqual([2408]);
+    // the reader places the strip in an animation frame; the test runs the frames itself, after
+    // it watches scrollTop of the new element (a frame of jsdom could come first on a slow CI)
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((cb) => frames.push(cb));
+    try {
+      await press('s');
+      const view = el.querySelector('.view.continuous') as HTMLElement;
+      const tops: number[] = [];
+      Object.defineProperty(view, 'scrollTop', {
+        get: () => tops.at(-1) ?? 0,
+        set: (v: number) => void tops.push(v),
+      });
+      for (let i = 0; i < 5 && frames.length > 0; i++) {
+        frames.splice(0).forEach((f) => f(performance.now()));
+        await wait();
+        fixture.detectChanges();
+      }
+      // fit width 800: every page 1200 high + gap → page 3 starts at 2 × 1204
+      expect(tops).toEqual([2408]);
+    } finally {
+      raf.mockRestore();
+    }
   });
 });
