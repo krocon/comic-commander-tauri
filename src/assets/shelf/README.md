@@ -18,8 +18,8 @@ Die Dateien liegen in doppelter Auflösung vor und werden in halber Größe geze
   Vorschau `img_3.png`) liefert die rohe Holztextur (Smart-Objekt `wood (right).psb`). Aus ihr kommt nur die
   **Maserung**: Helligkeit geteilt durch ihr weiches Mittel, Kontrast angepasst. Eine Lizenz für die PSD nennt die
   Seite nicht (Stand 24.10.2026). Freigabe für die Nutzung: Marc Kronberg, 24.10.2026.
-- **Maße und Farben:** gemessen an den Fotos des iBooks-Regals (iPad, 2010; `img.png`, `img_2.png`, Newsstand
-  `img_1.png`). Übernommen sind nur Zahlen (Breiten, Höhen, Farbwerte; Tabelle „Aufbau“ in
+- **Maße und Farben:** gemessen an den Fotos des iBooks-Regals (iPad, 2010; `shelf.png`, `img_2.png`, Newsstand
+  `view.png`). Übernommen sind nur Zahlen (Breiten, Höhen, Farbwerte; Tabelle „Aufbau“ in
   `prompts/done/015-regalansicht.md`), keine Pixel.
 
 Referenzbilder liegen bei Prompt 015 (`prompts/done/015-screenshots/`); die PSD (24 MB) ist nicht im Repo

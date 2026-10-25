@@ -15,11 +15,11 @@
 | E2 | Holz unter der Table | **eigene Ebene `ShelfBackdrop` (reines DOM) unter der transparenten Table**, nicht je Zelle. Rückwand und Seitenwände über `background-position-y = −scrollTop`, Böden als Zeilen-Pool nur für den sichtbaren Teil (`visibleShelves`). Die Table setzt ihre Zellen synchron im `scroll`-Ereignis (`adjustAfterScrolling`) und gibt im selben Task `GeScrollEvent` aus; dort ruft das Grid `syncBackdrop()` → Holz und Bücher bewegen sich im selben Frame. Keine Nähte, leere Böden bis zum Fensterende. Kein Eingriff in die Table nötig |
 | E3 | Fragmente | **Maserung aus der rohen Holztextur der PSD** (Smart-Objekt `wood (right).psb`, ohne eingebackenes Licht) statt Ausschnitten aus `img_3.png`. Der Generator teilt die Helligkeit durch ihr weiches Mittel (Detail ≈ 1), bringt den Kontrast auf die Werte der iBooks-Fotos (Standardabweichung gemessen) und legt das Detail auf die **gemessenen Farben**. Licht und Schatten (Abdunklung zu den Seitenwänden, Schatten unter den Böden, Kontaktschatten) sind CSS-Verläufe in px – passen so bei jeder Breite und Zeilenhöhe. WebP in 2x-Auflösung, zusammen ≈ 41 KiB |
 | E4 | Skalierung | Holzmaße gelten für Cover 100 px breit; größere Cover skalieren das Holz mit `s = clamp(coverW / 100, 1, 1.6)` (200-px-Cover: Böden 45 px statt 28 px – kräftig, aber nicht klobig) |
-| E5 | Buchrücken | **immer der Falz links** (wie die Bücher in `img.png`), gemessen aus `img_2` x 42–53 als Verlauf. Die Hefte in `img_1.png` (ohne Falz) bleiben eine Folge-Idee – die Seitenzahl ist beim Zeichnen nicht bekannt |
+| E5 | Buchrücken | **immer der Falz links** (wie die Bücher in `shelf.png`), gemessen aus `img_2` x 42–53 als Verlauf. Die Hefte in `view.png` (ohne Falz) bleiben eine Folge-Idee – die Seitenzahl ist beim Zeichnen nicht bekannt |
 | E6 | Spalten | wie die Fotos: Außenrand 42 px, Cover in Originalgröße (nicht gestreckt), Mindestabstand **0,44 × Coverbreite**, Rest gleich verteilt, erste und letzte Spalte bündig → 1024 px: 6 Spalten/Abstand 68, 768 px: 5/46 (beide Fotos exakt; der Prompt nannte für 768 irrtümlich 4 – `img_2` zeigt nur 4 Bücher, das Raster hat 5 Plätze) |
 | E7 | Table-Zellen | Zellbreite = `floor(Fensterbreite / Spalten)` (ganze px – die Table zählt `floor(width / coverWidth)` Spalten), Zeilenhöhe = 20 + Cover + 6 + 16; das Buch sitzt **in seiner Zelle** an der Foto-Position (`bookLeft`), damit Klicks die richtige Kachel treffen (Spec prüft „Buch liegt in der Zelle“ für viele Breiten) |
 | E8 | Echtes Seitenverhältnis | Thumbnails sind „fit inside“ (003), das Seitenverhältnis kennt erst das geladene Bild: der Renderer passt das Buch beim `load` ein (`fitCover`, auch vergrößernd) und merkt sich die Größe je URL (≤ 20 000) → jede weitere Zeichnung hat sofort die richtige Größe, kein Flackern beim Scrollen |
-| E9 | Buch ohne Cover | Leineneinband (`--shelf-linen`) mit Etikett: Titel = Name ohne Endung, unten das Format statt des Autors – wie die beigen Bücher in `img.png`; nur `textContent` |
+| E9 | Buch ohne Cover | Leineneinband (`--shelf-linen`) mit Etikett: Titel = Name ohne Endung, unten das Format statt des Autors – wie die beigen Bücher in `shelf.png`; nur `textContent` |
 | E10 | Hell/dunkel | das Regal ist in beiden Schemata gleich (die Fotos); Tokens `--shelf-*` nur in `:root`. Toolbar, Menüs, Badges folgen dem Schema |
 | E11 | Fokus | zweifarbig: 3 px weißer Rahmen + 2 px dunkelblauer Ring außen (`--shelf-focus`, `--shelf-focus-ring`) – auf hellem und dunklem Holz und jedem Cover sichtbar |
 | E12 | Umschalten | Aktionen `view.look.grid`/`view.look.shelf` (Radio im Menü „View“, `checked`) und `view.look.toggle` (**`Mod+Shift+B`**, frei in allen Keymaps); in der Toolbar eine zweite Radiogruppe (`fa-th`/`fa-book`, APG-Pfeiltasten) neben den Ansichten; Live-Region sagt „Grid“/„Shelf“ |
@@ -50,7 +50,7 @@ und `shelf.css`.
 
 ## Tests
 
-- `shelf-math.spec.ts`: Spalten/Abstände/Positionen exakt wie `img.png` (42, 210, … 882) und `img_2.png`
+- `shelf-math.spec.ts`: Spalten/Abstände/Positionen exakt wie `shelf.png` (42, 210, … 882) und `img_2.png`
   (42, 188, … 626), Buch in seiner Zelle (7 Breiten × 3 Größen), schmal, Skalierung, `geometry`, `visibleShelves`,
   `fitCover`.
 - `cover-renderer.spec.ts`: Regal-DOM, Größe nach `load` + Merken, Buch ohne Cover (Escaping), Fehler → Leinen,

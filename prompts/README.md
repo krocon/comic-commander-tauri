@@ -44,6 +44,6 @@ in beliebiger Reihenfolge, 008 → 009, dann 010–013.
 - Serien-Heuristik mit Marcs echter Namensliste nachschärfen (011, Katalog `book-info.cases.json`); ComicInfo auch
   aus PDF-Metadaten (Title/Author); „Im Finder zeigen“ für Ordnerkacheln (neuer Command, 011 E6).
 - Kürzel-Editor (008 E2 → 009) und ein Hilfe-Menü auf macOS mit Link auf das Repo.
-- Regal: Hefte ohne Buchrücken wie die Zeitschriften in `img_1.png` (015 E5), Regal-Standard global in den
+- Regal: Hefte ohne Buchrücken wie die Zeitschriften in `view.png` (015 E5), Regal-Standard global in den
   Einstellungen (015 E1 → 009).
 - Lesefortschritt synchronisieren (z. B. über eine Datei im Kategorie-Ordner) – nur nach Entscheidung zu legacy §10.2.

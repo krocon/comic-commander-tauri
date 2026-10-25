@@ -28,7 +28,7 @@ Die Fotos sind Referenz, nicht Spielraum: Wo dieser Prompt und ein Foto auseinan
 Quell-PSD `Bookshelf.psd` (Naldz Graphics, <https://naldzgraphics.net/how-to-create-an-ibook/>; 24 MB, nur lokal). Ausschnitte daraus dürfen als
 Bildfragmente in die App (Marc, 24.10.2026); Herkunft in `docs/architecture.md` vermerken.
 
-### Aufbau (aus `img_2.png`, `img.png` gemessen; Cover 100 × 150 px, 1×)
+### Aufbau (aus `img_2.png`, `shelf.png` gemessen; Cover 100 × 150 px, 1×)
 
 ```
  ┌──┬──────────────────────────────────────────────┬──┐  ← schwebende Toolbar wirkt wie der oberste Boden
@@ -65,7 +65,7 @@ Farbkorrektur im Generator, nicht per CSS-Filter zur Laufzeit).
 1. **Umschalten**: Aktionen `view.look.grid`, `view.look.shelf` (prüfbar, `checked`) und `view.look.toggle` im
    `action-catalog.ts`; Kürzel in `keymap.base.json` (Vorschlag `Mod+Shift+b`, auf Konflikte prüfen); Menü „View“
    (nativ + HTML, 008), Befehlspalette; **Umschalt-Knopfpaar in der schwebenden Toolbar** (Raster-/Listen-Symbol wie
-   oben rechts in `img.png`, als Radiogruppe nach APG).
+   oben rechts in `shelf.png`, als Radiogruppe nach APG).
 2. **Gemerkt** im Ansichtszustand (`view-state.ts` → v3, v2 liest sich als `grid`) – je Kategorie oder global (E1).
    Der Wechsel behält Cursor-Buch und oberstes sichtbares Buch (Ids, 004 E10).
 3. **Layout als reine Funktion** (`shelf-math.ts` oder in `grid-math.ts`): aus Fensterbreite, Cover-Größe und
@@ -96,7 +96,7 @@ Farbkorrektur im Generator, nicht per CSS-Filter zur Laufzeit).
    `box-shadow`/Pseudoelementen (kein `filter: drop-shadow` je Cover, falls die Messung ruckelt). Fortschrittsbalken,
    Fokusrahmen, Gruppenstapel, Anzahl und Name liegen **am Buch**, nicht an der Zelle. Bis das Bild geladen ist: Box im
    Seitenverhältnis der Thumb-Stufe.
-7. **Buch ohne Cover** (Fehler, noch nicht erzeugt) wie die beigen Bücher in `img.png`: Leineneinband (`#ddcfa2`,
+7. **Buch ohne Cover** (Fehler, noch nicht erzeugt) wie die beigen Bücher in `shelf.png`: Leineneinband (`#ddcfa2`,
    feine Struktur), oben ein helles Etikett mit dem Titel (Name ohne Endung, Serifenschrift, zentriert, max. 4 Zeilen),
    unten klein das Format (CBZ …) an der Stelle des Autors. Nur `textContent`.
 8. **Gruppen** (Serie/Ordner, 011) als Buch mit 2 versetzten Kanten dahinter (Stapel), Anzahl-Badge, Name auf dem
@@ -114,7 +114,7 @@ Farbkorrektur im Generator, nicht per CSS-Filter zur Laufzeit).
 
 Vor dem Freigabe-Halt eine **statische HTML-Attrappe** (`015-shelf-mock.html`, nutzt die erzeugten Fragmente
 und das geplante CSS, Test-Cover 100 × 150 + 2 Bücher ohne Cover) bei **768 × 1024** und **1024 × 768** rendern
-(Playwright/Chromium im Container) und **nebeneinander mit `img_2.png` bzw. `img.png`** als Bild ins Design-Dokument
+(Playwright/Chromium im Container) und **nebeneinander mit `img_2.png` bzw. `shelf.png`** als Bild ins Design-Dokument
 legen. Erst nach Marcs Freigabe der Optik in die App einbauen.
 
 ## Entscheidungsfragen
@@ -124,8 +124,8 @@ legen. Erst nach Marcs Freigabe der Optik in die App einbauen.
   Hintergrund am scrollenden Inhalt mit `background-attachment: local`)? Was gibt die Table her?
 - **E3** Fragmente: welche Schnitte aus `img_3.png`, wie nahtlos gemacht, WebP vs. PNG – Größe und Optik.
 - **E4** Skalierung bei großen Covern: Holzmaße mitwachsen (`s` oben) oder fest bleiben?
-- **E5** Buchrücken-Falz immer (Bücher, `img.png`) oder für dünne Hefte nur Schatten wie die Zeitschriften in
-  `img_1.png` (z. B. abhängig von der Seitenzahl, wenn bekannt)?
+- **E5** Buchrücken-Falz immer (Bücher, `shelf.png`) oder für dünne Hefte nur Schatten wie die Zeitschriften in
+  `view.png` (z. B. abhängig von der Seitenzahl, wenn bekannt)?
 
 ## Tests
 
@@ -141,10 +141,10 @@ legen. Erst nach Marcs Freigabe der Optik in die App einbauen.
 ## Akzeptanzkriterien
 
 - [ ] Knopf, Menüpunkt, Befehlspalette und Kürzel schalten zwischen Raster und Regal; der Menüpunkt zeigt den Zustand.
-- [ ] Bei 768 × 1024 und 1024 × 768 mit Covern 100 × 150 ist die App neben `img_2.png`/`img.png` gelegt **kaum zu
-      unterscheiden**: Seitenwände, Holzmaserung, Böden mit Oberseite, Lichtkante und Schatten, 5 bzw. 6 Plätze je
-      Boden mit Falz und Schatten; der optische Abgleich ist grün.
-- [ ] Bücher ohne Cover sehen aus wie die beigen Bücher in `img.png` (mit dem eigenen Titel).
+- [ ] Bei 768 × 1024 und 1024 × 768 mit Covern 100 × 150 ist die App neben `img_2.png`/`shelf.png` gelegt **kaum zu
+  unterscheiden**: Seitenwände, Holzmaserung, Böden mit Oberseite, Lichtkante und Schatten, 5 bzw. 6 Plätze je
+  Boden mit Falz und Schatten; der optische Abgleich ist grün.
+- [ ] Bücher ohne Cover sehen aus wie die beigen Bücher in `shelf.png` (mit dem eigenen Titel).
 - [ ] Keine Nähte in Rückwand oder Böden, auch nicht beim Scrollen und auf Retina; leere Böden bis zum Fensterende.
 - [ ] Nach dem Umschalten steht dasselbe Buch oben bzw. unter dem Cursor; Neustart stellt die Darstellung wieder her.
 - [ ] Filter, Sortierung, Größe, Serien-/Ordneransicht, Aktionsmenü, Lesen und Lesestand funktionieren im Regal
