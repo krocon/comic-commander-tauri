@@ -1,0 +1,30 @@
+{
+    "version": "1.0.1",
+    "description": "Comic browser with cover thumbnails and a built-in reader (CBZ, CBR, CB7, CBT, PDF)",
+    "homepage": "https://krocon.de/products/comiccommander/",
+    "license": "MIT",
+    "notes": "Needs the Microsoft Edge WebView2 Runtime. The executable is not code-signed.",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_x64-setup.exe#/dl.7z",
+            "hash": "1f4baa5c529b5b615b0cc0ae66b47f1cd61c8c57f6c27d65b1debe7ca374d197"
+        }
+    },
+    "pre_install": "Remove-Item \"$dir\\`$PLUGINSDIR\" -Recurse -Force -ErrorAction SilentlyContinue",
+    "shortcuts": [
+        [
+            "comic-commander-tauri.exe",
+            "Comic Commander"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/krocon/comic-commander-tauri"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v$version/Comic.Commander_$version_x64-setup.exe#/dl.7z"
+            }
+        }
+    }
+}

@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.10.0.schema.json
+# Comic Commander – winget version manifest (distribution/README.md). Before submitting: check the current
+# ManifestVersion in microsoft/winget-pkgs (doc/manifest/schema) and that the identifier is not taken.
+
+PackageIdentifier: MarcKronberg.ComicCommander
+PackageVersion: 1.0.1
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.10.0

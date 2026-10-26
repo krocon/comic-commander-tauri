@@ -1,0 +1,27 @@
+# Maintainer: {{AUR_MAINTAINER}}
+# Comic Commander – binary package from the official .deb (distribution/README.md).
+# Push needs an AUR account with SSH key: git clone ssh://aur@aur.archlinux.org/comic-commander-bin.git,
+# copy PKGBUILD + .SRCINFO, `makepkg --printsrcinfo > .SRCINFO`, `namcap PKGBUILD`, commit, push.
+
+pkgname=comic-commander-bin
+_pkgname=comic-commander
+pkgver=1.0.1
+pkgrel=1
+pkgdesc='Comic browser with cover thumbnails and a built-in reader (CBZ, CBR, CB7, CBT, PDF)'
+arch=('x86_64')
+url='https://krocon.de/products/comiccommander/'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+provides=("${_pkgname}")
+conflicts=("${_pkgname}")
+options=('!strip' '!debug')
+source=("${_pkgname}-${pkgver}.deb::https://github.com/krocon/comic-commander-tauri/releases/download/v${pkgver}/Comic.Commander_${pkgver}_amd64.deb"
+        "LICENSE-${pkgver}::https://raw.githubusercontent.com/krocon/comic-commander-tauri/v${pkgver}/LICENSE")
+noextract=("${_pkgname}-${pkgver}.deb")
+sha256sums=('f7ecb25bde57031e1695e86a7a3fe2452be1d51d1e945b9fbe67ac03f88de4e6'
+            '786cdc49559acade1d3ff493832ec03a03382c3b3ac4ad3dd4b2047b74be1526')
+
+package() {
+  bsdtar -xOf "${_pkgname}-${pkgver}.deb" data.tar.gz | bsdtar -xf - -C "${pkgdir}"
+  install -Dm644 "LICENSE-${pkgver}" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

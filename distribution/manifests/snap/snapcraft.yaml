@@ -1,0 +1,44 @@
+# Comic Commander – snapcraft.yaml, DRAFT (distribution/README.md, section Snap Store). Not built or tested.
+#
+# Repackages the official .deb (built on Ubuntu 22.04 → base core22, GNOME extension provides WebKitGTK 4.1).
+# Steps (Marc, needs snapcraft CLI or Launchpad remote build): register the name `comic-commander` on
+# snapcraft.io (browser), `snapcraft` locally, `snap install --dangerous ./comic-commander_1.0.1_amd64.snap`, test,
+# `snapcraft upload --release=edge …`. Strict confinement: comic folders via the `home`/`removable-media` plugs.
+# Icon: add `icon:` (e.g. snap/gui/comic-commander.png = src-tauri/icons/128x128@2x.png) once the file lives in the repo.
+name: comic-commander
+title: Comic Commander
+version: '1.0.1'
+summary: Comic library browser and reader
+description: |
+  Comic Commander shows your comic library (CBZ, CBR, CB7, CBT, PDF, also ZIP, RAR, 7z and TAR) as a wall of covers
+  or on a wooden bookshelf and opens the books in a built-in reader: single page or continuous, zoom modes, rotation,
+  manga mode and full screen. Comic folders are only read, never written. Free and open source (MIT).
+website: https://krocon.de/products/comiccommander/
+source-code: https://github.com/krocon/comic-commander-tauri
+issues: https://github.com/krocon/comic-commander-tauri/issues
+license: MIT
+grade: stable
+confinement: strict
+base: core22
+architectures:
+  - build-on: amd64
+
+apps:
+  comic-commander:
+    command: usr/bin/comic-commander-tauri
+    desktop: usr/share/applications/Comic Commander.desktop
+    extensions: [gnome]
+    plugs:
+      - home
+      - removable-media
+
+parts:
+  comic-commander:
+    plugin: dump
+    source: https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_amd64.deb
+    source-type: deb
+    source-checksum: sha256/f7ecb25bde57031e1695e86a7a3fe2452be1d51d1e945b9fbe67ac03f88de4e6
+    override-prime: |
+      craftctl default
+      sed -i 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/128x128/apps/comic-commander-tauri.png|' \
+        "usr/share/applications/Comic Commander.desktop"

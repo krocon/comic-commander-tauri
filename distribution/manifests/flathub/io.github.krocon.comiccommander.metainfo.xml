@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata for Comic Commander. Used by Flathub, AppImageHub and Linux software centres.
+     Best place long term: in the app itself (src-tauri, installed to /usr/share/metainfo via bundle.linux.*.files). -->
+<component type="desktop-application">
+  <id>io.github.krocon.comiccommander</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Comic Commander</name>
+  <summary>Comic library browser and reader</summary>
+
+  <developer id="io.github.krocon">
+    <name>Marc Kronberg</name>
+  </developer>
+
+  <description>
+    <p>
+      Comic Commander shows your comic library as a wall of covers or on a wooden bookshelf and opens the books in a
+      built-in reader.
+    </p>
+    <ul>
+      <li>Cover wall grouped by series or folder, with volume count and reading progress</li>
+      <li>Bookshelf view with covers in their real proportions, series as stacks</li>
+      <li>Reader: single page or continuous, zoom modes, rotation, manga mode, full screen</li>
+      <li>CBZ, CBR, CB7, CBT and PDF, also ZIP, RAR, 7z and TAR – recognised by content</li>
+      <li>Metadata from ComicInfo.xml, natural sort order, a keyboard shortcut for every function</li>
+      <li>Comic folders are only read, never written</li>
+    </ul>
+    <p>Use Comic Commander only with comics you are allowed to have.</p>
+  </description>
+
+  <launchable type="desktop-id">io.github.krocon.comiccommander.desktop</launchable>
+  <provides>
+    <binary>comic-commander-tauri</binary>
+  </provides>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Cover wall</caption>
+      <image>https://krocon.de/products/comiccommander/img/grid.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Bookshelf view</caption>
+      <image>https://krocon.de/products/comiccommander/img/shelf.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Reader</caption>
+      <image>https://krocon.de/products/comiccommander/img/view.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://krocon.de/products/comiccommander/</url>
+  <url type="bugtracker">https://github.com/krocon/comic-commander-tauri/issues</url>
+  <url type="vcs-browser">https://github.com/krocon/comic-commander-tauri</url>
+
+  <categories>
+    <category>Graphics</category>
+    <category>Viewer</category>
+  </categories>
+  <keywords>
+    <keyword>comic</keyword>
+    <keyword>manga</keyword>
+    <keyword>cbz</keyword>
+    <keyword>cbr</keyword>
+    <keyword>reader</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.0.1" date="2026-10-25">
+      <url type="details">https://github.com/krocon/comic-commander-tauri/releases/tag/v1.0.1</url>
+    </release>
+  </releases>
+</component>
