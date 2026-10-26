@@ -1,0 +1,74 @@
+{
+  "_comment": "Single source of truth for all distribution entries. Verified 2026-10-26 against the GitHub release v1.0.1 (API: assets + sha256 digests), the downloaded packages and https://krocon.de/products/comiccommander/. Update this file first, then the manifests (see distribution/README.md).",
+  "product": {
+    "name": "Comic Commander",
+    "nameNotes": "Official spelling with a space. 'ComicCommander' only where an identifier without spaces is needed.",
+    "identifier": "io.github.krocon.comiccommander",
+    "version": "1.0.1",
+    "releaseTag": "v1.0.1",
+    "releaseDate": "2026-10-25",
+    "license": "MIT",
+    "licenseUrl": "https://github.com/krocon/comic-commander-tauri/blob/main/LICENSE",
+    "licenseNotes": "App is MIT. Bundled third-party parts incl. unRAR source (unRAR license: extraction only, freeware, not OSI) are listed in THIRD-PARTY-NOTICES.txt inside every package.",
+    "thirdPartyNoticesUrl": "https://github.com/krocon/comic-commander-tauri/blob/main/THIRD-PARTY-NOTICES.txt",
+    "price": "free",
+    "openSource": true,
+    "author": "Marc Kronberg",
+    "publisher": "Marc Kronberg",
+    "copyright": "© 2026 Marc Kronberg",
+    "homepage": "https://krocon.de/products/comiccommander/",
+    "developerWebsite": "https://krocon.de/",
+    "repository": "https://github.com/krocon/comic-commander-tauri",
+    "issues": "https://github.com/krocon/comic-commander-tauri/issues",
+    "releases": "https://github.com/krocon/comic-commander-tauri/releases",
+    "releaseNotesUrl": "https://github.com/krocon/comic-commander-tauri/releases/tag/v1.0.1",
+    "contactPublic": "GitHub issues (https://github.com/krocon/comic-commander-tauri/issues). A personal e-mail address is NOT released for public listings – ask Marc.",
+    "techStack": ["Tauri 2", "Rust", "Angular 22", "TypeScript"],
+    "uiLanguages": ["English"],
+    "uiLanguagesNotes": "German is planned (with the settings), not available yet."
+  },
+  "platforms": {
+    "macos": { "minimum": "macOS 12 Monterey", "architectures": ["arm64", "x86_64"], "package": "universal .dmg", "signed": false, "notarized": false, "gatekeeperNote": "Unsigned: first start via right-click → Open (or System Settings → Privacy & Security → Open Anyway)." },
+    "windows": { "minimum": "Windows 10 or 11", "architectures": ["x64"], "packages": ["NSIS -setup.exe (per user, no admin)", ".msi (WiX, per machine)"], "signed": false, "runtime": "Microsoft Edge WebView2 (the installers download the bootstrapper if missing)", "smartScreenNote": "Unsigned: SmartScreen → More info → Run anyway." },
+    "linux": { "requirements": "WebKitGTK 4.1 (Ubuntu 22.04, Debian 12, Fedora 36 or newer)", "architectures": ["x86_64"], "packages": [".deb", ".rpm", ".AppImage"] }
+  },
+  "packageDetails": {
+    "linuxBinary": "/usr/bin/comic-commander-tauri",
+    "linuxDesktopFile": "/usr/share/applications/Comic Commander.desktop",
+    "linuxIconName": "comic-commander-tauri",
+    "linuxDebPackageName": "comic-commander",
+    "linuxDebDepends": "libwebkit2gtk-4.1-0, libgtk-3-0",
+    "windowsExe": "comic-commander-tauri.exe",
+    "windowsInstallDir": "%ProgramFiles%\\Comic Commander (msi) / per-user dir (NSIS)",
+    "msiProductCode": "{FA2852D9-42C5-40A1-9E4B-99010BD847D9}",
+    "msiUpgradeCode": "{7F69796D-3EDA-5EA5-879F-E390896FF088}",
+    "macAppBundle": "Comic Commander.app"
+  },
+  "assets": [
+    { "os": "macos", "type": "dmg", "arch": "universal", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_universal.dmg", "sha256": "943aa9c06d385423ea9e9884429d215041ca82f3f953cdff06177b2f28d17bdc", "size": 15834398 },
+    { "os": "macos", "type": "app.tar.gz", "arch": "universal", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_universal.app.tar.gz", "sha256": "cedb280ee35f57193cb2187df33a38f347e29d3665f4692ce234468cabc596e8", "size": 15657950, "note": "file name has no version – not suitable as a stable versioned URL" },
+    { "os": "windows", "type": "nsis", "arch": "x64", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_x64-setup.exe", "sha256": "1f4baa5c529b5b615b0cc0ae66b47f1cd61c8c57f6c27d65b1debe7ca374d197", "size": 5746990 },
+    { "os": "windows", "type": "msi", "arch": "x64", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_x64_en-US.msi", "sha256": "f5dc02010f1a27d270b7b0de5893f9bed4ef9a5036203b6b00970ec787035215", "size": 7872512 },
+    { "os": "linux", "type": "deb", "arch": "amd64", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_amd64.deb", "sha256": "f7ecb25bde57031e1695e86a7a3fe2452be1d51d1e945b9fbe67ac03f88de4e6", "size": 8422208 },
+    { "os": "linux", "type": "rpm", "arch": "x86_64", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander-1.0.1-1.x86_64.rpm", "sha256": "b7ef7621928c5f89fe13764713ed62812a4bcb05fe2240c1b3f62344268ce40a", "size": 8427764 },
+    { "os": "linux", "type": "AppImage", "arch": "x86_64", "url": "https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_amd64.AppImage", "sha256": "eb365bd80421a6da76add696b295b6ac04c50a83bbf15f91c7209921d601914a", "size": 86374904 }
+  ],
+  "images": {
+    "icon": "https://raw.githubusercontent.com/krocon/comic-commander-tauri/main/src-tauri/icons/icon.png",
+    "icon256": "https://raw.githubusercontent.com/krocon/comic-commander-tauri/main/src-tauri/icons/128x128@2x.png",
+    "iconSvgSource": "https://github.com/krocon/comic-commander-tauri/blob/main/src-tauri/icons/source/app-icon.svg",
+    "screenshots": [
+      { "url": "https://krocon.de/products/comiccommander/img/grid.png", "caption": "Cover wall" },
+      { "url": "https://krocon.de/products/comiccommander/img/shelf.png", "caption": "Bookshelf view" },
+      { "url": "https://krocon.de/products/comiccommander/img/view.png", "caption": "Reader" }
+    ],
+    "imagesNote": "Screenshot URLs are linked from the product page; the agent must open each once and confirm it loads before using it."
+  },
+  "unknown": [
+    "Download counts / user numbers (do not state any)",
+    "Code signing (macOS Developer ID + notarization, Windows certificate) – not set up as of v1.0.1",
+    "ARM64 builds for Windows and Linux – not built",
+    "Auto-update – not available",
+    "File associations (.cbz etc.) – not registered yet"
+  ]
+}

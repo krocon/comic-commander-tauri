@@ -1,0 +1,48 @@
+# Comic Commander – Flatpak manifest, DRAFT for local testing (distribution/README.md, section Flathub).
+#
+# This draft repackages the official .deb. Flathub reviewers usually ask open-source apps to build from source
+# (Tauri: cargo-sources.json via flatpak-cargo-generator + offline Node sources – check whether
+# flatpak-node-generator supports this repo's pnpm lockfile). So: test locally first
+#   flatpak-builder --user --install --force-clean build io.github.krocon.comiccommander.yml
+# and only then open the submission PR against flathub/flathub (branch new-pr) – after Marc agrees.
+#
+# Runtime: set to the GNOME runtime version Flathub currently supports (check flathub.org / `flatpak remote-ls`).
+app-id: io.github.krocon.comiccommander
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: comic-commander-tauri
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Comic folders are only read (CLAUDE.md §4). Folders picked in the dialog outside these paths come via the portal.
+  - --filesystem=home:ro
+  - --filesystem=/media:ro
+  - --filesystem=/run/media:ro
+  - --filesystem=/mnt:ro
+  # "Show in file manager" (platform/desktop.rs, D-Bus FileManager1)
+  - --talk-name=org.freedesktop.FileManager1
+modules:
+  - name: comic-commander
+    buildsystem: simple
+    sources:
+      - type: file
+        dest-filename: comic-commander.deb
+        url: https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_amd64.deb
+        sha256: f7ecb25bde57031e1695e86a7a3fe2452be1d51d1e945b9fbe67ac03f88de4e6
+        only-arches: [x86_64]
+      - type: file
+        path: io.github.krocon.comiccommander.metainfo.xml
+    build-commands:
+      - ar -x comic-commander.deb
+      - tar -xf data.tar.gz
+      - install -Dm755 usr/bin/comic-commander-tauri /app/bin/comic-commander-tauri
+      - install -Dm644 "usr/lib/Comic Commander/THIRD-PARTY-NOTICES.txt" "/app/lib/Comic Commander/THIRD-PARTY-NOTICES.txt"
+      - install -Dm644 "usr/share/applications/Comic Commander.desktop" /app/share/applications/io.github.krocon.comiccommander.desktop
+      - desktop-file-edit --set-icon=io.github.krocon.comiccommander /app/share/applications/io.github.krocon.comiccommander.desktop
+      - install -Dm644 usr/share/icons/hicolor/32x32/apps/comic-commander-tauri.png /app/share/icons/hicolor/32x32/apps/io.github.krocon.comiccommander.png
+      - install -Dm644 usr/share/icons/hicolor/128x128/apps/comic-commander-tauri.png /app/share/icons/hicolor/128x128/apps/io.github.krocon.comiccommander.png
+      - install -Dm644 usr/share/icons/hicolor/256x256@2/apps/comic-commander-tauri.png /app/share/icons/hicolor/256x256/apps/io.github.krocon.comiccommander.png
+      - install -Dm644 io.github.krocon.comiccommander.metainfo.xml /app/share/metainfo/io.github.krocon.comiccommander.metainfo.xml

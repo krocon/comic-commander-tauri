@@ -1,0 +1,21 @@
+pkgbase = comic-commander-bin
+	pkgdesc = Comic browser with cover thumbnails and a built-in reader (CBZ, CBR, CB7, CBT, PDF)
+	pkgver = 1.0.1
+	pkgrel = 1
+	url = https://krocon.de/products/comiccommander/
+	arch = x86_64
+	license = MIT
+	depends = webkit2gtk-4.1
+	depends = gtk3
+	depends = hicolor-icon-theme
+	provides = comic-commander
+	conflicts = comic-commander
+	noextract = comic-commander-1.0.1.deb
+	options = !strip
+	options = !debug
+	source = comic-commander-1.0.1.deb::https://github.com/krocon/comic-commander-tauri/releases/download/v1.0.1/Comic.Commander_1.0.1_amd64.deb
+	source = LICENSE-1.0.1::https://raw.githubusercontent.com/krocon/comic-commander-tauri/v1.0.1/LICENSE
+	sha256sums = f7ecb25bde57031e1695e86a7a3fe2452be1d51d1e945b9fbe67ac03f88de4e6
+	sha256sums = 786cdc49559acade1d3ff493832ec03a03382c3b3ac4ad3dd4b2047b74be1526
+
+pkgname = comic-commander-bin

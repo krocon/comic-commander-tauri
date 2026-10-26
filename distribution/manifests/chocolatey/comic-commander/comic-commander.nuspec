@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Comic Commander – Chocolatey community package (distribution/README.md).
+     {{CHOCOLATEY_USERNAME}}: Marc's Chocolatey account name – fill in before `choco pack`, never guess.
+     Push needs the choco CLI + API key on a Windows machine (choco pack, then choco push with source https://push.chocolatey.org/). -->
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>comic-commander</id>
+    <version>1.0.1</version>
+    <packageSourceUrl>https://github.com/krocon/comic-commander-tauri/tree/main/distribution/manifests/chocolatey</packageSourceUrl>
+    <owners>{{CHOCOLATEY_USERNAME}}</owners>
+    <title>Comic Commander</title>
+    <authors>Marc Kronberg</authors>
+    <projectUrl>https://krocon.de/products/comiccommander/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/krocon/comic-commander-tauri/main/src-tauri/icons/128x128@2x.png</iconUrl>
+    <copyright>© 2026 Marc Kronberg</copyright>
+    <licenseUrl>https://github.com/krocon/comic-commander-tauri/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/krocon/comic-commander-tauri</projectSourceUrl>
+    <docsUrl>https://github.com/krocon/comic-commander-tauri#readme</docsUrl>
+    <bugTrackerUrl>https://github.com/krocon/comic-commander-tauri/issues</bugTrackerUrl>
+    <tags>comic comics comic-reader manga cbz cbr cb7 cbt pdf viewer foss</tags>
+    <summary>Comic browser with cover thumbnails and a built-in reader</summary>
+    <description><![CDATA[Comic Commander shows your comic library (CBZ, CBR, CB7, CBT, PDF, also ZIP, RAR, 7z and TAR) as a wall of covers or on a wooden bookshelf and opens the books in a built-in reader: single page or continuous, zoom modes, rotation, manga mode and full screen.
+
+- Series and folder views, metadata from ComicInfo.xml, reading progress per book
+- Archives are recognised by content, not by extension
+- Comic folders are only read, never written; cache and settings live in the app's own folders
+- A keyboard shortcut for every function
+
+Free and open source (MIT). Requires the Microsoft Edge WebView2 Runtime. The installer is not code-signed.
+
+Use Comic Commander only with comics you are allowed to have.]]></description>
+    <releaseNotes>https://github.com/krocon/comic-commander-tauri/releases/tag/v1.0.1</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
