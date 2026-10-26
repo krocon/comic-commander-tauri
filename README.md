@@ -109,7 +109,7 @@ Neuauflage des Comic-Servers *comiccommander* (Angular + NestJS) als Desktop-App
 ## Installation
 
 Pakete für macOS (`.dmg`, Apple Silicon + Intel), Windows (`-setup.exe` ohne Admin-Rechte, `.msi`) und Linux
-(`.deb`, `.rpm`, `.AppImage`) erscheinen unter [Releases](https://github.com/krocon/comic-commander-tauri/releases).
+(`.deb`, `.rpm`, `.AppImage`) gibt es unter [Releases](https://github.com/krocon/comic-commander-tauri/releases).
 Sie sind noch **nicht signiert**: unter macOS die App beim ersten Start mit Rechtsklick → Öffnen starten, unter
 Windows in SmartScreen „Weitere Informationen“ → „Trotzdem ausführen“. Release-Ablauf: [`docs/release.md`](docs/release.md).
 
