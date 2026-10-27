@@ -57,15 +57,29 @@ function git(args) {
   return execFileSync('git', args, { encoding: 'utf8' }).trim();
 }
 
+/**
+ * The tag the notes start from: the last tag before `to`. If `to` itself carries a tag (the release
+ * workflow runs on the tag), that tag is skipped – otherwise the notes of a release would be empty.
+ * `null` = no earlier tag → the whole history.
+ */
+function previousTag(to) {
+  let ref = to;
+  try {
+    git(['describe', '--tags', '--exact-match', to]);
+    ref = `${to}^`;
+  } catch {
+    // `to` is not tagged
+  }
+  try {
+    return git(['describe', '--tags', '--abbrev=0', ref]);
+  } catch {
+    return null;
+  }
+}
+
 function main([from, to = 'HEAD']) {
   let start = from;
-  if (!start) {
-    try {
-      start = git(['describe', '--tags', '--abbrev=0']);
-    } catch {
-      start = null;
-    }
-  }
+  if (!start) start = previousTag(to);
   const range = start ? `${start}..${to}` : to;
   const raw = git(['log', '--no-merges', '--format=%H%x1f%s%x1f%b%x1e', range]);
   const commits = raw

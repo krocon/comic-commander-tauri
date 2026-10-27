@@ -22,12 +22,15 @@ pnpm version:check          # Teil von `pnpm check` und beider Workflows
 
 1. `main` ist grün (Workflow **CI**: Frontend + Rust auf Linux, macOS, Windows).
 2. `pnpm version:set X.Y.Z`, `pnpm check`, Commit `chore: release X.Y.Z`, pushen.
-3. Release Notes: `pnpm release:notes` (Conventional Commits seit dem letzten Tag, gruppiert: Breaking, Features,
-   Fixes, Performance, Doku; `chore`/`test`/`ci` ausgeblendet). Vor dem ersten Tag: die ganze Historie.
+3. Release Notes kommen automatisch: der Workflow ruft `pnpm release:notes` auf (Conventional Commits seit dem
+   vorigen Tag, gruppiert: Breaking, Features, Fixes, Performance, Doku; `chore`/`test`/`ci` ausgeblendet; vor dem
+   ersten Tag die ganze Historie) und hängt `.github/release-footer.md` an (Downloads, unsignierte Pakete,
+   Rechtshinweis). Vorschau lokal: `pnpm release:notes`; steht `HEAD` auf einem Tag, beginnen die Notes beim Tag davor.
 4. Tag pushen – `git tag vX.Y.Z && git push origin vX.Y.Z` – **oder** GitHub → Actions → **Release** → Run workflow.
    Der Workflow prüft, dass Tag und `package.json` übereinstimmen, baut auf drei Runnern und legt einen
    **Entwurf** an (`Comic Commander vX.Y.Z`, Versionen `0.x` als Pre-release).
-5. Pakete aus dem Entwurf installieren und starten (s. „Prüfen“), Notes einfügen, Entwurf veröffentlichen.
+5. Pakete aus dem Entwurf installieren und starten (s. „Prüfen“), Notes im Entwurf prüfen (ggf. eine Einleitung
+   ergänzen), Entwurf veröffentlichen.
 
 Dauer: ca. 15–25 min (macOS universal ist der langsamste Runner). Ein fehlgeschlagener Runner lässt die anderen
 weiterlaufen (`fail-fast: false`); erneut starten über „Re-run failed jobs“.
