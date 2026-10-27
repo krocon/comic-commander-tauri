@@ -32,8 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      notes: ${{ steps.notes.outputs.body }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # history + tags for the release notes
       - name: Versions agree (and match the tag, if any)
         id: v
         run: |
@@ -43,6 +46,21 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$v" ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not match package.json version $v"; exit 1
           fi
+      # Release notes = Conventional Commits since the previous tag (scripts/release-notes.mjs)
+      # + .github/release-footer.md (downloads, unsigned packages, legal note). Check them in the
+      # draft before publishing.
+      - name: Release notes
+        id: notes
+        run: |
+          node scripts/release-notes.mjs > "$RUNNER_TEMP/notes.md"
+          printf '\n' >> "$RUNNER_TEMP/notes.md"
+          cat .github/release-footer.md >> "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo 'body<<EOF_RELEASE_NOTES'
+            cat "$RUNNER_TEMP/notes.md"
+            echo 'EOF_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: check
@@ -146,7 +164,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Comic Commander v__VERSION__
-          releaseBody: "Unsigned preview build unless noted. Release notes: generate with `pnpm release:notes` (docs/release.md) and paste here before publishing.\n\nPlease use Comic Commander only with comics you are allowed to have – scanned from your own books, DRM-free purchases or freely licensed comics."
+          releaseBody: ${{ needs.check.outputs.notes }}
           releaseDraft: ${{ github.event_name != 'workflow_dispatch' || inputs.draft }}
           prerelease: ${{ startsWith(needs.check.outputs.version, '0.') }}
           args: ${{ matrix.args }}
